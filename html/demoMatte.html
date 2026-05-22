@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+<title>Demo</title>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+<script src="../dist/matte.js" defer></script>
+
+<h1>Script mode</h1>
+<i>no width/height</i>
+<matte-ace call="">
+    int i = 0;
+    while(i != 10) {
+    i = i + 1;
+    }
+</matte-ace>
+
+<hr>
+<h1>Independent Function</h1>
+
+<matte-ace width="500" height="250" call="sum({15, 20, 25})">
+int sum(int[] a) {
+    int s = 0;
+    int i = 0;
+    while(i < a.length) {
+        s = s + a[i];
+        i++;
+    }
+    return s;
+}
+</matte-ace>
+
+<hr>
+
+<h1>Dependent Function</h1>
+<matte-ace width="500" height="300" call="isNotDigit(123)">
+boolean isDigit(int n) {
+    return n >= 0 && n <= 9;
+}
+
+boolean isNotDigit(int n) {
+    return !isDigit(n);
+}
+</matte-ace>
+
+<hr>
+
+<h1>Recursive Function</h1>
+<matte-ace width="500" height="300" call="factorial(5)">
+int factorial(int n) {
+    if (n == 0) return 1;
+    else return n * factorial(n - 1);
+}
+</matte-ace>
+
+<hr>
+
+<h1>Procedure (side-effects)</h1>
+<matte-ace id="ex4" width="500" height="300" call="addOne({1,2,3})">
+void addOne(int[] array) {
+    int i = 0;
+    while(i < array.length) {
+        array[i] = array[i] + 1;
+        i = i + 1;
+    }
+}
+</matte-ace>
+
+</body>
+</html>

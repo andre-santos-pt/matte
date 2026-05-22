@@ -1,0 +1,30 @@
+{
+  "name": "matte",
+  "version": "1.0.0",
+  "description": "",
+  "main": "mainMatte.js",
+  "type": "module",
+  "scripts": {
+    "test": "jest",
+    "antlr": "antlr4ts -visitor -o ./src/generated ./JavaGrammar.g4",
+    "lib": "esbuild src/Interpreter.ts --bundle --outfile=dist/bundle.js --format=esm --platform=browser --sourcemap --minify",
+    "pack": "npx esbuild mainMatte.js --bundle --minify --outfile=dist/matte.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "antlr4": "^4.13.2",
+    "antlr4ts": "^0.5.0-alpha.4"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "antlr4ts-cli": "^0.5.0-alpha.4",
+    "assert": "^2.1.0",
+    "esbuild": "^0.27.3",
+    "jest": "^30.4.2",
+    "mocha": "^11.7.5",
+    "ts-jest": "^29.4.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
