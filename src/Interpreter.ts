@@ -3,8 +3,6 @@ import JavaGrammarParser from "./generated/JavaGrammarParser";
 import {
     CharStreams,
     CommonTokenStream,
-    ParserRuleContext,
-    ParseTreeVisitor
 } from "antlr4";
 
 import {
@@ -18,8 +16,6 @@ import {
 import Range from "./Range";
 
 import {parseExpression, parseTreeToAST} from "./antlr2ast";
-import JavaGrammarVisitor from "./generated/JavaGrammarVisitor";
-import assert from "assert";
 
 export function getParser(input: string) {
     const chars = CharStreams.fromString(input);
@@ -38,14 +34,15 @@ interface CompilationError {
     range: Range;
     type: CompilationErrorType;
     message: string;
-    details?: any;
+    detail?: any;
 }
 
 export enum CompilationErrorType {
-    SyntaxError,
-    UndeclaredVariable,
-    TypeMismatch,
-    MethodNotFound
+    SyntaxError= "SYNTAX",
+    UndeclaredVariable = "VAR_NOT_FOUND",
+    DuplicateVariable = "DUP_VAR",
+    TypeMismatch = "TYPE_MISMATCH",
+    MethodNotFound = "METHOD_NOT_FOUND",
 }
 
 interface TraceEntry {
@@ -90,17 +87,21 @@ interface ExpressionEval {
 type Extension = (...args: any[]) => ExpressionEval
 
 export class Interpreter {
-    scope: StackFrame[] = []
-    trace: TraceEntry[] = []
+    private scope: StackFrame[] = []
+    private trace: TraceEntry[] = []
 
-    loopCount = new Map()
-    extensions: Extension[] = []
+    private loopCount = new Map()
+    private extensions: Map<string,Extension> = new Map()
     private readonly maxLoopIterations?: number
     private readonly maxCallStack?: number  // TODO
 
     constructor(maxLoopIterations: number = 100, maxCallStack: number = 100) {
         this.maxLoopIterations = maxLoopIterations
         this.maxCallStack = maxCallStack
+    }
+
+    addExtensionFunction(name: string, extension: Extension) {
+        this.extensions.set(name, extension)
     }
 
     compilationError(type: CompilationErrorType, msg: string, node: ASTNode) {
@@ -176,7 +177,8 @@ export class Interpreter {
                 errors: [{
                     range: e.range,
                     type: e.compilation,
-                    message: e.message
+                    message: e.message,
+                    detail: e.detail
                 }]
             }
         }

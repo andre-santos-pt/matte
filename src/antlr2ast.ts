@@ -90,9 +90,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     if (!proc)
                         throw {
                             compilation: CompilationErrorType.MethodNotFound,
-                            range: Range.fromToken(c._id), // TODO fields
+                            range: Range.fromToken(c._id),
                             message: `No method named '${c._id.text}' found`,
-                            details: last(this.varScope)
+                            detail: {
+                                related: this.procedures.map(p => p.nameRange)
+                            }
                         }
                     proc.body = this.visitMethod(ctx.getChild(i) as MethodContext)
                 }
@@ -128,12 +130,20 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         this.varScope.push(new Map<string, Declaration>())
         let statements: Statement[] = []
         ctx.statement_list().forEach(stmt => statements.push(this.visit(stmt)))
-
         this.varScope.pop()
         return new BlockStatement(Range.fromContext(ctx), statements)
     }
 
     visitDeclaration = (ctx: DeclarationContext) => {
+        if(last(this.varScope).has(ctx._id.text))
+            throw {
+                compilation: CompilationErrorType.DuplicateVariable,
+                range: Range.fromToken(ctx._id),
+                message: `Duplicate variable '${ctx._id}'`,
+                detail: {
+                    related: last(this.varScope).get(ctx._id.text)?.range
+                }
+            }
         const dec = new Declaration(
             Range.fromContext(ctx),
             ctx._id.text,
@@ -150,7 +160,9 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             compilation: CompilationErrorType.UndeclaredVariable,
             range: Range.fromTerminal(ctx.compId().ID(0)), // TODO fields
             message: `Variable ${ctx.compId().ID(0).getText()} not declared`,
-            details: last(this.varScope)
+            detail: {
+                related: [...last(this.varScope).values()].map(d => d.range)
+            }
         }
         const ass = new Assignment(
             Range.fromContext(ctx),
@@ -188,11 +200,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 compilation: CompilationErrorType.UndeclaredVariable,
                 range: Range.fromTerminal(ctx.ID()),
                 message: `Variable ${ctx.getText()} not declared`,
-                details: last(this.varScope)
+                detail: {
+                    related: [... last(this.varScope).values()].map(v => v.range)
+                }
             }
             return new Variable(Range.fromContext(ctx), dec)
+        }
 
-        } else if (ctx instanceof IntExprContext)
+        else if (ctx instanceof IntExprContext)
             return new IntLiteral(
                 Range.fromContext(ctx),
                 Number(ctx.INT().getText())
@@ -242,7 +257,9 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     compilation: CompilationErrorType.MethodNotFound,
                     range: Range.fromToken(ctx.call()._id), // TODO fields
                     message: `No method named '${ctx.call()._id.text}' found`,
-                    details: last(this.varScope)
+                    detail: {
+                        related: this.procedures.map(p => p.nameRange)
+                    }
                 }
             return new CallExpression(
                 Range.fromContext(ctx),

@@ -27,8 +27,6 @@ function script(code: string, cases: Map<string, any>) {
 }
 
 
-
-
 describe('Matte Interpreter Test Script', () => {
     // Group 1: Basic functionality
     describe('Script', () => {
@@ -62,6 +60,15 @@ describe('Matte Interpreter Test Script', () => {
         j = a + 5;
         int z = i + j + 50;
         `, CompilationErrorType.UndeclaredVariable)
+        });
+
+
+        it('var not found exp', () => {
+            compilationError(`
+        int i = 10;
+        int j = i + 5;
+        int i = j + 5;
+        `, CompilationErrorType.DuplicateVariable)
         });
 
 
