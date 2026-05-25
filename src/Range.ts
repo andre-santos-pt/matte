@@ -56,6 +56,25 @@ export default class Range {
         );
     }
 
+    static fromTokenTo(from: {
+        start: number;
+        stop: number;
+        line: number;
+        column: number;
+    }, to: {
+        start: number;
+        stop: number;
+        line: number;
+        column: number;
+    }): Range {
+        return new Range(
+            from.start,
+            to.stop + 1,
+            from.line,
+            to.column
+        );
+    }
+
     isEqual(range: Range): boolean {
         return (
             this.start === range.start &&

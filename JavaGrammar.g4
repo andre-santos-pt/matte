@@ -4,15 +4,15 @@ unit: (class | record | method)+ | script EOF ;
 
 script: statement+ EOF ;
 
-class: modifiers+=ID* CLASS id+=ID+ LCURLY? member* RCURLY?;
+class: CLASS id+=ID+ LCURLY? member* RCURLY?;
 
 record: RECORD id=ID LPAREN params RPAREN LCURLY member* RCURLY;
 
 member: method | field;
 
-field: modifiersAndType+=ID+ id=ID (ASSIGN expression=exp)? TERM?;
+field: type=ID id=ID (ASSIGN expression=exp)? TERM?;
 
-method: modifiersAndType+=ID* arrayDim* id=ID LPAREN params? RPAREN LCURLY statement* RCURLY? ;
+method: type=ID arrayDim* id=ID LPAREN params? RPAREN LCURLY statement* RCURLY? ;
 
 //constructor: modifiers+=ID* id=ID LPAREN params? RPAREN LCURLY? statement* RCURLY?;
 

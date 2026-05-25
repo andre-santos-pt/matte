@@ -4,9 +4,11 @@ import Range from "./Range";
 
 
 export class Program {
-    block: BlockStatement;
-    constructor(block: BlockStatement) {
+    block?: BlockStatement;
+    procedures: Procedure[] = [];
+    constructor(block?: BlockStatement, procedures: Procedure[] = []) {
         this.block = block;
+        this.procedures = procedures;
     }
 }
 
@@ -15,15 +17,34 @@ export abstract class ASTNode {
     constructor(range?: Range) { this.range = range; }
 }
 
+export class Procedure extends ASTNode {
+    name: string;
+    nameRange: Range;
+    parameters: Declaration[];
+    returnType?: string;
+    body?: BlockStatement;
+
+    constructor(range: Range, name: string, nameRange: Range, parameters: Declaration[], returnType?: string, body?: BlockStatement) {
+        super(range);
+        this.name = name;
+        this.nameRange = nameRange;
+        this.parameters = parameters;
+        this.returnType = returnType;
+        this.body = body;
+    }
+}
+
 export abstract class Statement extends ASTNode { }
 
 export class Declaration extends Statement {
     name: string;
-    initializer: Expression | null;
-    constructor(range: Range, name: string, initializer: Expression | null) {
+    initializer?: Expression;
+    type?: string;
+    constructor(range: Range, name: string, type?: string, initializer?: Expression) {
         super(range);
         this.name = name;
         this.initializer = initializer;
+        this.type = type;
     }
 }
 
@@ -66,6 +87,14 @@ export class WhileStatement extends Statement {
         super(range);
         this.guard = condition;
         this.body = body;
+    }
+}
+
+export class ReturnStatement extends Statement {
+    expression?: Expression;
+    constructor(range: Range, expression?: Expression) {
+        super(range);
+        this.expression = expression;
     }
 }
 
@@ -130,6 +159,14 @@ export class BinaryExpression extends Expression {
     }
 }
 
-
+export class CallExpression extends Expression {
+    procedure: Procedure;
+    args: Expression[];
+    constructor(range: Range, proc: Procedure, args: Expression[]) {
+        super(range);
+        this.procedure = proc;
+        this.args = args;
+    }
+}
 
 

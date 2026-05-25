@@ -4,13 +4,13 @@ import JavaGrammarParser, {
     BinaryOpMulContext,
     BinaryOpRelContext,
     BlockStmtContext,
-    BoolExprContext,
+    BoolExprContext, CallExprContext,
     DeclarationContext,
     ExpContext,
     IdExprContext,
     IfContext,
     IfElseStmtContext,
-    IntExprContext,
+    IntExprContext, MethodContext, ReturnContext,
     ScriptContext,
     StatementContext,
     UnaryOpContext,
@@ -19,10 +19,10 @@ import JavaGrammarParser, {
 } from "./generated/JavaGrammarParser";
 import {
     Assignment,
-    BinaryExpression, BlockStatement, BooleanLiteral,
+    BinaryExpression, BlockStatement, BooleanLiteral, CallExpression,
     Declaration,
     Expression, IfStatement,
-    IntLiteral, Program,
+    IntLiteral, Procedure, Program, ReturnStatement,
     Statement, UnaryExpression, Variable, WhileStatement
 } from "./ast";
 import Range from "./Range";
@@ -31,12 +31,18 @@ import {ParseTree} from "antlr4";
 
 
 export function parseTreeToAST(ctx: UnitContext): Program {
-    const visitor = new ParseTreeVisitor();
+    const visitor = new TreeVisitor();
     return visitor.visitUnit(ctx);
 }
 
-class ParseTreeVisitor extends JavaGrammarVisitor<any> {
+export function parseExpression(unit: UnitContext, ctx: ExpContext): [Program, Expression] {
+    const visitor = new TreeVisitor();
+    return [visitor.visitUnit(unit), visitor.expToAST(ctx)];
+}
+
+class TreeVisitor extends JavaGrammarVisitor<any> {
     varScope: Map<string, Declaration>[] = [];
+    procedures: Procedure[] = [];
 
     topScope(): Map<string, Declaration> {
         return this.varScope[this.varScope.length - 1];
@@ -53,9 +59,37 @@ class ParseTreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitUnit = (ctx: UnitContext) => {
-        return new Program(
-            this.visitScript(ctx.script())
-        )
+        if (ctx.script())
+            return new Program(this.visitScript(ctx.script()))
+        else {
+            for (let i = 0; i < ctx.getChildCount(); i++) {
+                if (ctx.getChild(i) instanceof MethodContext) {
+                    const mctx = ctx.getChild(i) as MethodContext
+                    const params =  mctx.params() ? mctx.params().param_list().map(p =>
+                            new Declaration(
+                                Range.fromContext(p),
+                                p._id.text,
+                                p._type_.text
+                            )) : []
+                    this.procedures.push(new Procedure(
+                        Range.fromContext(ctx),
+                        mctx._id.text,
+                        Range.fromToken(mctx._id),
+                        params,
+                        mctx._type_ ? mctx._type_.text : undefined,
+                        undefined
+                    ))
+                }
+            }
+            for (let i = 0; i < ctx.getChildCount(); i++) {
+                if (ctx.getChild(i) instanceof MethodContext) {
+                    const proc = this.procedures.find(p => p.name == (ctx.getChild(i) as MethodContext)._id.text)
+                    if(!proc) throw new Error(`Procedure ${(ctx.getChild(i) as MethodContext)._id.text} not declared`)
+                        proc.body = this.visitMethod(ctx.getChild(i) as MethodContext)
+                }
+            }
+            return new Program(undefined, this.procedures)
+        }
     }
 
     visitScript = (ctx: ScriptContext) => {
@@ -65,6 +99,16 @@ class ParseTreeVisitor extends JavaGrammarVisitor<any> {
         })
         this.varScope.pop()
         return new BlockStatement(Range.fromContext(ctx), statements)
+    }
+
+    visitMethod = (ctx: MethodContext) => {
+        this.varScope.push(new Map<string, Declaration>())
+        ctx.params()?.param_list().forEach(p => {
+            this.topScope().set(p._id.text, new Declaration(Range.fromContext(p),p._id.text, p._type_.text))
+        })
+        let body: Statement[] = ctx.statement_list().map(s => this.visit(s))
+        this.varScope.pop()
+        return new BlockStatement(Range.fromTokenTo(ctx.LCURLY().symbol, ctx.LPAREN().symbol), body)
     }
 
     visitStmt = (ctx: StatementContext) => {
@@ -84,7 +128,8 @@ class ParseTreeVisitor extends JavaGrammarVisitor<any> {
         const dec = new Declaration(
             Range.fromContext(ctx),
             ctx._id.text,
-            ctx.exp() ? this.expToAST(ctx.exp()) : null
+            ctx._type_.text,
+            ctx.exp() ? this.expToAST(ctx.exp()) : undefined
         )
         this.topScope().set(dec.name, dec)
         return dec
@@ -115,7 +160,14 @@ class ParseTreeVisitor extends JavaGrammarVisitor<any> {
             this.expToAST(ctx.while_().exp()),
             this.visit(ctx.while_().statement()))
 
-    expToAST(ctx: ExpContext): Expression {
+    visitReturn = (ctx: ReturnContext) =>
+        new ReturnStatement(
+            Range.fromContext(ctx),
+            this.expToAST(ctx._expression)
+        )
+
+    expToAST(ctx: ExpContext):
+        Expression {
         if (ctx instanceof IdExprContext) {
             const dec = this.varLookup((ctx as IdExprContext).getText())
             if (!dec) throw new Error(`Variable ${(ctx as IdExprContext).getText()} not declared`);
@@ -153,6 +205,16 @@ class ParseTreeVisitor extends JavaGrammarVisitor<any> {
                 this.expToAST((ctx as BinaryOpRelContext)._left),
                 this.expToAST((ctx as BinaryOpRelContext)._right)
             );
+
+        else if(ctx instanceof CallExprContext) {
+            const proc = this.procedures.find(p => p.name == ctx.call()._id.text)
+            if(!proc) throw new Error(`Procedure ${ctx.call()._id.text} not declared`)
+            return new CallExpression(
+                Range.fromContext(ctx),
+                proc,
+                ctx.call()._args ? ctx.call()._args.exp_list().map(e => this.expToAST(e)) : []
+            )
+        }
 
         else {
             throw new Error("Unsupported expression type: " + (ctx as any).constructor.name);

@@ -40,7 +40,7 @@ function scriptError(code: string, expected: RuntimeErrorType) {
     assert.equal(last(result.trace).error?.type, expected);
 }
 
-describe('Matte Interpreter Test Suite', () => {
+describe('Matte Interpreter Test Script', () => {
     // Group 1: Basic functionality
     describe('Script', () => {
 

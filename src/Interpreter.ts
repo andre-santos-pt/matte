@@ -1,18 +1,25 @@
 import JavaGrammarLexer from "./generated/JavaGrammarLexer";
 import JavaGrammarParser from "./generated/JavaGrammarParser";
-import {CharStreams, CommonTokenStream, ParserRuleContext} from "antlr4";
+import {
+    CharStreams,
+    CommonTokenStream,
+    ParserRuleContext,
+    ParseTreeVisitor
+} from "antlr4";
 
 import {
     Assignment, ASTNode,
     BinaryExpression,
-    BlockStatement, BooleanLiteral, Declaration,
+    BlockStatement, BooleanLiteral, CallExpression, Declaration,
     Expression, IfStatement,
-    IntLiteral, Program,
+    IntLiteral, Procedure, Program, ReturnStatement,
     Statement, UnaryExpression, Variable, WhileStatement
 } from "./ast";
 import Range from "./Range";
 
-import {parseTreeToAST} from "./antlr2ast";
+import {parseExpression, parseTreeToAST} from "./antlr2ast";
+import JavaGrammarVisitor from "./generated/JavaGrammarVisitor";
+import assert from "assert";
 
 export function getParser(input: string) {
     const chars = CharStreams.fromString(input);
@@ -73,7 +80,7 @@ interface TraceVariable {
 }
 
 interface ExpressionEval {
-    evaluation: any;
+    evaluation?: any;
     materialization?: string;
 }
 
@@ -95,34 +102,56 @@ export class Interpreter {
         });
     }
 
-    parseAndRun(source: string): InterpreterResult {
-        const ast = parseTreeToAST(getParser(source).unit());
-        console.log(ast);
-        return this.runProgram(ast);
+    parseAndRun(source: string, call?: string): InterpreterResult {
+        const [ast, exp] = call ? parseExpression(getParser(source).unit(), getParser(call).exp()) : [parseTreeToAST(getParser(source).unit()), undefined];
+        return this.runProgram(ast, exp);
     }
 
-    runProgram(program: Program): InterpreterResult {
-        this.scope.push({
-            variables: new Map()
-        })
-
-        try {
-            program.block.statements.forEach(s => this.execute(s));
-            this.addTrace(program.block, undefined, undefined)
-            return {
-                errors: [],
-                result: undefined,
-                trace: structuredClone(this.trace)
+    runProgram(program: Program, call?: Expression): InterpreterResult {
+        if (!program.block && !call)
+            throw {
+                range: undefined,
+                type: CompilationErrorType.SyntaxError,
+                message: "No block or call provided in the program"
             }
-        } catch (e: any) {
-            if (e.type)
+
+        if (call && program.block) {
+            throw {
+                range: call.range,
+                type: CompilationErrorType.SyntaxError,
+                message: "Cannot have both a block and a call in the program"
+            }
+        }
+
+        if (program.block) {
+            this.scope.push({
+                variables: new Map()
+            })
+            try {
+                program.block.statements.forEach(i => this.execute(i));
+                this.addTrace(program.block, undefined, undefined)
+                this.scope.pop()
                 return {
-                    errors: [e],
+                    errors: [],
                     result: undefined,
                     trace: structuredClone(this.trace)
                 }
-            else
-                throw e
+            } catch (e: any) {
+                if (e.type)
+                    return {
+                        errors: [e],
+                        result: undefined,
+                        trace: structuredClone(this.trace)
+                    }
+                else
+                    throw e
+            }
+        } else {
+            return {
+                errors: [],
+                result: this.evaluate(call as Expression),
+                trace: structuredClone(this.trace)
+            }
         }
     }
 
@@ -161,7 +190,7 @@ export class Interpreter {
                 this.execute((s as IfStatement).thenBranch);
             else if ((s as IfStatement).elseBranch)
                 this.execute((s as IfStatement).elseBranch as Statement);
-        } else if (s instanceof  WhileStatement) {
+        } else if (s instanceof WhileStatement) {
             while (true) {
                 const conditionVal = this.evaluate((s as WhileStatement).guard);
                 if (typeof conditionVal.evaluation !== "boolean")
@@ -174,10 +203,17 @@ export class Interpreter {
                 this.execute((s as WhileStatement).body);
             }
         }
+            // TODO
+            // else if (s instanceof CallExpression) {
+            //     this.invocation((s as CallExpression).procedure)
+        // }
 
-        else
+        else if (s instanceof ReturnStatement) {
+            throw this.evaluate((s as ReturnStatement).expression as Expression)
+        } else
             throw new Error("Unsupported statement type: " + (s as any).constructor.name);
     }
+
 
     evaluate(e: Expression): ExpressionEval {
         if (e instanceof Variable) {
@@ -236,9 +272,50 @@ export class Interpreter {
                 evaluation,
                 materialization
             }
+        } else if (e instanceof CallExpression) {
+            return this.invocation(e as CallExpression)
         } else throw new Error("Unsupported expression type: " + (e as any).constructor.name);
+
     }
 
+    invocation(call: CallExpression): ExpressionEval {
+        const p = call.procedure
+        const variables: Map<string, TraceVariable> = new Map()
+        call.args.forEach((e, i) => {
+            const eVal = this.evaluate(e)
+            variables.set(p.parameters[i].name, {
+                name: p.parameters[i].name,
+                evaluation: eVal.evaluation,
+                materialization: eVal.materialization,
+                declaration: p.parameters[i].range
+            })
+        })
+        this.scope.push({
+            variables
+        })
+        try {
+            p.body?.statements?.forEach(s => this.execute(s));
+        } catch (e: any) {
+            if(e.evaluation) {
+                this.scope.pop()
+                return e
+            }
+            else
+                throw e
+        }
+        if(call.procedure.returnType) {
+            throw {
+                range: p.nameRange,
+                type: CompilationErrorType.SyntaxError,
+                message: `Procedure ${p.name} is expected to return a value of type ${p.returnType} but no return statement was reached`
+            }
+        }
+        this.scope.pop()
+        return {
+            evaluation: undefined,
+            materialization: undefined
+        }
+    }
 
     handleArithmetic(leftExp: Expression, leftVal: any, rightExp: Expression, rightVal: any, operator: string): number {
         let left = leftVal.evaluation;
@@ -303,6 +380,8 @@ export class Interpreter {
                 throw new Error("Unsupported operator: " + operator);
         }
     }
+
+    // TODO logical operators, procedure calls, arrays, etc.
 
 }
 
