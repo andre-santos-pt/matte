@@ -34,7 +34,7 @@ function compilationError(code: string, expected: CompilationErrorType) {
     assert.equal(result.errors[0].type, expected);
 }
 
-function scriptError(code: string, expected: RuntimeErrorType) {
+function runtimeError(code: string, expected: RuntimeErrorType) {
     const interpreter = new Interpreter();
     const result = interpreter.parseAndRun(code);
     assert.equal(last(result.trace).error?.type, expected);
@@ -56,6 +56,16 @@ describe('Matte Interpreter Test Script', () => {
                 .set("z", 80)
             )
         });
+
+        it('var not found', () => {
+            compilationError(`
+        int i = 10;
+        int j = i + 5;
+        j = a + 5;
+        int z = i + j + 50;
+        `, CompilationErrorType.UndeclaredVariable)
+        });
+
 
         it('operation types error', () => {
             compilationError(`
@@ -92,6 +102,15 @@ describe('Matte Interpreter Test Script', () => {
             i = i + 1;
         }
         `, new Map().set("i", 10))
+        });
+
+        it('while loop max', () => {
+            runtimeError(`
+        int i = 0;
+        while(i != 101) {
+            i = i + 1;
+        }
+        `, RuntimeErrorType.MaxIterationsReached)
         });
 
         it('inc while', () => {
@@ -190,7 +209,7 @@ describe('Matte Interpreter Test Script', () => {
         });
 
         it('array write null pointer', () => {
-            scriptError(`
+            runtimeError(`
         int[] array = null;
         array[5] = 10;
         `, RuntimeErrorType.NullPointer)
@@ -204,7 +223,7 @@ describe('Matte Interpreter Test Script', () => {
         });
 
         it('array write invalid index', () => {
-            scriptError(`
+            runtimeError(`
         int[] array = new int[5];
         array[5] = 10;
         `, RuntimeErrorType.ArrayIndexOutOfBounds)
@@ -218,7 +237,7 @@ describe('Matte Interpreter Test Script', () => {
         });
 
         it('array invalid index', () => {
-            scriptError(`
+            runtimeError(`
          int[] array = {5,6,7};
          int a = array[4];
         `, RuntimeErrorType.ArrayIndexOutOfBounds)

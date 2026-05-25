@@ -50,7 +50,7 @@ export enum CompilationErrorType {
 interface TraceEntry {
     range?: Range,
     materialization?: string,
-    evaluation: any,
+    evaluation?: any,
     call: undefined,
     stack: StackFrame[],
     error?: RuntimeError
@@ -65,7 +65,8 @@ export enum RuntimeErrorType {
     DivisionByZero,
     ArrayIndexOutOfBounds,
     NullPointer,
-    StackOverflow
+    StackOverflow,
+    MaxIterationsReached,
 }
 
 interface StackFrame {
@@ -84,15 +85,57 @@ interface ExpressionEval {
     materialization?: string;
 }
 
+
+type Extension = (...args: any[]) => ExpressionEval
+
 export class Interpreter {
-    scope: StackFrame[] = [];
-    trace: TraceEntry[] = [];
+    scope: StackFrame[] = []
+    trace: TraceEntry[] = []
+
+    loopCount = new Map()
+    extensions: Extension[] = []
+    private readonly maxLoopIterations?: number
+    private readonly maxCallStack?: number  // TODO
+
+    constructor(maxLoopIterations: number = 100, maxCallStack: number = 100) {
+        this.maxLoopIterations = maxLoopIterations
+        this.maxCallStack = maxCallStack
+    }
+
+    compilationError(type: CompilationErrorType, msg: string, node: ASTNode) {
+        throw {
+            type,
+            compilation: true,
+            range: node.range,
+            value: msg
+        };
+    }
+
+    loopIteration(loop: WhileStatement) {
+        if(this.maxLoopIterations) {
+            if (this.loopCount.has(loop)) {
+                const value = this.loopCount.get(loop)
+                if (value === this.maxLoopIterations)
+                    this.addTraceRuntimeError(loop, {
+                        type: RuntimeErrorType.MaxIterationsReached,
+                        message: "max loop iterations"
+                    })
+                this.loopCount.set(loop, value + 1);
+            } else
+                this.loopCount.set(loop, 1);
+        }
+    }
+
+    loopEnd(loop: WhileStatement) {
+        if(this.maxLoopIterations)
+            this.loopCount.set(loop, 0);
+    }
 
     topScope(): StackFrame {
         return this.scope[this.scope.length - 1];
     }
 
-    addTrace(node: ASTNode, materialization: string | undefined, evaluation: any) {
+    addTrace(node: ASTNode, evaluation: any,  materialization?: string) {
         this.trace.push({
             range: node.range,
             materialization,
@@ -101,6 +144,21 @@ export class Interpreter {
             stack: structuredClone(this.scope)
         });
     }
+
+    addTraceRuntimeError(node: ASTNode, error: RuntimeError) {
+        this.trace.push({
+            range: node.range,
+            evaluation: undefined,
+            materialization: undefined,
+            call: undefined, //ctx instanceof JavaGrammarParser.CallContext ? ctx.ID().getText() : null,
+            stack: structuredClone(this.scope),
+            error
+        });
+        throw {
+            runtimeError: true
+        }
+    }
+
 
     parseAndRun(source: string, call?: string): InterpreterResult {
         const [ast, exp] = call ? parseExpression(getParser(source).unit(), getParser(call).exp()) : [parseTreeToAST(getParser(source).unit()), undefined];
@@ -137,14 +195,20 @@ export class Interpreter {
                     trace: structuredClone(this.trace)
                 }
             } catch (e: any) {
-                if (e.type)
+                if (e.compilation)
                     return {
                         errors: [e],
                         result: undefined,
                         trace: structuredClone(this.trace)
                     }
-                else
-                    throw e
+                else if(e.runtimeError) {
+                    return {
+                        errors: [],
+                        result: undefined,
+                        trace: structuredClone(this.trace)
+                    }
+                }
+                else throw e
             }
         } else {
             return {
@@ -160,26 +224,26 @@ export class Interpreter {
             (s as BlockStatement).statements.forEach(i => this.execute(i));
         else if (s instanceof Declaration) {
             if ((s as Declaration).initializer != null) {
-                const exp = this.evaluate((s as Declaration).initializer as Expression)
-                this.addTrace(s, exp.materialization ? undefined : exp.materialization, exp.evaluation)
-                this.topScope().variables.set((s as Declaration).name, {
-                    name: (s as Declaration).name,
+                const exp = this.evaluate(s.initializer as Expression)
+                this.addTrace(s, exp.evaluation, exp.materialization)
+                this.topScope().variables.set(s.name, {
+                    name: s.name,
                     evaluation: exp.evaluation,
                     materialization: exp.materialization,
-                    declaration: (s as Declaration).range
+                    declaration: s.range
                 })
             }
         } else if (s instanceof Assignment) {
-            const exp = this.evaluate((s as Assignment).expression);
-            this.addTrace(s, exp.materialization ? undefined : exp.materialization, exp.evaluation)
-            this.topScope().variables.set((s as Assignment).variable.name, {
+            const exp = this.evaluate(s.expression);
+            this.addTrace(s.expression, exp.evaluation, exp.materialization)
+            this.topScope().variables.set(s.variable.name, {
                 name: (s as Assignment).variable.name,
                 evaluation: exp.evaluation,
                 materialization: exp.materialization,
                 declaration: (s as Assignment).variable.range
             });
         } else if (s instanceof IfStatement) {
-            const conditionVal = this.evaluate((s as IfStatement).guard);
+            const conditionVal = this.evaluate(s.guard);
             if (typeof conditionVal.evaluation !== "boolean")
                 throw {
                     range: (s as IfStatement).guard.range,
@@ -187,11 +251,12 @@ export class Interpreter {
                     message: `Type mismatch: expected boolean expression`
                 }
             if (conditionVal.evaluation)
-                this.execute((s as IfStatement).thenBranch);
-            else if ((s as IfStatement).elseBranch)
-                this.execute((s as IfStatement).elseBranch as Statement);
+                this.execute(s.thenBranch);
+            else if (s.elseBranch)
+                this.execute(s.elseBranch as Statement);
         } else if (s instanceof WhileStatement) {
             while (true) {
+                this.loopIteration(s)
                 const conditionVal = this.evaluate((s as WhileStatement).guard);
                 if (typeof conditionVal.evaluation !== "boolean")
                     throw {
@@ -202,6 +267,7 @@ export class Interpreter {
                 if (!conditionVal.evaluation) break;
                 this.execute((s as WhileStatement).body);
             }
+            this.loopEnd(s)
         }
             // TODO
             // else if (s instanceof CallExpression) {
@@ -218,10 +284,12 @@ export class Interpreter {
     evaluate(e: Expression): ExpressionEval {
         if (e instanceof Variable) {
             const variable = this.topScope().variables.get((e as Variable).declaration.name);
-            if (!variable) throw new Error(`Variable ${(e as Variable).declaration.name} not declared`);
+            if (!variable)
+                this.compilationError(CompilationErrorType.UndeclaredVariable, `Variable ${e.declaration.name} not declared`, e)
+
             return {
-                evaluation: variable.evaluation,
-                materialization: variable.materialization
+                evaluation: variable?.evaluation,
+                materialization: variable?.materialization
             }
         } else if (e instanceof IntLiteral)
             return {
@@ -266,8 +334,8 @@ export class Interpreter {
 
             if (evaluation === undefined)
                 throw new Error("Unsupported operator: " + (e as BinaryExpression).operator);
-            const materialization = leftVal.materialization + " " + (e as BinaryExpression).operator + " " + rightVal.materialization;
-            this.addTrace(e, materialization, evaluation)
+            const materialization = leftVal.evaluation + " " + (e as BinaryExpression).operator + " " + rightVal.evaluation;
+            this.addTrace(e, evaluation, materialization)
             return {
                 evaluation,
                 materialization

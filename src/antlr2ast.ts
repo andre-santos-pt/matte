@@ -170,7 +170,8 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         Expression {
         if (ctx instanceof IdExprContext) {
             const dec = this.varLookup((ctx as IdExprContext).getText())
-            if (!dec) throw new Error(`Variable ${(ctx as IdExprContext).getText()} not declared`);
+            if (!dec)
+                throw new Error(`Variable ${(ctx as IdExprContext).getText()} not declared`); // TODO to compilation
             return new Variable(Range.fromContext(ctx), dec)
         } else if (ctx instanceof IntExprContext)
             return new IntLiteral(Range.fromContext(ctx), Number((ctx as IntExprContext).INT().getText()));

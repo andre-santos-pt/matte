@@ -40,11 +40,19 @@ function scriptError(code: string, expected: RuntimeErrorType) {
     assert.equal(last(result.trace).error?.type, expected);
 }
 
+function expect(code: string, ...tests: [string, any][]) {
+    const interpreter = new Interpreter();
+    tests.forEach(t => {
+        const test:[string, any] = t
+        const result = interpreter.parseAndRun(code, test[0]);
+        assert.equal(result.result.evaluation, test[1]);
+    })
+}
+
 describe('Matte Interpreter Test Procedure', () => {
     describe('Independent', () => {
-
         it('no args', () => {
-            let code = `
+            expect(`
             int noargs() {
                 int i = 10;
                 int j = i + 5;
@@ -52,38 +60,48 @@ describe('Matte Interpreter Test Procedure', () => {
                 int z = i + j + 50;
                 return z;
             }            
-            `
-            const interpreter = new Interpreter();
-            const result = interpreter.parseAndRun(code, "noargs()");
-            assert.equal(result.result.evaluation, 80);
+            `,
+                ["noargs()", 80]);
         })
 
         it('one arg', () => {
-            let code = `
+            expect(`
             int oneArg(int i) {
                 int j = i + 5;
                 j = j + 5;
                 int z = i + j + 50;
                 return z;
             }            
-            `
-            const interpreter = new Interpreter();
-            const result = interpreter.parseAndRun(code, "oneArg(10)");
-            assert.equal(result.result.evaluation, 80);
+            `,
+                ["oneArg(10)", 80],
+                ["oneArg(0]", 70])
         })
 
         it('two args', () => {
-            let code = `
+            expect(`
             int twoArgs(int i, int k) {
                 int j = i + 5;
                 j = j + 5;
                 int z = i + j + k;
                 return z;
             }            
-            `
-            const interpreter = new Interpreter();
-            const result = interpreter.parseAndRun(code, "twoArgs(10, 50)");
-            assert.equal(result.result.evaluation, 80);
+            `,
+                ["twoArgs(10, 50)", 80])
         })
     })
+
+
+    describe('Recursive', () => {
+        it('fact', () => {
+            expect(`
+            int f(int n) {
+                if(n == 1) return 1;
+                else return n * f(n-1);
+            }`,
+                ["f(1)", 1],
+                ["f(5)", 120])
+        })
+    })
+
+
 })
