@@ -4,7 +4,7 @@ import JavaGrammarParser, {
     BinaryOpMulContext,
     BinaryOpRelContext,
     BlockStmtContext,
-    BoolExprContext, CallExprContext,
+    BoolExprContext, CallContext, CallExprContext,
     DeclarationContext,
     ExpContext,
     IdExprContext,
@@ -20,10 +20,11 @@ import JavaGrammarParser, {
 import {
     Assignment,
     BinaryExpression, BlockStatement, BooleanLiteral, CallExpression,
+    CallStatement,
     Declaration,
     Expression, IfStatement,
     IntLiteral, Procedure, Program, ReturnStatement,
-    Statement, UnaryExpression, Variable, WhileStatement
+    Statement, UnaryExpression, UnboundCallExpression, Variable, WhileStatement
 } from "./ast";
 import Range from "./Range";
 import JavaGrammarVisitor from "./generated/JavaGrammarVisitor";
@@ -192,6 +193,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             this.expToAST(ctx._expression)
         )
 
+    visitCall = (ctx: CallContext) =>
+        new CallStatement(
+            Range.fromContext(ctx),
+            this.handleCall(ctx)
+        )
+
     expToAST(ctx: ExpContext):
         Expression {
         if (ctx instanceof IdExprContext) {
@@ -250,24 +257,36 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 this.expToAST(ctx._right)
             );
 
-        else if (ctx instanceof CallExprContext) {
-            const proc = this.procedures.find(p => p.name == ctx.call()._id.text)
-            if (!proc)
-                throw {
-                    compilation: CompilationErrorType.MethodNotFound,
-                    range: Range.fromToken(ctx.call()._id), // TODO fields
-                    message: `No method named '${ctx.call()._id.text}' found`,
-                    detail: {
-                        related: this.procedures.map(p => p.nameRange)
-                    }
-                }
+        else if (ctx instanceof CallExprContext)
+            return this.handleCall(ctx.call());
+
+        else
+            throw new Error("Unsupported expression type: " + (ctx as any).constructor.name);
+
+    }
+
+    private handleCall(ctx: CallContext) {
+        const proc = this.procedures.find(p => p.name == ctx._id.text)
+        if(proc)
             return new CallExpression(
                 Range.fromContext(ctx),
                 proc,
-                ctx.call()._args ? ctx.call()._args.exp_list().map(e => this.expToAST(e)) : []
+                ctx._args ? ctx._args.exp_list().map(e => this.expToAST(e)) : []
             )
-        } else {
-            throw new Error("Unsupported expression type: " + (ctx as any).constructor.name);
-        }
+        else
+            return new UnboundCallExpression(
+                Range.fromContext(ctx),
+                ctx._id.text,
+                ctx._args ? ctx._args.exp_list().map(e => this.expToAST(e)) : []
+            )
+        // if (!proc)
+        //     throw {
+        //         compilation: CompilationErrorType.MethodNotFound,
+        //         range: Range.fromToken(ctx._id), // TODO fields
+        //         message: `No method named '${ctx._id.text}' found`,
+        //         detail: {
+        //             related: this.procedures.map(p => p.nameRange)
+        //         }
+        //     }
     }
 }

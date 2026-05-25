@@ -98,6 +98,14 @@ export class ReturnStatement extends Statement {
     }
 }
 
+export class CallStatement extends Statement {
+    expression: CallExpression | UnboundCallExpression
+
+    constructor(range: Range, expression: CallExpression | UnboundCallExpression) {
+        super(range);
+        this.expression = expression;
+    }
+}
 
 // TODO : DoubleLiteral, CharLiteral
 
@@ -169,4 +177,12 @@ export class CallExpression extends Expression {
     }
 }
 
-
+export class UnboundCallExpression extends Expression {
+    procedureName: string;
+    args: Expression[];
+    constructor(range: Range, procedureName: string, args: Expression[]) {
+        super(range);
+        this.procedureName = procedureName;
+        this.args = args;
+    }
+}

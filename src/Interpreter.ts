@@ -8,10 +8,10 @@ import {
 import {
     Assignment, ASTNode,
     BinaryExpression,
-    BlockStatement, BooleanLiteral, CallExpression, Declaration,
+    BlockStatement, BooleanLiteral, CallExpression, CallStatement, Declaration,
     Expression, IfStatement,
     IntLiteral, Procedure, Program, ReturnStatement,
-    Statement, UnaryExpression, Variable, WhileStatement
+    Statement, UnaryExpression, UnboundCallExpression, Variable, WhileStatement
 } from "./ast";
 import Range from "./Range";
 
@@ -38,11 +38,12 @@ interface CompilationError {
 }
 
 export enum CompilationErrorType {
-    SyntaxError= "SYNTAX",
+    SyntaxError = "SYNTAX",
     UndeclaredVariable = "VAR_NOT_FOUND",
     DuplicateVariable = "DUP_VAR",
     TypeMismatch = "TYPE_MISMATCH",
     MethodNotFound = "METHOD_NOT_FOUND",
+    MissingReturn = "MISSING_RETURN",
 }
 
 interface TraceEntry {
@@ -91,7 +92,7 @@ export class Interpreter {
     private trace: TraceEntry[] = []
 
     private loopCount = new Map()
-    private extensions: Map<string,Extension> = new Map()
+    private extensions: Map<string, Extension> = new Map()
     private readonly maxLoopIterations?: number
     private readonly maxCallStack?: number  // TODO
 
@@ -114,7 +115,7 @@ export class Interpreter {
     }
 
     loopIteration(loop: WhileStatement) {
-        if(this.maxLoopIterations) {
+        if (this.maxLoopIterations) {
             if (this.loopCount.has(loop)) {
                 const value = this.loopCount.get(loop)
                 if (value === this.maxLoopIterations)
@@ -129,7 +130,7 @@ export class Interpreter {
     }
 
     loopEnd(loop: WhileStatement) {
-        if(this.maxLoopIterations)
+        if (this.maxLoopIterations)
             this.loopCount.set(loop, 0);
     }
 
@@ -137,7 +138,7 @@ export class Interpreter {
         return this.scope[this.scope.length - 1];
     }
 
-    addTrace(node: ASTNode, evaluation: any,  materialization?: string) {
+    addTrace(node: ASTNode, evaluation: any, materialization?: string) {
         this.trace.push({
             range: node.range,
             materialization,
@@ -167,10 +168,9 @@ export class Interpreter {
         let callExp: [Program?, Expression?] = [undefined, undefined]
         try {
             program = parseTreeToAST(getParser(source).unit())
-            if(call)
+            if (call)
                 callExp = parseExpression(getParser(source).unit(), getParser(call).exp())
-        }
-        catch (e: any) {
+        } catch (e: any) {
             return {
                 result: undefined,
                 trace: [],
@@ -222,14 +222,13 @@ export class Interpreter {
                         result: undefined,
                         trace: structuredClone(this.trace)
                     }
-                else if(e.runtimeError) {
+                else if (e.runtimeError) {
                     return {
                         errors: [],
                         result: undefined,
                         trace: structuredClone(this.trace)
                     }
-                }
-                else throw e
+                } else throw e
             }
         } else {
             return {
@@ -242,9 +241,9 @@ export class Interpreter {
 
     execute(s: Statement) {
         if (s instanceof BlockStatement)
-            (s as BlockStatement).statements.forEach(i => this.execute(i));
+            s.statements.forEach(i => this.execute(i));
         else if (s instanceof Declaration) {
-            if ((s as Declaration).initializer != null) {
+            if (s.initializer != null) {
                 const exp = this.evaluate(s.initializer as Expression)
                 this.addTrace(s, exp.evaluation, exp.materialization)
                 this.topScope().variables.set(s.name, {
@@ -258,16 +257,16 @@ export class Interpreter {
             const exp = this.evaluate(s.expression);
             this.addTrace(s.expression, exp.evaluation, exp.materialization)
             this.topScope().variables.set(s.variable.name, {
-                name: (s as Assignment).variable.name,
+                name: s.variable.name,
                 evaluation: exp.evaluation,
                 materialization: exp.materialization,
-                declaration: (s as Assignment).variable.range
+                declaration: s.variable.range
             });
         } else if (s instanceof IfStatement) {
             const conditionVal = this.evaluate(s.guard);
             if (typeof conditionVal.evaluation !== "boolean")
                 throw {
-                    range: (s as IfStatement).guard.range,
+                    range: s.guard.range,
                     type: CompilationErrorType.TypeMismatch,
                     message: `Type mismatch: expected boolean expression`
                 }
@@ -278,24 +277,33 @@ export class Interpreter {
         } else if (s instanceof WhileStatement) {
             while (true) {
                 this.loopIteration(s)
-                const conditionVal = this.evaluate((s as WhileStatement).guard);
+                const conditionVal = this.evaluate(s.guard);
                 if (typeof conditionVal.evaluation !== "boolean")
                     throw {
-                        range: (s as WhileStatement).guard.range,
+                        range: s.guard.range,
                         type: CompilationErrorType.TypeMismatch,
                         message: `Type mismatch: expected boolean expression`
                     }
                 if (!conditionVal.evaluation) break;
-                this.execute((s as WhileStatement).body);
+                this.execute(s.body);
             }
             this.loopEnd(s)
-        }
-            // TODO
-            // else if (s instanceof CallExpression) {
-            //     this.invocation((s as CallExpression).procedure)
-        // }
-
-        else if (s instanceof ReturnStatement) {
+        } else if (s instanceof CallStatement) {
+            if (s.expression instanceof CallExpression)
+                this.invocation(s.expression)
+            else {
+                const extName = (s.expression as UnboundCallExpression).procedureName
+                const ext = this.extensions.get(extName)
+                if (ext)
+                    ext.call(null)
+                else
+                    throw {
+                        compilation: CompilationErrorType.MethodNotFound,
+                        range: s.range,
+                        message: `No method named '${extName}' found`,
+                    }
+            }
+        } else if (s instanceof ReturnStatement) {
             throw this.evaluate((s as ReturnStatement).expression as Expression)
         } else
             throw new Error("Unsupported statement type: " + (s as any).constructor.name);
@@ -385,17 +393,16 @@ export class Interpreter {
         try {
             p.body?.statements?.forEach(s => this.execute(s));
         } catch (e: any) {
-            if(e.evaluation) {
+            if (e.evaluation) {
                 this.scope.pop()
                 return e
-            }
-            else
+            } else
                 throw e
         }
-        if(call.procedure.returnType) {
+        if (call.procedure.returnType) {
             throw {
                 range: p.nameRange,
-                type: CompilationErrorType.SyntaxError,
+                type: CompilationErrorType.MissingReturn,
                 message: `Procedure ${p.name} is expected to return a value of type ${p.returnType} but no return statement was reached`
             }
         }
