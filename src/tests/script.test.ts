@@ -2,13 +2,11 @@ import {
     CompilationErrorType,
     Interpreter,
     RuntimeErrorType
-} from './src/Interpreter';
+} from '../Interpreter';
 import assert from "assert";
 
-
-function last<T>(arr: T[]): T {
-    return arr[arr.length - 1];
-}
+import {compilationError, runtimeError} from "./utils";
+import {last} from "../utils";
 
 function script(code: string, cases: Map<string, any>) {
     const interpreter = new Interpreter();
@@ -28,17 +26,8 @@ function script(code: string, cases: Map<string, any>) {
     }
 }
 
-function compilationError(code: string, expected: CompilationErrorType) {
-    const interpreter = new Interpreter();
-    const result = interpreter.parseAndRun(code);
-    assert.equal(result.errors[0].type, expected);
-}
 
-function runtimeError(code: string, expected: RuntimeErrorType) {
-    const interpreter = new Interpreter();
-    const result = interpreter.parseAndRun(code);
-    assert.equal(last(result.trace).error?.type, expected);
-}
+
 
 describe('Matte Interpreter Test Script', () => {
     // Group 1: Basic functionality
@@ -57,7 +46,16 @@ describe('Matte Interpreter Test Script', () => {
             )
         });
 
-        it('var not found', () => {
+        it('var not found assign', () => {
+            compilationError(`
+        int i = 10;
+        int j = i + 5;
+        x = j + 5;
+        int z = i + j + 50;
+        `, CompilationErrorType.UndeclaredVariable)
+        });
+
+        it('var not found exp', () => {
             compilationError(`
         int i = 10;
         int j = i + 5;

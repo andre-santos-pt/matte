@@ -45,6 +45,7 @@ export enum CompilationErrorType {
     SyntaxError,
     UndeclaredVariable,
     TypeMismatch,
+    MethodNotFound
 }
 
 interface TraceEntry {
@@ -161,8 +162,26 @@ export class Interpreter {
 
 
     parseAndRun(source: string, call?: string): InterpreterResult {
-        const [ast, exp] = call ? parseExpression(getParser(source).unit(), getParser(call).exp()) : [parseTreeToAST(getParser(source).unit()), undefined];
-        return this.runProgram(ast, exp);
+        let program: Program
+        let callExp: [Program?, Expression?] = [undefined, undefined]
+        try {
+            program = parseTreeToAST(getParser(source).unit())
+            if(call)
+                callExp = parseExpression(getParser(source).unit(), getParser(call).exp())
+        }
+        catch (e: any) {
+            return {
+                result: undefined,
+                trace: [],
+                errors: [{
+                    range: e.range,
+                    type: e.compilation,
+                    message: e.message
+                }]
+            }
+        }
+        const [ast, exp] = call ? callExp : [program, undefined];
+        return this.runProgram(ast as Program, exp);
     }
 
     runProgram(program: Program, call?: Expression): InterpreterResult {

@@ -28,6 +28,8 @@ import {
 import Range from "./Range";
 import JavaGrammarVisitor from "./generated/JavaGrammarVisitor";
 import {ParseTree} from "antlr4";
+import {CompilationErrorType} from "./Interpreter";
+import {last} from "./utils";
 
 
 export function parseTreeToAST(ctx: UnitContext): Program {
@@ -65,12 +67,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             for (let i = 0; i < ctx.getChildCount(); i++) {
                 if (ctx.getChild(i) instanceof MethodContext) {
                     const mctx = ctx.getChild(i) as MethodContext
-                    const params =  mctx.params() ? mctx.params().param_list().map(p =>
-                            new Declaration(
-                                Range.fromContext(p),
-                                p._id.text,
-                                p._type_.text
-                            )) : []
+                    const params = mctx.params() ? mctx.params().param_list().map(p =>
+                        new Declaration(
+                            Range.fromContext(p),
+                            p._id.text,
+                            p._type_.text
+                        )) : []
                     this.procedures.push(new Procedure(
                         Range.fromContext(ctx),
                         mctx._id.text,
@@ -83,9 +85,16 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             }
             for (let i = 0; i < ctx.getChildCount(); i++) {
                 if (ctx.getChild(i) instanceof MethodContext) {
-                    const proc = this.procedures.find(p => p.name == (ctx.getChild(i) as MethodContext)._id.text)
-                    if(!proc) throw new Error(`Procedure ${(ctx.getChild(i) as MethodContext)._id.text} not declared`)
-                        proc.body = this.visitMethod(ctx.getChild(i) as MethodContext)
+                    const c = ctx.getChild(i) as MethodContext
+                    const proc = this.procedures.find(p => p.name == c._id.text)
+                    if (!proc)
+                        throw {
+                            compilation: CompilationErrorType.MethodNotFound,
+                            range: Range.fromToken(c._id), // TODO fields
+                            message: `No method named '${c._id.text}' found`,
+                            details: last(this.varScope)
+                        }
+                    proc.body = this.visitMethod(ctx.getChild(i) as MethodContext)
                 }
             }
             return new Program(undefined, this.procedures)
@@ -104,7 +113,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     visitMethod = (ctx: MethodContext) => {
         this.varScope.push(new Map<string, Declaration>())
         ctx.params()?.param_list().forEach(p => {
-            this.topScope().set(p._id.text, new Declaration(Range.fromContext(p),p._id.text, p._type_.text))
+            this.topScope().set(p._id.text, new Declaration(Range.fromContext(p), p._id.text, p._type_.text))
         })
         let body: Statement[] = ctx.statement_list().map(s => this.visit(s))
         this.varScope.pop()
@@ -137,7 +146,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     visitAssignment = (ctx: AssignmentContext) => {
         const dec = this.varLookup(ctx.compId().ID(0).getText())
-        if (!dec) throw new Error(`Variable ${ctx.compId().ID(0).getText()} not declared`); // TODO : java specific
+        if (!dec) throw {
+            compilation: CompilationErrorType.UndeclaredVariable,
+            range: Range.fromTerminal(ctx.compId().ID(0)), // TODO fields
+            message: `Variable ${ctx.compId().ID(0).getText()} not declared`,
+            details: last(this.varScope)
+        }
         const ass = new Assignment(
             Range.fromContext(ctx),
             dec,
@@ -169,55 +183,73 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     expToAST(ctx: ExpContext):
         Expression {
         if (ctx instanceof IdExprContext) {
-            const dec = this.varLookup((ctx as IdExprContext).getText())
-            if (!dec)
-                throw new Error(`Variable ${(ctx as IdExprContext).getText()} not declared`); // TODO to compilation
+            const dec = this.varLookup(ctx.getText())
+            if (!dec) throw {
+                compilation: CompilationErrorType.UndeclaredVariable,
+                range: Range.fromTerminal(ctx.ID()),
+                message: `Variable ${ctx.getText()} not declared`,
+                details: last(this.varScope)
+            }
             return new Variable(Range.fromContext(ctx), dec)
+
         } else if (ctx instanceof IntExprContext)
-            return new IntLiteral(Range.fromContext(ctx), Number((ctx as IntExprContext).INT().getText()));
+            return new IntLiteral(
+                Range.fromContext(ctx),
+                Number(ctx.INT().getText())
+            )
+
         else if (ctx instanceof BoolExprContext)
-            return new BooleanLiteral(Range.fromContext(ctx), (ctx as BoolExprContext).BOOLEAN().getText() == "true")
+            return new BooleanLiteral(
+                Range.fromContext(ctx),
+                ctx.BOOLEAN().getText() == "true"
+            )
+
         else if (ctx instanceof UnaryOpContext)
             return new UnaryExpression(
                 Range.fromContext(ctx),
-                (ctx as UnaryOpContext).uop().getText(),
-                this.expToAST((ctx as UnaryOpContext)._target),
+                ctx.uop().getText(),
+                this.expToAST(ctx._target)
             )
+
         else if (ctx instanceof BinaryOpAddContext)
             return new BinaryExpression(
                 Range.fromContext(ctx),
-                (ctx as BinaryOpAddContext).bopAdd().getText(),
-                this.expToAST((ctx as BinaryOpAddContext)._left),
-                this.expToAST((ctx as BinaryOpAddContext)._right)
-            );
+                ctx.bopAdd().getText(),
+                this.expToAST(ctx._left),
+                this.expToAST(ctx._right)
+            )
 
         else if (ctx instanceof BinaryOpMulContext)
             return new BinaryExpression(
                 Range.fromContext(ctx),
-                (ctx as BinaryOpMulContext).bopMul().getText(),
-                this.expToAST((ctx as BinaryOpMulContext)._left),
-                this.expToAST((ctx as BinaryOpMulContext)._right)
+                ctx.bopMul().getText(),
+                this.expToAST(ctx._left),
+                this.expToAST(ctx._right)
             );
 
         else if (ctx instanceof BinaryOpRelContext)
             return new BinaryExpression(
                 Range.fromContext(ctx),
-                (ctx as BinaryOpRelContext).bopRel().getText(),
-                this.expToAST((ctx as BinaryOpRelContext)._left),
-                this.expToAST((ctx as BinaryOpRelContext)._right)
+                ctx.bopRel().getText(),
+                this.expToAST(ctx._left),
+                this.expToAST(ctx._right)
             );
 
-        else if(ctx instanceof CallExprContext) {
+        else if (ctx instanceof CallExprContext) {
             const proc = this.procedures.find(p => p.name == ctx.call()._id.text)
-            if(!proc) throw new Error(`Procedure ${ctx.call()._id.text} not declared`)
+            if (!proc)
+                throw {
+                    compilation: CompilationErrorType.MethodNotFound,
+                    range: Range.fromToken(ctx.call()._id), // TODO fields
+                    message: `No method named '${ctx.call()._id.text}' found`,
+                    details: last(this.varScope)
+                }
             return new CallExpression(
                 Range.fromContext(ctx),
                 proc,
                 ctx.call()._args ? ctx.call()._args.exp_list().map(e => this.expToAST(e)) : []
             )
-        }
-
-        else {
+        } else {
             throw new Error("Unsupported expression type: " + (ctx as any).constructor.name);
         }
     }

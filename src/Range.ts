@@ -1,4 +1,4 @@
-import {ParserRuleContext} from "antlr4";
+import {ParserRuleContext, TerminalNode} from "antlr4";
 
 export default class Range {
     public start: number;
@@ -54,6 +54,10 @@ export default class Range {
             token.line,
             token.column
         );
+    }
+
+    static fromTerminal(node: TerminalNode): Range {
+        return this.fromToken(node.symbol)
     }
 
     static fromTokenTo(from: {
