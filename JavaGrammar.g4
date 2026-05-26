@@ -26,7 +26,7 @@ statement:
 LCURLY statement* RCURLY  #BlockStmt
 | if                     #IfElseStmt
 | while                    #WhileStmt
-//| for
+| for                       #ForStmt
 | ((declaration | assignment | arrayAssignment | inc | return | break | call | instanceCallStatement) TERM?) #Stmt
 //| nop
 ;

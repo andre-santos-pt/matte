@@ -144,17 +144,34 @@ describe('Matte Interpreter Test Script', () => {
 
         it('for', () => {
             script(`
+        for(int i = 0; i != 10; i = i + 1) {
+        
+        }
+        `, new Map().set("i", 10))
+        });
+
+        it('for inc', () => {
+            script(`
         for(int i = 0; i != 10; i++) {
         
         }
         `, new Map().set("i", 10))
         });
 
-        it('for strange', () => {
+        it('for no init', () => {
             script(`
         int i = 0;
         for(; i != 10; i = i + 1) {
         
+        }
+        `, new Map().set("i", 10))
+        });
+
+        it('for no prog', () => {
+            script(`
+        int i = 0;
+        for(; i != 10; ) {
+            i = i + 1;
         }
         `, new Map().set("i", 10))
         });

@@ -6,7 +6,7 @@ import JavaGrammarParser, {
     BlockStmtContext,
     BoolExprContext, CallContext, CallExprContext,
     DeclarationContext,
-    ExpContext,
+    ExpContext, ForStmtContext,
     IdExprContext,
     IfContext,
     IfElseStmtContext,
@@ -106,7 +106,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     visitScript = (ctx: ScriptContext) => {
         this.varScope.push(new Map<string, Declaration>())
-        let statements: Statement[] = ctx.statement_list().map(stmt => {
+        let statements: Statement[] = ctx.statement_list().flatMap(stmt => {
             return this.visit(stmt)
         })
         this.varScope.pop()
@@ -118,7 +118,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         ctx.params()?.param_list().forEach(p => {
             this.topScope().set(p._id.text, new Declaration(Range.fromContext(p), p._id.text, p._type_.text))
         })
-        let body: Statement[] = ctx.statement_list().map(s => this.visit(s))
+        let body: Statement[] = ctx.statement_list().flatMap(s => this.visit(s))
         this.varScope.pop()
         return new BlockStatement(Range.fromTokenTo(ctx.LCURLY().symbol, ctx.LPAREN().symbol), body)
     }
@@ -186,6 +186,34 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             Range.fromContext(ctx.while_()),
             this.expToAST(ctx.while_().exp()),
             this.visit(ctx.while_().statement()))
+
+
+    visitForStmt = (ctx: ForStmtContext) => {
+        const ret: Statement[] = []
+        if(ctx.for_().declaration())
+            ret.push(this.visitDeclaration(ctx.for_().declaration()))
+        const body = this.visit(ctx.for_()._body)
+        if(ctx.for_()._progress) {
+            const prog = this.visitStmt(ctx.for_()._progress) as Statement
+            if (body instanceof BlockStatement)
+                body.statements.push(prog)
+            else {
+                const block = new BlockStatement(
+                    Range.fromContext(ctx.for_()._body),
+                    [body, prog]
+                )
+                body.statements.push(block)
+            }
+        }
+        ret.push(new WhileStatement(
+                Range.fromContext(ctx.for_()),
+                this.expToAST(ctx.for_().exp()),
+                body)
+        )
+        return ret
+    }
+
+
 
     visitReturn = (ctx: ReturnContext) =>
         new ReturnStatement(
