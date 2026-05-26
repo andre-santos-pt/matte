@@ -90,6 +90,10 @@ export class WhileStatement extends Statement {
     }
 }
 
+export class BreakStatement extends Statement {
+
+}
+
 export class ReturnStatement extends Statement {
     expression?: Expression;
     constructor(range: Range, expression?: Expression) {

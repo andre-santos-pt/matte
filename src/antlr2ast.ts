@@ -4,7 +4,7 @@ import JavaGrammarParser, {
     BinaryOpMulContext,
     BinaryOpRelContext,
     BlockStmtContext,
-    BoolExprContext, CallContext, CallExprContext,
+    BoolExprContext, BreakContext, CallContext, CallExprContext,
     DeclarationContext,
     ExpContext, ForStmtContext,
     IdExprContext,
@@ -19,7 +19,8 @@ import JavaGrammarParser, {
 } from "./generated/JavaGrammarParser";
 import {
     Assignment,
-    BinaryExpression, BlockStatement, BooleanLiteral, CallExpression,
+    BinaryExpression, BlockStatement, BooleanLiteral,
+    BreakStatement, CallExpression,
     CallStatement,
     Declaration,
     Expression, IfStatement,
@@ -205,15 +206,19 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 body.statements.push(block)
             }
         }
+        const guard = ctx.for_().exp() ?
+            this.expToAST(ctx.for_().exp())
+            : new BooleanLiteral(Range.fromTerminal(ctx.for_().TERM(1)), true)
         ret.push(new WhileStatement(
                 Range.fromContext(ctx.for_()),
-                this.expToAST(ctx.for_().exp()),
+                guard,
                 body)
         )
         return ret
     }
 
-
+    visitBreak = (ctx: BreakContext) =>
+        new BreakStatement()
 
     visitReturn = (ctx: ReturnContext) =>
         new ReturnStatement(

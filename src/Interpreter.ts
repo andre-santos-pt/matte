@@ -7,7 +7,7 @@ import {
     ASTNode,
     BinaryExpression,
     BlockStatement,
-    BooleanLiteral,
+    BooleanLiteral, BreakStatement,
     CallExpression,
     CallStatement,
     Declaration,
@@ -295,10 +295,24 @@ export class Interpreter {
                         message: `Type mismatch: expected boolean expression`
                     }
                 if (!conditionVal.evaluation) break;
-                this.execute(s.body);
+                try {
+                    this.execute(s.body);
+                }
+                catch (e: any) {
+                    if(e.break_)
+                        break
+                    else
+                        throw e
+                }
             }
             this.loopEnd(s)
-        } else if (s instanceof CallStatement) {
+        }
+        else if (s instanceof BreakStatement) {
+            throw {
+                break_: true
+            }
+        }
+        else if (s instanceof CallStatement) {
             if (s.expression instanceof CallExpression)
                 this.invocation(s.expression)
             else {

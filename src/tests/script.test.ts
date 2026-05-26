@@ -109,6 +109,17 @@ describe('Matte Interpreter Test Script', () => {
         `, new Map().set("i", 10))
         });
 
+        it('while true break', () => {
+            script(`
+        int i = 0;
+        while(true) {
+            i = i + 1;
+            if(i == 10)
+                break;
+        }
+        `, new Map().set("i", 10))
+        });
+
         it('while loop max', () => {
             runtimeError(`
         int i = 0;
@@ -117,6 +128,7 @@ describe('Matte Interpreter Test Script', () => {
         }
         `, RuntimeErrorType.MaxIterationsReached)
         });
+
 
         it('inc while', () => {
             script(`
@@ -172,6 +184,17 @@ describe('Matte Interpreter Test Script', () => {
         int i = 0;
         for(; i != 10; ) {
             i = i + 1;
+        }
+        `, new Map().set("i", 10))
+        });
+
+        it('empty for', () => {
+            script(`
+        int i = 0;
+        for(; ; ) {
+            i = i + 1;
+            if(i == 10)
+                break;
         }
         `, new Map().set("i", 10))
         });
