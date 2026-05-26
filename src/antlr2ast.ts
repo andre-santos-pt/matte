@@ -18,7 +18,7 @@ import {
     MethodContext,
     ReturnContext,
     ScriptContext,
-    StatementContext,
+    StatementContext, StringExprContext,
     UnaryOpContext,
     UnitContext,
     WhileStmtContext
@@ -38,7 +38,7 @@ import {
     Procedure,
     Program,
     ReturnStatement,
-    Statement,
+    Statement, StringLiteral,
     UnaryExpression,
     UnboundCallExpression,
     Variable,
@@ -82,7 +82,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             range: Range.fromTerminal(idCtx),
             message: `Variable ${name} not declared`,
             detail: {
-                related: [... last(this.varScope).values()].map(v => v.range)
+                related: [...last(this.varScope).values()].map(v => v.range)
             }
         }
     }
@@ -162,7 +162,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitDeclaration = (ctx: DeclarationContext) => {
-        if(last(this.varScope).has(ctx._id.text))
+        if (last(this.varScope).has(ctx._id.text))
             throw {
                 compilation: CompilationErrorType.DuplicateVariable,
                 range: Range.fromToken(ctx._id),
@@ -207,10 +207,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     visitForStmt = (ctx: ForStmtContext) => {
         const ret: Statement[] = []
-        if(ctx.for_().declaration())
+        if (ctx.for_().declaration())
             ret.push(this.visitDeclaration(ctx.for_().declaration()))
         const body = this.visit(ctx.for_()._body)
-        if(ctx.for_()._progress) {
+        if (ctx.for_()._progress) {
             const prog = this.visitStmt(ctx.for_()._progress) as Statement
             if (body instanceof BlockStatement)
                 body.statements.push(prog)
@@ -226,9 +226,9 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             this.expToAST(ctx.for_().exp())
             : new BooleanLiteral(Range.fromTerminal(ctx.for_().TERM(1)), true)
         ret.push(new WhileStatement(
-                Range.fromContext(ctx.for_()),
-                guard,
-                body)
+            Range.fromContext(ctx.for_()),
+            guard,
+            body)
         )
         return ret
     }
@@ -287,9 +287,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         if (ctx instanceof IdExprContext) {
             const dec = this.varLookup(ctx.getText(), ctx.ID())
             return new Variable(Range.fromContext(ctx), dec)
-        }
-
-        else if (ctx instanceof IntExprContext)
+        } else if (ctx instanceof IntExprContext)
             return new IntLiteral(
                 Range.fromContext(ctx),
                 Number(ctx.INT().getText())
@@ -299,6 +297,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return new BooleanLiteral(
                 Range.fromContext(ctx),
                 ctx.BOOLEAN().getText() == "true"
+            )
+
+        else if (ctx instanceof StringExprContext)
+            return new StringLiteral(
+                Range.fromContext(ctx),
+                ctx.STRING().getText().substring(1, ctx.STRING().getText().length - 1)
             )
 
         else if (ctx instanceof UnaryOpContext)
@@ -342,7 +346,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     private handleCall(ctx: CallContext) {
         const proc = this.procedures.find(p => p.name == ctx._id.text)
-        if(proc)
+        if (proc)
             return new CallExpression(
                 Range.fromContext(ctx),
                 proc,

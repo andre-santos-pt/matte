@@ -80,6 +80,7 @@ exp:
     | BOOLEAN                                   # boolExpr
     | CHAR                                      # charExpr
     | NULL                                      # nullExpr
+    | STRING                                    # stringExpr
 ;
 
 newCall:
@@ -182,6 +183,8 @@ INT: [0-9]+ ;
 CHAR: '\''.'\'';
 
 ID: [a-zA-Z][a-zA-Z0-9_]*;
+
+STRING: '"'~([\n"])*'"';
 
 //TYPE: ID (LBRACK RBRACK)*;
 

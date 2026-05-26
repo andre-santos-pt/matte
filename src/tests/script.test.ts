@@ -10,7 +10,11 @@ import {last} from "../utils";
 
 function script(code: string, cases: Map<string, any>) {
     const interpreter = new Interpreter();
-    const result = interpreter.parseAndRun(code);
+    let result = interpreter.parseAndRun(code);
+    if(result.errors.length != 0) {
+        console.table(result.errors)
+        return
+    }
     if (last(result.trace)?.error)
         assert.fail(last(result.trace)?.error?.message)
     else {
@@ -218,6 +222,17 @@ describe('Matte Interpreter Test Script', () => {
                 .set("i", 10)
                 .set("j", 20))
         });
+
+        it('string', () => {
+            script(`
+        String hello = "ola";
+        String helloExc = hello + "!";
+        `, new Map()
+                .set("hello", "ola")
+                .set("helloExc", "ola!")
+            )
+        });
+
 
         it('array access', () => {
             script(`

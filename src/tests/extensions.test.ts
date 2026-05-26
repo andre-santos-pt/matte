@@ -12,7 +12,7 @@ describe('Matte Interpreter Test Extensions', () => {
                 originalLog.apply(console, args);
             };
             const interpreter = new Interpreter();
-            interpreter.addExtensionFunction("print", args => {
+            interpreter.addExtensionFunction("println", args => {
                 console.log(args[0])
                 return {
                     evaluation: undefined,
@@ -20,10 +20,11 @@ describe('Matte Interpreter Test Extensions', () => {
                 }
             })
             interpreter.parseAndRun(`
-                print(3);
-                print(1)
+                println(3);
+                println(1);
+                println("!!");
             `)
-            assert.deepStrictEqual(logHistory, ["3","1"])
+            assert.deepStrictEqual(logHistory, ["3","1","!!"])
         })
     })
 })

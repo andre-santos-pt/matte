@@ -115,11 +115,19 @@ export class CallStatement extends Statement {
 
 export abstract class Expression extends ASTNode { }
 
-export abstract class Literal extends Expression {}
+export abstract class Literal extends Expression { }
 
 export class IntLiteral extends Literal {
     value: number;
     constructor(range: Range | undefined, value: number) {
+        super(range);
+        this.value = value;
+    }
+}
+
+export class BooleanLiteral extends Literal {
+    value: boolean;
+    constructor(range: Range, value: boolean) {
         super(range);
         this.value = value;
     }
@@ -133,13 +141,6 @@ export class StringLiteral extends Literal {
     }
 }
 
-export class BooleanLiteral extends Literal {
-    value: boolean;
-    constructor(range: Range, value: boolean) {
-        super(range);
-        this.value = value;
-    }
-}
 
 export class Variable extends Expression {
     declaration: Declaration;

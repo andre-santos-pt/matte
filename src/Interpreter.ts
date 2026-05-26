@@ -17,7 +17,7 @@ import {
     Procedure,
     Program,
     ReturnStatement,
-    Statement,
+    Statement, StringLiteral,
     UnaryExpression,
     UnboundCallExpression,
     Variable,
@@ -348,19 +348,22 @@ export class Interpreter {
             }
         } else if (e instanceof IntLiteral)
             return {
-                evaluation: (e as IntLiteral).value,
-                materialization: (e as IntLiteral).value.toString()
+                evaluation: e.value
             }
         else if (e instanceof BooleanLiteral)
             return {
-                evaluation: (e as BooleanLiteral).value
+                evaluation: e.value
+            }
+        else if (e instanceof  StringLiteral)
+            return {
+                evaluation: e.value
             }
         else if (e instanceof UnaryExpression) {
-            const expVal = this.evaluate((e as UnaryExpression).expression);
-            if ((e as UnaryExpression).operator === "-") {
+            const expVal = this.evaluate(e.expression);
+            if (e.operator === "-") {
                 if (typeof expVal.evaluation !== "number")
                     throw {
-                        range: (e as UnaryExpression).expression.range,
+                        range: e.expression.range,
                         type: CompilationErrorType.TypeMismatch,
                         message: `Type mismatch: expected number but got ${expVal.evaluation}`
                     }
@@ -369,27 +372,29 @@ export class Interpreter {
                     materialization: expVal.materialization
                 }
             } else
-                throw new Error("Unsupported unary operator: " + (e as UnaryExpression).operator);
+                throw new Error("Unsupported unary operator: " + e.operator);
         } else if (e instanceof BinaryExpression) {
-            const leftVal = this.evaluate((e as BinaryExpression).left);
-            const rightVal = this.evaluate((e as BinaryExpression).right);
+            const leftVal = this.evaluate(e.left);
+            const rightVal = this.evaluate(e.right);
             let evaluation = undefined
-            if (['+', '-', '*', '/', '%'].includes((e as BinaryExpression).operator))
+            if(e.operator == '+' && (typeof leftVal.evaluation === "string" || typeof rightVal.evaluation === "string"))
+                evaluation = leftVal.evaluation.toString() + rightVal.evaluation.toString()
+            else if (['+', '-', '*', '/', '%'].includes(e.operator))
                 evaluation = this.handleArithmetic(
-                    (e as BinaryExpression).left, leftVal,
-                    (e as BinaryExpression).right, rightVal,
-                    (e as BinaryExpression).operator);
+                    e.left, leftVal,
+                    e.right, rightVal,
+                    e.operator);
 
-            if (['==', '!=', '>', '<', '>=', '<='].includes((e as BinaryExpression).operator))
+           else if (['==', '!=', '>', '<', '>=', '<='].includes(e.operator))
                 evaluation = this.handleComparison(
-                    (e as BinaryExpression).left, leftVal,
-                    (e as BinaryExpression).right, rightVal,
-                    (e as BinaryExpression).operator);
+                    e.left, leftVal,
+                    e.right, rightVal,
+                    e.operator);
 
 
             if (evaluation === undefined)
-                throw new Error("Unsupported operator: " + (e as BinaryExpression).operator);
-            const materialization = leftVal.evaluation + " " + (e as BinaryExpression).operator + " " + rightVal.evaluation;
+                throw new Error("Unsupported operator: " + e.operator);
+            const materialization = leftVal.evaluation + " " + e.operator + " " + rightVal.evaluation;
             this.addTrace(e, evaluation, materialization)
             return {
                 evaluation,
