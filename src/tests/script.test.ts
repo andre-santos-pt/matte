@@ -188,6 +188,14 @@ describe('Matte Interpreter Test Script', () => {
         `, new Map().set("i", 10))
         });
 
+        it('for dec', () => {
+            script(`
+        for( int i = 10; i != 0; i--) {
+        
+        }
+        `, new Map().set("i", 0))
+        });
+
         it('empty for', () => {
             script(`
         int i = 0;

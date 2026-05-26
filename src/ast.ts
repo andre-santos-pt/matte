@@ -119,7 +119,7 @@ export abstract class Literal extends Expression {}
 
 export class IntLiteral extends Literal {
     value: number;
-    constructor(range: Range, value: number) {
+    constructor(range: Range | undefined, value: number) {
         super(range);
         this.value = value;
     }

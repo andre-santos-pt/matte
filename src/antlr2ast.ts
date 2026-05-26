@@ -1,16 +1,22 @@
-import JavaGrammarParser, {
+import {
     AssignmentContext,
     BinaryOpAddContext,
     BinaryOpMulContext,
     BinaryOpRelContext,
     BlockStmtContext,
-    BoolExprContext, BreakContext, CallContext, CallExprContext,
+    BoolExprContext,
+    BreakContext,
+    CallContext,
+    CallExprContext, DecContext,
     DeclarationContext,
-    ExpContext, ForStmtContext,
+    ExpContext,
+    ForStmtContext,
     IdExprContext,
-    IfContext,
     IfElseStmtContext,
-    IntExprContext, MethodContext, ReturnContext,
+    IncContext,
+    IntExprContext,
+    MethodContext,
+    ReturnContext,
     ScriptContext,
     StatementContext,
     UnaryOpContext,
@@ -19,19 +25,31 @@ import JavaGrammarParser, {
 } from "./generated/JavaGrammarParser";
 import {
     Assignment,
-    BinaryExpression, BlockStatement, BooleanLiteral,
-    BreakStatement, CallExpression,
+    BinaryExpression,
+    BlockStatement,
+    BooleanLiteral,
+    BreakStatement,
+    CallExpression,
     CallStatement,
     Declaration,
-    Expression, IfStatement,
-    IntLiteral, Procedure, Program, ReturnStatement,
-    Statement, UnaryExpression, UnboundCallExpression, Variable, WhileStatement
+    Expression,
+    IfStatement,
+    IntLiteral,
+    Procedure,
+    Program,
+    ReturnStatement,
+    Statement,
+    UnaryExpression,
+    UnboundCallExpression,
+    Variable,
+    WhileStatement
 } from "./ast";
 import Range from "./Range";
 import JavaGrammarVisitor from "./generated/JavaGrammarVisitor";
-import {ParseTree} from "antlr4";
+import {TerminalNode} from "antlr4";
 import {CompilationErrorType} from "./Interpreter";
 import {last} from "./utils";
+import {compilationError} from "./tests/utils";
 
 
 export function parseTreeToAST(ctx: UnitContext): Program {
@@ -52,14 +70,21 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         return this.varScope[this.varScope.length - 1];
     }
 
-    varLookup(name: string): Declaration | undefined {
+    varLookup(name: string, idCtx: TerminalNode): Declaration {
         for (let i = this.varScope.length - 1; i >= 0; i--) {
             const scope = this.varScope[i];
             if (scope.has(name)) {
                 return scope.get(name)!;
             }
         }
-        return undefined;
+        throw {
+            compilation: CompilationErrorType.UndeclaredVariable,
+            range: Range.fromTerminal(idCtx),
+            message: `Variable ${name} not declared`,
+            detail: {
+                related: [... last(this.varScope).values()].map(v => v.range)
+            }
+        }
     }
 
     visitUnit = (ctx: UnitContext) => {
@@ -157,21 +182,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitAssignment = (ctx: AssignmentContext) => {
-        const dec = this.varLookup(ctx.compId().ID(0).getText())
-        if (!dec) throw {
-            compilation: CompilationErrorType.UndeclaredVariable,
-            range: Range.fromTerminal(ctx.compId().ID(0)), // TODO fields
-            message: `Variable ${ctx.compId().ID(0).getText()} not declared`,
-            detail: {
-                related: [...last(this.varScope).values()].map(d => d.range)
-            }
-        }
-        const ass = new Assignment(
+        const dec = this.varLookup(ctx.compId().ID(0).getText(), ctx.compId().ID(0))
+        return new Assignment(
             Range.fromContext(ctx),
             dec,
             this.expToAST(ctx.exp())
         )
-        return ass
     }
 
     visitIfElseStmt = (ctx: IfElseStmtContext) =>
@@ -217,6 +233,40 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         return ret
     }
 
+    visitInc = (ctx: IncContext) => {
+        if (!(ctx._target instanceof IdExprContext))
+            throw new Error("Unsupported target: " + (ctx as any).constructor.name);
+
+        const dec = this.varLookup(ctx._target.getText(), ctx._target.ID())
+        const inc = new BinaryExpression(
+            Range.fromContext(ctx),
+            "+",
+            new Variable(
+                Range.fromTerminal(ctx._target.ID()),
+                dec
+            ),
+            new IntLiteral(undefined, 1)
+        )
+        return new Assignment(Range.fromContext(ctx), dec, inc)
+    }
+
+    visitDec = (ctx: DecContext) => {
+        if (!(ctx._target instanceof IdExprContext))
+            throw new Error("Unsupported target: " + (ctx as any).constructor.name);
+
+        const dec = this.varLookup(ctx._target.getText(), ctx._target.ID())
+        const inc = new BinaryExpression(
+            Range.fromContext(ctx),
+            "-",
+            new Variable(
+                Range.fromTerminal(ctx._target.ID()),
+                dec
+            ),
+            new IntLiteral(undefined, 1)
+        )
+        return new Assignment(Range.fromContext(ctx), dec, inc)
+    }
+
     visitBreak = (ctx: BreakContext) =>
         new BreakStatement()
 
@@ -235,15 +285,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     expToAST(ctx: ExpContext):
         Expression {
         if (ctx instanceof IdExprContext) {
-            const dec = this.varLookup(ctx.getText())
-            if (!dec) throw {
-                compilation: CompilationErrorType.UndeclaredVariable,
-                range: Range.fromTerminal(ctx.ID()),
-                message: `Variable ${ctx.getText()} not declared`,
-                detail: {
-                    related: [... last(this.varScope).values()].map(v => v.range)
-                }
-            }
+            const dec = this.varLookup(ctx.getText(), ctx.ID())
             return new Variable(Range.fromContext(ctx), dec)
         }
 
@@ -312,14 +354,5 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 ctx._id.text,
                 ctx._args ? ctx._args.exp_list().map(e => this.expToAST(e)) : []
             )
-        // if (!proc)
-        //     throw {
-        //         compilation: CompilationErrorType.MethodNotFound,
-        //         range: Range.fromToken(ctx._id), // TODO fields
-        //         message: `No method named '${ctx._id.text}' found`,
-        //         detail: {
-        //             related: this.procedures.map(p => p.nameRange)
-        //         }
-        //     }
     }
 }

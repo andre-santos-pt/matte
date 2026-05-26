@@ -27,7 +27,7 @@ LCURLY statement* RCURLY  #BlockStmt
 | if                     #IfElseStmt
 | while                    #WhileStmt
 | for                       #ForStmt
-| ((declaration | assignment | arrayAssignment | inc | return | break | call | instanceCallStatement) TERM?) #Stmt
+| ((declaration | assignment | arrayAssignment | inc | dec | return | break | call | instanceCallStatement) TERM?) #Stmt
 //| nop
 ;
 
@@ -44,6 +44,8 @@ assignment: id=compId ASSIGN expression=exp;
 arrayAssignment: target=exp LBRACK index=exp RBRACK ASSIGN expression=exp;
 
 inc: target=exp INC;
+
+dec: target=exp DEC;
 
 return: RETURN expression=exp?;
 
@@ -171,6 +173,7 @@ BREAK: 'break';
 NEW: 'new';
 
 INC: '++';
+DEC: '--';
 
 NULL: 'null';
 
