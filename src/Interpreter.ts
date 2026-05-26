@@ -1,17 +1,27 @@
 import JavaGrammarLexer from "./generated/JavaGrammarLexer";
 import JavaGrammarParser from "./generated/JavaGrammarParser";
-import {
-    CharStreams,
-    CommonTokenStream,
-} from "antlr4";
+import {CharStreams, CommonTokenStream,} from "antlr4";
 
 import {
-    Assignment, ASTNode,
+    Assignment,
+    ASTNode,
     BinaryExpression,
-    BlockStatement, BooleanLiteral, CallExpression, CallStatement, Declaration,
-    Expression, IfStatement,
-    IntLiteral, Procedure, Program, ReturnStatement,
-    Statement, UnaryExpression, UnboundCallExpression, Variable, WhileStatement
+    BlockStatement,
+    BooleanLiteral,
+    CallExpression,
+    CallStatement,
+    Declaration,
+    Expression,
+    IfStatement,
+    IntLiteral,
+    Procedure,
+    Program,
+    ReturnStatement,
+    Statement,
+    UnaryExpression,
+    UnboundCallExpression,
+    Variable,
+    WhileStatement
 } from "./ast";
 import Range from "./Range";
 
@@ -294,8 +304,10 @@ export class Interpreter {
             else {
                 const extName = (s.expression as UnboundCallExpression).procedureName
                 const ext = this.extensions.get(extName)
-                if (ext)
-                    ext.call(null)
+                if (ext) {
+                    const args = (s.expression as UnboundCallExpression).args.map( a=> this.evaluate(a).evaluation)
+                    ext.call(null,args)
+                }
                 else
                     throw {
                         compilation: CompilationErrorType.MethodNotFound,
