@@ -8,14 +8,14 @@ import {
     BreakContext,
     CallContext,
     CallExprContext, DecContext,
-    DeclarationContext,
-    ExpContext,
+    DeclarationContext, DoubleExprContext,
+    ExpContext, FieldExprContext,
     ForStmtContext,
     IdExprContext,
     IfElseStmtContext,
-    IncContext,
+    IncContext, InstanceCallExprContext,
     IntExprContext,
-    MethodContext,
+    MethodContext, ObjectAllocExprContext, RecordContext,
     ReturnContext,
     ScriptContext,
     StatementContext, StringExprContext,
@@ -31,16 +31,16 @@ import {
     BreakStatement,
     CallExpression,
     CallStatement,
-    Declaration,
-    Expression,
+    Declaration, DoubleLiteral,
+    Expression, FieldAccessExpression,
     IfStatement,
-    IntLiteral,
+    IntLiteral, NewObjectExpression,
     Procedure,
     Program,
     ReturnStatement,
-    Statement, StringLiteral,
+    Statement, StringLiteral, TypeDeclaration,
     UnaryExpression,
-    UnboundCallExpression,
+    UnboundCallExpression, UnboundNewObjectExpression,
     Variable,
     WhileStatement
 } from "./ast";
@@ -62,27 +62,45 @@ export function parseExpression(unit: UnitContext, ctx: ExpContext): [Program, E
     return [visitor.visitUnit(unit), visitor.expToAST(ctx)];
 }
 
+type ScopeEntry = {
+    block: boolean;
+    variables: Map<string, Declaration>;
+}
+
 class TreeVisitor extends JavaGrammarVisitor<any> {
-    varScope: Map<string, Declaration>[] = [];
+    varScope: ScopeEntry[] = [];
     procedures: Procedure[] = [];
+    types: TypeDeclaration[] = [];
+    typeContext?: TypeDeclaration = undefined
 
     topScope(): Map<string, Declaration> {
-        return this.varScope[this.varScope.length - 1];
+        return this.varScope[this.varScope.length - 1].variables;
     }
 
     varLookup(name: string, idCtx: TerminalNode): Declaration {
         for (let i = this.varScope.length - 1; i >= 0; i--) {
-            const scope = this.varScope[i];
-            if (scope.has(name)) {
-                return scope.get(name)!;
+            const scope = this.varScope[i].variables;
+            if (scope.has(name))
+                return scope.get(name)!
+
+            if (this.typeContext) {
+                if (name == "this")
+                    return new Declaration(Range.fromTerminal(idCtx), "this", true, this.typeContext.name)
+
+                const find = this.typeContext.fields.find(f => f.name == name)
+                if (find)
+                    return find
             }
+
+            if (!this.varScope[i].block)
+                break
         }
         throw {
             compilation: CompilationErrorType.UndeclaredVariable,
             range: Range.fromTerminal(idCtx),
             message: `Variable ${name} not declared`,
             detail: {
-                related: [...last(this.varScope).values()].map(v => v.range)
+                related: [...last(this.varScope).variables.values()].map(v => v.range)
             }
         }
     }
@@ -91,6 +109,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         if (ctx.script())
             return new Program(this.visitScript(ctx.script()))
         else {
+            const typeMap: [TypeDeclaration, RecordContext][] = []
+            for (let i = 0; i < ctx.getChildCount(); i++)
+                if (ctx.getChild(i) instanceof RecordContext) {
+                    let typeDeclaration = this.visitRecord(ctx.getChild(i) as RecordContext);
+                    typeMap.push([typeDeclaration, ctx.getChild(i) as RecordContext])
+                    this.types.push(typeDeclaration)
+                }
+
             for (let i = 0; i < ctx.getChildCount(); i++) {
                 if (ctx.getChild(i) instanceof MethodContext) {
                     const mctx = ctx.getChild(i) as MethodContext
@@ -98,18 +124,32 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                         new Declaration(
                             Range.fromContext(p),
                             p._id.text,
+                            false,
                             p._type_.text
                         )) : []
                     this.procedures.push(new Procedure(
                         Range.fromContext(ctx),
                         mctx._id.text,
                         Range.fromToken(mctx._id),
+                        false,
                         params,
                         mctx._type_ ? mctx._type_.text : undefined,
                         undefined
                     ))
                 }
             }
+
+            typeMap.forEach(tm => {
+                const type = tm[0]
+                const recordCtx = tm[1]
+                const recordProcedures = this.procedures.filter(p => p.range && p.instance && p.parameters.length > 0 && p.parameters[0].type == type.name)
+                this.typeContext = type
+                recordProcedures.forEach((p, i) => {
+                    p.body = this.visitMethod(recordCtx.method_list()[i])
+                })
+                this.typeContext = undefined
+            })
+
             for (let i = 0; i < ctx.getChildCount(); i++) {
                 if (ctx.getChild(i) instanceof MethodContext) {
                     const c = ctx.getChild(i) as MethodContext
@@ -126,12 +166,15 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     proc.body = this.visitMethod(ctx.getChild(i) as MethodContext)
                 }
             }
-            return new Program(undefined, this.procedures)
+            return new Program(undefined, this.procedures, this.types)
         }
     }
 
     visitScript = (ctx: ScriptContext) => {
-        this.varScope.push(new Map<string, Declaration>())
+        this.varScope.push({
+            block: false,
+            variables: new Map<string, Declaration>()
+        })
         let statements: Statement[] = ctx.statement_list().flatMap(stmt => {
             return this.visit(stmt)
         })
@@ -139,10 +182,61 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         return new BlockStatement(Range.fromContext(ctx), statements)
     }
 
+    visitRecord = (ctx: RecordContext) => {
+        ctx.method_list().forEach(mctx => {
+            const params = mctx.params() ? mctx.params().param_list().map(p =>
+                new Declaration(
+                    Range.fromContext(p),
+                    p._id.text,
+                    true,
+                    p._type_.text
+                )) : []
+            this.procedures.push(new Procedure(
+                Range.fromContext(ctx),
+                mctx._id.text,
+                Range.fromToken(mctx._id),
+                true,
+                [new Declaration(Range.fromToken(ctx._id), "this", true, ctx._id.text)].concat(params),
+                mctx._type_ ? mctx._type_.text : undefined,
+                undefined
+            ))
+        })
+        const fields: Declaration[] = []
+        ctx.params().param_list().forEach(p => {
+            const dec = new Declaration(
+                Range.fromContext(p),
+                p._id.text,
+                true,
+                p._type_.text
+            )
+            fields.push(dec)
+            this.procedures.push(new Procedure(
+                undefined,
+                p._id.text,
+                undefined,
+                true,
+                [new Declaration(Range.fromToken(ctx._id), "this", true, ctx._id.text)],
+                p._type_.text,
+                new BlockStatement(undefined, [
+                    new ReturnStatement(undefined, new Variable(undefined, dec))
+                ])
+            ))
+        })
+        return new TypeDeclaration(
+            ctx._id.text,
+            Range.fromToken(ctx._id),
+            true,
+            fields
+        )
+    }
+
     visitMethod = (ctx: MethodContext) => {
-        this.varScope.push(new Map<string, Declaration>())
+        this.varScope.push({
+            block: false,
+            variables: new Map<string, Declaration>()
+        })
         ctx.params()?.param_list().forEach(p => {
-            this.topScope().set(p._id.text, new Declaration(Range.fromContext(p), p._id.text, p._type_.text))
+            this.topScope().set(p._id.text, new Declaration(Range.fromContext(p), p._id.text, false, p._type_.text))
         })
         let body: Statement[] = ctx.statement_list().flatMap(s => this.visit(s))
         this.varScope.pop()
@@ -154,7 +248,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitBlockStmt = (ctx: BlockStmtContext) => {
-        this.varScope.push(new Map<string, Declaration>())
+        this.varScope.push({
+            block: true,
+            variables: new Map<string, Declaration>()
+        })
         let statements: Statement[] = []
         ctx.statement_list().forEach(stmt => statements.push(this.visit(stmt)))
         this.varScope.pop()
@@ -162,18 +259,19 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitDeclaration = (ctx: DeclarationContext) => {
-        if (last(this.varScope).has(ctx._id.text))
+        if (last(this.varScope).variables.has(ctx._id.text))
             throw {
                 compilation: CompilationErrorType.DuplicateVariable,
                 range: Range.fromToken(ctx._id),
                 message: `Duplicate variable '${ctx._id}'`,
                 detail: {
-                    related: last(this.varScope).get(ctx._id.text)?.range
+                    related: last(this.varScope).variables.get(ctx._id.text)?.range
                 }
             }
         const dec = new Declaration(
             Range.fromContext(ctx),
             ctx._id.text,
+            false,
             ctx._type_.text,
             ctx.exp() ? this.expToAST(ctx.exp()) : undefined
         )
@@ -183,6 +281,16 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     visitAssignment = (ctx: AssignmentContext) => {
         const dec = this.varLookup(ctx.compId().ID(0).getText(), ctx.compId().ID(0))
+        if (dec.immutable)
+            throw {
+                compilation: CompilationErrorType.ImmutableVariable,
+                range: Range.fromContext(ctx),
+                message: `Variable '${dec.name}' is immutable and cannot be assigned to`,
+                detail: {
+                    related: dec.range
+                }
+            }
+
         return new Assignment(
             Range.fromContext(ctx),
             dec,
@@ -235,7 +343,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     visitInc = (ctx: IncContext) => {
         if (!(ctx._target instanceof IdExprContext))
-            throw new Error("Unsupported target: " + (ctx as any).constructor.name);
+            throw {
+                message: "Unsupported target: " + ctx.getText(),
+                compilation: CompilationErrorType.Unsupported,
+                range: Range.fromContext(ctx)
+            }
 
         const dec = this.varLookup(ctx._target.getText(), ctx._target.ID())
         const inc = new BinaryExpression(
@@ -252,7 +364,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     visitDec = (ctx: DecContext) => {
         if (!(ctx._target instanceof IdExprContext))
-            throw new Error("Unsupported target: " + (ctx as any).constructor.name);
+            throw {
+                message: "Unsupported target: " + ctx.getText(),
+                compilation: CompilationErrorType.Unsupported,
+                range: Range.fromContext(ctx)
+            }
 
         const dec = this.varLookup(ctx._target.getText(), ctx._target.ID())
         const inc = new BinaryExpression(
@@ -291,6 +407,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return new IntLiteral(
                 Range.fromContext(ctx),
                 Number(ctx.INT().getText())
+            )
+
+        else if (ctx instanceof DoubleExprContext)
+            return new DoubleLiteral(
+                Range.fromContext(ctx),
+                Number(ctx.DOUBLE().getText())
             )
 
         else if (ctx instanceof BoolExprContext)
@@ -339,19 +461,105 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         else if (ctx instanceof CallExprContext)
             return this.handleCall(ctx.call());
 
-        else
-            throw new Error("Unsupported expression type: " + (ctx as any).constructor.name);
+        else if (ctx instanceof ObjectAllocExprContext)
+            return this.handleNewCall(ctx);
 
+        else if (ctx instanceof FieldExprContext)
+            return new FieldAccessExpression(
+                Range.fromContext(ctx),
+                this.expToAST(ctx._target),
+                ctx._fieldId.text
+            )
+
+        else if (ctx instanceof InstanceCallExprContext) {
+            return this.handleInstanceCall(ctx);
+        } else
+            throw {
+                message: "Unsupported expression type: " + ctx.getText(),
+                compilation: CompilationErrorType.Unsupported,
+                range: Range.fromContext(ctx),
+                detail: "AST"
+            }
+    }
+
+    private findMethodInType(type: TypeDeclaration, methodName: string):
+        Procedure | undefined {
+        return this.procedures.find(p => p.instance && p.name == methodName && p.parameters.length > 0 && p.parameters[0].type == type.name)
+
+    }
+
+    private handleInstanceCall(ctx: InstanceCallExprContext) {
+        const target = this.expToAST(ctx.exp())
+        if (!(target instanceof Variable || target instanceof NewObjectExpression))
+            throw {
+                message: "Unsupported target: " + ctx.exp().getText(),
+                compilation: CompilationErrorType.Unsupported,
+                range: Range.fromContext(ctx.exp())
+            }
+
+        const typeName = target instanceof Variable ? target.declaration.type : target.type.name
+
+        const type = this.types.find(t => t.name == typeName)
+
+        if (!type)
+            throw {
+                message: "Type '" + typeName + "' not found",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: Range.fromContext(ctx.exp()),
+                detail: "AST"
+            }
+
+        const proc = this.findMethodInType(type, ctx.call()._id.text)
+        if (!proc)
+            throw {
+                message: "No method named '" + ctx.call()._id.text + "' found for type '" + typeName + "'",
+                compilation: CompilationErrorType.MethodNotFound,
+                range: Range.fromToken(ctx.call()._id),
+                detail: "AST"
+            }
+        return new CallExpression(
+            Range.fromContext(ctx),
+            proc,
+            [this.expToAST(ctx.exp())].concat(ctx.call()._args ? ctx.call()._args.exp_list().map(e => this.expToAST(e)) : []),
+            true
+        )
+    }
+
+    private handleNewCall(ctx: ObjectAllocExprContext) {
+        const type = this.types.find(t => t.name == ctx.newCall()._type_.text)
+        if (type)
+            return new NewObjectExpression(
+                Range.fromContext(ctx),
+                type,
+                ctx.newCall()._args ? ctx.newCall()._args.exp_list().map(
+                    e => this.expToAST(e)
+                ) : []
+            )
+        else
+            return new UnboundNewObjectExpression(
+                Range.fromContext(ctx),
+                ctx.newCall()._type_.text,
+                ctx.newCall()._args ? ctx.newCall()._args.exp_list().map(
+                    e => this.expToAST(e)
+                ) : []
+            )
     }
 
     private handleCall(ctx: CallContext) {
         const proc = this.procedures.find(p => p.name == ctx._id.text)
-        if (proc)
+        if (proc) {
+            let args = ctx._args ? ctx._args.exp_list().map(e => this.expToAST(e)) : []
+            // TODO this is a bit hacky, we should check if the proc is an instance method and if so, add the target as first argument
+            if(proc.instance)
+                args.unshift(new Variable(Range.fromContext(ctx), new Declaration(undefined, "this", true, proc.parameters[0].type)))
+
             return new CallExpression(
                 Range.fromContext(ctx),
                 proc,
-                ctx._args ? ctx._args.exp_list().map(e => this.expToAST(e)) : []
+                args,
+                false
             )
+        }
         else
             return new UnboundCallExpression(
                 Range.fromContext(ctx),

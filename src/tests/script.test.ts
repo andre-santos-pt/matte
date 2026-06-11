@@ -211,6 +211,15 @@ describe('Matte Interpreter Test Script', () => {
         `, new Map().set("i", 10))
         });
 
+        it('var out of scope', () => {
+            compilationError(`
+        for(int i = 0;  i < 10; i = i + 1 ) {
+            
+        }
+        int j = i;
+        `, CompilationErrorType.UndeclaredVariable)
+        });
+
         it('nested for', () => {
             script(`
         int c = 0;

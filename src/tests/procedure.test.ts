@@ -26,7 +26,8 @@ describe('Matte Interpreter Test Procedure', () => {
                 return nop();
             }            
             `,
-               CompilationErrorType.MethodNotFound);
+               CompilationErrorType.MethodNotFound,
+                "noargs()");
         })
 
         it('one arg', () => {
@@ -39,7 +40,7 @@ describe('Matte Interpreter Test Procedure', () => {
             }            
             `,
                 ["oneArg(10)", 80],
-                ["oneArg(0]", 70])
+                ["oneArg(0)", 60])
         })
 
         it('two args', () => {

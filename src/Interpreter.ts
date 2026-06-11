@@ -10,10 +10,10 @@ import {
     BooleanLiteral, BreakStatement,
     CallExpression,
     CallStatement,
-    Declaration,
-    Expression,
+    Declaration, DoubleLiteral,
+    Expression, FieldAccessExpression,
     IfStatement,
-    IntLiteral,
+    IntLiteral, NewObjectExpression,
     Procedure,
     Program,
     ReturnStatement,
@@ -54,6 +54,8 @@ export enum CompilationErrorType {
     TypeMismatch = "TYPE_MISMATCH",
     MethodNotFound = "METHOD_NOT_FOUND",
     MissingReturn = "MISSING_RETURN",
+    ImmutableVariable = "IMMUTABLE_VAR",
+    Unsupported = "UNSUPPORTED"
 }
 
 interface TraceEntry {
@@ -212,40 +214,56 @@ export class Interpreter {
             }
         }
 
-        if (program.block) {
-            this.scope.push({
-                variables: new Map()
-            })
-            try {
-                program.block.statements.forEach(i => this.execute(i));
-                this.addTrace(program.block, undefined, undefined)
-                this.scope.pop()
-                return {
-                    errors: [],
-                    result: undefined,
-                    trace: structuredClone(this.trace)
-                }
-            } catch (e: any) {
-                if (e.compilation)
-                    return {
-                        errors: [e],
-                        result: undefined,
-                        trace: structuredClone(this.trace)
-                    }
-                else if (e.runtimeError) {
+        return this.tryRun(() => {
+            if (program.block) {
+                this.scope.push({
+                    variables: new Map()
+                })
+                return this.tryRun(() => {
+                    (program.block as BlockStatement).statements.forEach(i => this.execute(i));
+                    this.addTrace((program.block as BlockStatement), undefined, undefined)
+                    this.scope.pop()
                     return {
                         errors: [],
                         result: undefined,
                         trace: structuredClone(this.trace)
                     }
-                } else throw e
+                })
+            } else {
+                return this.tryRun(() => {
+                    return {
+                        errors: [],
+                        result: this.evaluate(call as Expression),
+                        trace: structuredClone(this.trace)
+                    }
+                });
             }
-        } else {
-            return {
-                errors: [],
-                result: this.evaluate(call as Expression),
-                trace: structuredClone(this.trace)
-            }
+        })
+    }
+
+    tryRun(exec: () => InterpreterResult):
+        InterpreterResult {
+        try {
+            return exec();
+        } catch (e: any) {
+            if (e.compilation)
+                return {
+                    errors: [ {
+                        range: e.range,
+                        type: e.compilation,
+                        message: e.value,
+                        detail: e.detail
+                    }],
+                    result: undefined,
+                    trace: structuredClone(this.trace)
+                }
+            else if (e.runtimeError) {
+                return {
+                    errors: [],
+                    result: undefined,
+                    trace: structuredClone(this.trace)
+                }
+            } else throw e
         }
     }
 
@@ -297,48 +315,60 @@ export class Interpreter {
                 if (!conditionVal.evaluation) break;
                 try {
                     this.execute(s.body);
-                }
-                catch (e: any) {
-                    if(e.break_)
+                } catch (e: any) {
+                    if (e.break_)
                         break
                     else
                         throw e
                 }
             }
             this.loopEnd(s)
-        }
-        else if (s instanceof BreakStatement) {
+        } else if (s instanceof BreakStatement) {
             throw {
                 break_: true
             }
-        }
-        else if (s instanceof CallStatement) {
+        } else if (s instanceof CallStatement) {
             if (s.expression instanceof CallExpression)
                 this.invocation(s.expression)
             else {
-                const extName = (s.expression as UnboundCallExpression).procedureName
-                const ext = this.extensions.get(extName)
-                if (ext) {
-                    const args = (s.expression as UnboundCallExpression).args.map( a=> this.evaluate(a).evaluation)
-                    ext.call(null,args)
-                }
-                else
-                    throw {
-                        compilation: CompilationErrorType.MethodNotFound,
-                        range: s.range,
-                        message: `No method named '${extName}' found`,
-                    }
+                this.handleUnboundCall(s.expression as UnboundCallExpression);
             }
         } else if (s instanceof ReturnStatement) {
-            throw this.evaluate((s as ReturnStatement).expression as Expression)
+            throw this.evaluate(s.expression as Expression)
         } else
             throw new Error("Unsupported statement type: " + (s as any).constructor.name);
     }
 
 
-    evaluate(e: Expression): ExpressionEval {
+    private handleUnboundCall(exp: UnboundCallExpression): ExpressionEval {
+        const ext = this.extensions.get(exp.procedureName)
+        if (ext) {
+            const args = exp.args.map(a => this.evaluate(a).evaluation)
+            return ext.call(null, args)
+        } else
+            throw {
+                compilation: CompilationErrorType.MethodNotFound,
+                range: exp.range,
+                message: `No method named '${exp.procedureName}' found`,
+            }
+    }
+
+    evaluate(e: Expression):
+        ExpressionEval {
         if (e instanceof Variable) {
-            const variable = this.topScope().variables.get((e as Variable).declaration.name);
+            let variable = this.topScope().variables.get((e as Variable).declaration.name);
+
+            if(!variable && this.topScope().variables.get("this")) {
+                const fieldVal = this.topScope().variables.get("this")?.evaluation[(e as Variable).declaration.name]
+                if(fieldVal === undefined)
+                    this.compilationError(CompilationErrorType.UndeclaredVariable, `Variable ${e.declaration.name} not declared`, e)
+                return {
+                    evaluation: fieldVal,
+                    materialization: undefined
+                }
+            }
+
+            // TODO remove this and rely on static checking to ensure variable is always found
             if (!variable)
                 this.compilationError(CompilationErrorType.UndeclaredVariable, `Variable ${e.declaration.name} not declared`, e)
 
@@ -350,11 +380,17 @@ export class Interpreter {
             return {
                 evaluation: e.value
             }
+
+        else if (e instanceof DoubleLiteral)
+            return {
+                evaluation: e.value
+            }
+
         else if (e instanceof BooleanLiteral)
             return {
                 evaluation: e.value
             }
-        else if (e instanceof  StringLiteral)
+        else if (e instanceof StringLiteral)
             return {
                 evaluation: e.value
             }
@@ -377,7 +413,7 @@ export class Interpreter {
             const leftVal = this.evaluate(e.left);
             const rightVal = this.evaluate(e.right);
             let evaluation = undefined
-            if(e.operator == '+' && (typeof leftVal.evaluation === "string" || typeof rightVal.evaluation === "string"))
+            if (e.operator == '+' && (typeof leftVal.evaluation === "string" || typeof rightVal.evaluation === "string"))
                 evaluation = leftVal.evaluation.toString() + rightVal.evaluation.toString()
             else if (['+', '-', '*', '/', '%'].includes(e.operator))
                 evaluation = this.handleArithmetic(
@@ -385,7 +421,7 @@ export class Interpreter {
                     e.right, rightVal,
                     e.operator);
 
-           else if (['==', '!=', '>', '<', '>=', '<='].includes(e.operator))
+            else if (['==', '!=', '>', '<', '>=', '<='].includes(e.operator))
                 evaluation = this.handleComparison(
                     e.left, leftVal,
                     e.right, rightVal,
@@ -402,14 +438,65 @@ export class Interpreter {
             }
         } else if (e instanceof CallExpression) {
             return this.invocation(e as CallExpression)
-        } else throw new Error("Unsupported expression type: " + (e as any).constructor.name);
 
+        } else if(e instanceof UnboundCallExpression) {
+            return this.handleUnboundCall(e)
+        }
+        else if (e instanceof NewObjectExpression) {
+            const obj: any = {$type: e.type.name}
+            const args = e.args.map(a => this.evaluate(a))
+            if (e.type.isRecord) {
+                e.type.fields.forEach((f, i) => {
+                    obj[f.name] = args[i].evaluation
+                })
+            }
+            return {
+                evaluation: obj,
+                materialization: `new ${e.type.name}(${args.map(a => a.materialization || a.evaluation).join(", ")})`
+            }
+        }
+        else if(e instanceof FieldAccessExpression) {
+            const objVal = this.evaluate(e.target)
+            if (typeof objVal.evaluation !== "object" || objVal.evaluation === null)
+                throw {
+                    range: e.target.range,
+                    type: CompilationErrorType.TypeMismatch,
+                    message: `Type mismatch: expected object but got ${objVal.evaluation}`
+                }
+            const fieldVal = objVal.evaluation[e.fieldName]
+            if (fieldVal === undefined)
+                throw {
+                    range: e.range,
+                    type: CompilationErrorType.UndeclaredVariable,
+                    message: `Field ${e.fieldName} not found in object of type ${objVal.evaluation.$type}`
+                }
+            return {
+                evaluation: fieldVal,
+                materialization: `${objVal.materialization}.${e.fieldName}`
+            }
+        }
+        else throw {
+            message: "Unsupported expression type:" + (e as any).constructor.name,
+            compilation: CompilationErrorType.Unsupported,
+            range: e.range,
+            detail: "INTERPRETER"
+        }
     }
 
-    invocation(call: CallExpression): ExpressionEval {
+    invocation(call: CallExpression):
+        ExpressionEval {
         const p = call.procedure
         const variables: Map<string, TraceVariable> = new Map()
+        if(p.instance) {
+            const thisVal = this.evaluate(call.args[0])
+            variables.set("this", {
+                name: "this",
+                evaluation: thisVal.evaluation,
+                materialization: thisVal.materialization
+            })
+        }
         call.args.forEach((e, i) => {
+            if(i == 0 && call.instanceCall) return;
             const eVal = this.evaluate(e)
             variables.set(p.parameters[i].name, {
                 name: p.parameters[i].name,
@@ -444,7 +531,8 @@ export class Interpreter {
         }
     }
 
-    handleArithmetic(leftExp: Expression, leftVal: any, rightExp: Expression, rightVal: any, operator: string): number {
+    handleArithmetic(leftExp: Expression, leftVal: any, rightExp: Expression, rightVal: any, operator: string):
+        number {
         let left = leftVal.evaluation;
         let right = rightVal.evaluation;
 
@@ -474,11 +562,17 @@ export class Interpreter {
             case "%":
                 return left % right;
             default:
-                throw new Error("Unsupported operator: " + operator);
+                throw {
+                    range: leftExp.range,
+                    type: CompilationErrorType.Unsupported,
+                    message: `Unsupported operator: " + operator`,
+                    detail: "INTERPRETER"
+                }
         }
     }
 
-    handleComparison(leftExp: Expression, leftVal: any, rightExp: Expression, rightVal: any, operator: string): boolean {
+    handleComparison(leftExp: Expression, leftVal: any, rightExp: Expression, rightVal: any, operator: string):
+        boolean {
         let left = leftVal.evaluation;
         let right = rightVal.evaluation;
 
@@ -486,7 +580,8 @@ export class Interpreter {
             throw {
                 range: leftExp.range,
                 type: CompilationErrorType.TypeMismatch,
-                message: `Type mismatch: cannot compare ${left} with ${right}`
+                message: `Type mismatch: cannot compare ${left} with ${right}`,
+                detail: "INTERPRETER"
             }
         }
 
@@ -504,11 +599,16 @@ export class Interpreter {
             case "<=":
                 return left <= right;
             default:
-                throw new Error("Unsupported operator: " + operator);
+                throw {
+                    range: leftExp.range,
+                    type: CompilationErrorType.Unsupported,
+                    message: `Unsupported operator: " + operator`,
+                    detail: "INTERPRETER"
+                }
         }
     }
 
-    // TODO logical operators, procedure calls, arrays, etc.
+    // TODO logical operators, arrays, etc.
 
 }
 

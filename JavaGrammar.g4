@@ -6,9 +6,9 @@ script: statement+ EOF ;
 
 class: CLASS id+=ID+ LCURLY? member* RCURLY?;
 
-record: RECORD id=ID LPAREN params RPAREN LCURLY member* RCURLY;
-
 member: method | field;
+
+record: RECORD id=ID LPAREN params RPAREN LCURLY method* RCURLY;
 
 field: type=ID id=ID (ASSIGN expression=exp)? TERM?;
 
@@ -61,7 +61,7 @@ compId: ID (DOT ID)*;
 
 exp:
     LPAREN exp RPAREN                           # bracketsExpr
-    | target=exp DOT fieldId=ID                 # fieldExpr
+
     | target=exp LBRACK index=exp RBRACK        # arrayExpr
     | uop target=exp                            # unaryOp
     | left=exp bopMul right=exp                 # binaryOpMul
@@ -75,8 +75,10 @@ exp:
     | NEW type=ID dimensions                    # arrayAllocExpr
     | newCall                                   # objectAllocExpr
     | exp DOT call                              # instanceCallExpr
+    | target=exp DOT fieldId=ID                 # fieldExpr
     | ID                                        # idExpr
     | INT                                       # intExpr
+    | DOUBLE                                    # doubleExpr
     | BOOLEAN                                   # boolExpr
     | CHAR                                      # charExpr
     | NULL                                      # nullExpr
@@ -178,7 +180,9 @@ DEC: '--';
 
 NULL: 'null';
 
-INT: [0-9]+ ;
+INT: [0-9]+;
+
+DOUBLE: [0-9]* '.' [0-9]+;
 
 CHAR: '\''.'\'';
 

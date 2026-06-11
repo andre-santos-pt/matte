@@ -2,13 +2,14 @@ import Range from "./Range";
 
 
 
-
 export class Program {
     block?: BlockStatement;
     procedures: Procedure[] = [];
-    constructor(block?: BlockStatement, procedures: Procedure[] = []) {
+    typeDeclarations: TypeDeclaration[] = [];
+    constructor(block?: BlockStatement, procedures: Procedure[] = [], typeDeclarations: TypeDeclaration[] = []) {
         this.block = block;
         this.procedures = procedures;
+        this.typeDeclarations = typeDeclarations;
     }
 }
 
@@ -19,30 +20,49 @@ export abstract class ASTNode {
 
 export class Procedure extends ASTNode {
     name: string;
-    nameRange: Range;
+    nameRange: Range | undefined;
     parameters: Declaration[];
+    instance: boolean;
     returnType?: string;
     body?: BlockStatement;
-
-    constructor(range: Range, name: string, nameRange: Range, parameters: Declaration[], returnType?: string, body?: BlockStatement) {
+    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, instance: boolean, parameters: Declaration[], returnType?: string, body?: BlockStatement) {
         super(range);
+        if(instance && parameters.length == 0)
+            throw new Error("Instance procedures must have at least one parameter (the instance)");
         this.name = name;
         this.nameRange = nameRange;
         this.parameters = parameters;
+        this.instance = instance;
         this.returnType = returnType;
         this.body = body;
     }
 }
 
+export class TypeDeclaration {
+    name: string;
+    nameRange: Range;
+    isRecord: boolean;
+    fields: Declaration[];
+    constructor(name: string, nameRange: Range, isRecord: boolean, fields: Declaration[]) {
+        this.name = name;
+        this.nameRange = nameRange;
+        this.isRecord = isRecord;
+        this.fields = fields;
+    }
+}
+
+
 export abstract class Statement extends ASTNode { }
 
 export class Declaration extends Statement {
     name: string;
+    immutable: boolean;
     initializer?: Expression;
-    type?: string;
-    constructor(range: Range, name: string, type?: string, initializer?: Expression) {
+    type?: string | TypeDeclaration;
+    constructor(range: Range | undefined, name: string, immutable: boolean, type?: string | TypeDeclaration, initializer?: Expression) {
         super(range);
         this.name = name;
+        this.immutable = immutable;
         this.initializer = initializer;
         this.type = type;
     }
@@ -60,7 +80,7 @@ export class Assignment extends Statement {
 
 export class BlockStatement extends Statement {
     statements: Statement[];
-    constructor(range: Range, statements: Statement[]) {
+    constructor(range: Range | undefined, statements: Statement[]) {
         super(range);
         this.statements = statements;
     }
@@ -96,7 +116,7 @@ export class BreakStatement extends Statement {
 
 export class ReturnStatement extends Statement {
     expression?: Expression;
-    constructor(range: Range, expression?: Expression) {
+    constructor(range: Range | undefined, expression?: Expression) {
         super(range);
         this.expression = expression;
     }
@@ -125,9 +145,17 @@ export class IntLiteral extends Literal {
     }
 }
 
+export class DoubleLiteral extends Literal {
+    value: number;
+    constructor(range: Range | undefined, value: number) {
+        super(range);
+        this.value = value;
+    }
+}
+
 export class BooleanLiteral extends Literal {
     value: boolean;
-    constructor(range: Range, value: boolean) {
+    constructor(range: Range | undefined, value: boolean) {
         super(range);
         this.value = value;
     }
@@ -135,7 +163,7 @@ export class BooleanLiteral extends Literal {
 
 export class StringLiteral extends Literal {
     value: string;
-    constructor(range: Range, value: string) {
+    constructor(range: Range | undefined, value: string) {
         super(range);
         this.value = value;
     }
@@ -144,7 +172,7 @@ export class StringLiteral extends Literal {
 
 export class Variable extends Expression {
     declaration: Declaration;
-    constructor(range: Range, declaration: Declaration) {
+    constructor(range: Range | undefined, declaration: Declaration) {
         super(range);
         this.declaration = declaration;
     }
@@ -175,10 +203,12 @@ export class BinaryExpression extends Expression {
 export class CallExpression extends Expression {
     procedure: Procedure;
     args: Expression[];
-    constructor(range: Range, proc: Procedure, args: Expression[]) {
+    instanceCall: boolean;
+    constructor(range: Range, proc: Procedure, args: Expression[], instanceCall: boolean) {
         super(range);
         this.procedure = proc;
         this.args = args;
+        this.instanceCall = instanceCall;
     }
 }
 
@@ -189,5 +219,35 @@ export class UnboundCallExpression extends Expression {
         super(range);
         this.procedureName = procedureName;
         this.args = args;
+    }
+}
+
+export class NewObjectExpression extends Expression {
+    type: TypeDeclaration;
+    args: Expression[];
+    constructor(range: Range, type: TypeDeclaration, args: Expression[]) {
+        super(range);
+        this.type = type;
+        this.args = args;
+    }
+}
+
+export class UnboundNewObjectExpression extends Expression {
+    typeName: string;
+    args: Expression[];
+    constructor(range: Range, typeName: string, args: Expression[]) {
+        super(range);
+        this.typeName = typeName;
+        this.args = args;
+    }
+}
+
+export class FieldAccessExpression extends Expression {
+    target: Expression;
+    fieldName: string;
+    constructor(range: Range, target: Expression, fieldName: string) {
+        super(range);
+        this.target = target;
+        this.fieldName = fieldName;
     }
 }
