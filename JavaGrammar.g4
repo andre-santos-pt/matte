@@ -67,6 +67,7 @@ exp:
     | left=exp bopMul right=exp                 # binaryOpMul
     | left=exp bopAdd right=exp                 # binaryOpAdd
     | left=exp bopRel right=exp                 # binaryOpRel
+    | left=exp bopLog right=exp                 # binaryOpLog
     | call                                      # callExpr
     | condition=exp QUESTION trueCase=exp COLON falseCase=exp #conditionalExpr
     | left=exp AND right=exp                    # andExpr
@@ -108,6 +109,8 @@ EQ | NEQ
 |GT  | GTE | LT | LTE |
 |GTE_MIS | LTE_MIS;
 
+bopLog:
+AND | OR;
 
 PLUS: '+' ;
 MINUS: '-' ;

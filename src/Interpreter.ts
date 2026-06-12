@@ -102,7 +102,7 @@ export class Interpreter {
     private extensions: Map<string, ExtensionProcedure> = new Map()
     private extensionTypes: Map<string, ExtensionProcedure> = new Map()
     private readonly maxLoopIterations?: number
-    private readonly maxCallStack?: number  // TODO
+    private readonly maxCallStack?: number  // TODO max call stack
 
     constructor(maxLoopIterations: number = 100, maxCallStack: number = 100) {
         this.maxLoopIterations = maxLoopIterations
@@ -406,31 +406,52 @@ export class Interpreter {
                     evaluation: -expVal.evaluation,
                     materialization: expVal.materialization
                 }
-            } else
-                throw new Error("Unsupported unary operator: " + e.operator);
+            }
+            // TODO not operator
+            else
+                throw {
+                    message: "Unsupported unary operator:" +  e.operator,
+                    compilation: CompilationErrorType.Unsupported,
+                    range: e.range,
+                    detail: "INTERPRETER-evaluate"
+                }
+
         } else if (e instanceof BinaryExpression) {
-            const leftVal = this.evaluate(e.left);
-            const rightVal = this.evaluate(e.right);
             let evaluation = undefined
-            if (e.operator == '+' && (typeof leftVal.evaluation === "string" || typeof rightVal.evaluation === "string"))
-                evaluation = leftVal.evaluation.toString() + rightVal.evaluation.toString()
-            else if (['+', '-', '*', '/', '%'].includes(e.operator))
-                evaluation = this.handleArithmetic(
-                    e.left, leftVal,
-                    e.right, rightVal,
-                    e.operator);
+            let materialization = undefined
+            if (['&&', '||'].includes(e.operator)) {
+                evaluation = this.handleLogical(e.left, e.right, e.operator)
+                // mate
+            }
+            else {
+                const leftVal = this.evaluate(e.left);
+                const rightVal = this.evaluate(e.right);
 
-            else if (['==', '!=', '>', '<', '>=', '<='].includes(e.operator))
-                evaluation = this.handleComparison(
-                    e.left, leftVal,
-                    e.right, rightVal,
-                    e.operator);
+                if (e.operator == '+' && (typeof leftVal.evaluation === "string" || typeof rightVal.evaluation === "string"))
+                    evaluation = leftVal.evaluation.toString() + rightVal.evaluation.toString()
+                else if (['+', '-', '*', '/', '%'].includes(e.operator))
+                    evaluation = this.handleArithmetic(
+                        e.left, leftVal,
+                        e.right, rightVal,
+                        e.operator);
 
-            // TODO logical operators, etc.
+                else if (['==', '!=', '>', '<', '>=', '<='].includes(e.operator))
+                    evaluation = this.handleComparison(
+                        e.left, leftVal,
+                        e.right, rightVal,
+                        e.operator);
+
+                materialization = leftVal.evaluation + " " + e.operator + " " + rightVal.evaluation;
+            }
 
             if (evaluation === undefined)
-                throw new Error("Unsupported operator: " + e.operator);
-            const materialization = leftVal.evaluation + " " + e.operator + " " + rightVal.evaluation;
+                throw {
+                    message: "Unsupported binary operator:" +  e.operator,
+                    compilation: CompilationErrorType.Unsupported,
+                    range: e.range,
+                    detail: "INTERPRETER-evaluate"
+                }
+
             this.addTrace(e, evaluation, materialization)
             return {
                 evaluation,
@@ -523,7 +544,7 @@ export class Interpreter {
         try {
             p.body?.statements?.forEach(s => this.execute(s));
         } catch (e: any) {
-            if (e.evaluation) {
+            if (e.evaluation !== undefined) {
                 this.scope.pop()
                 return e
             } else
@@ -593,7 +614,7 @@ export class Interpreter {
                 range: leftExp.range,
                 type: CompilationErrorType.TypeMismatch,
                 message: `Type mismatch: cannot compare ${left} with ${right}`,
-                detail: "INTERPRETER"
+                detail: "INTERPRETER-handleComparison"
             }
         }
 
@@ -620,7 +641,21 @@ export class Interpreter {
         }
     }
 
-    // TODO logical operators, arrays, etc.
-
+    handleLogical(leftExp: Expression, rightExp: Expression, operator: string): boolean {
+            let leftVal = this.evaluate(leftExp).evaluation;
+        switch (operator) {
+            case "&&":
+                return leftVal && this.evaluate(rightExp).evaluation;
+            case "||":
+                return leftVal ? leftVal : this.evaluate(rightExp).evaluation;
+            default:
+                throw {
+                    range: leftExp.range,
+                    type: CompilationErrorType.Unsupported,
+                    message: `Unsupported operator: " + operator`,
+                    detail: "INTERPRETER-handleLogical"
+                }
+        }
+    }
 }
 

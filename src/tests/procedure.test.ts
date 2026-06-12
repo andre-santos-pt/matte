@@ -88,6 +88,30 @@ describe('Matte Interpreter Test Procedure', () => {
                 CompilationErrorType.ArgumentTypesMismatch
             )
         })
+
+        it('isDigit', () => {
+            cases(`
+            boolean isDigit(int n) {
+                return n >= 0 && n <=9;
+            }            
+            `,
+                ["isDigit(4)", true],
+                ["isDigit(10)", false],
+                ["isDigit(-1)", false],
+            )
+        })
+
+        it('isNotDigit', () => {
+            cases(`
+            boolean isNotDigit(int n) {
+                return n < 0 || n > 9;
+            }            
+            `,
+                ["isNotDigit(4)", false],
+                ["isNotDigit(10)", true],
+                ["isNotDigit(-1)", true],
+            )
+        })
     })
 
 

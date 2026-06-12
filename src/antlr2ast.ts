@@ -1,6 +1,6 @@
 import JavaGrammarParser, {
     AssignmentContext,
-    BinaryOpAddContext,
+    BinaryOpAddContext, BinaryOpLogContext,
     BinaryOpMulContext,
     BinaryOpRelContext,
     BlockStmtContext,
@@ -114,7 +114,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         this.tokenStream = tokenStream
     }
 
-    rangeContext(ctx: ParserRuleContext): Range {
+    private streamText(ctx: ParserRuleContext) {
+        return this.tokenStream.getText(new Interval(ctx.start, ctx.stop))
+    }
+
+    private rangeContext(ctx: ParserRuleContext): Range {
         const start = ctx.start.start;
         const end = (ctx.stop?.stop || start) + 1; // Handle cases where _stop might be undefined
         return new Range(
@@ -122,11 +126,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             end,
             ctx.start.line,
             ctx.start.column,
-            this.tokenStream.getText(new Interval(ctx.start, ctx.stop))
+            this.streamText(ctx)
         );
     }
 
-    rangeToken(token: Token): Range {
+    private rangeToken(token: Token): Range {
         return new Range(
             token.start,
             token.stop + 1,
@@ -136,11 +140,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         );
     }
 
-    rangeTerminal(node: TerminalNode): Range {
+    private rangeTerminal(node: TerminalNode): Range {
         return this.rangeToken(node.symbol)
     }
 
-    rangeTokenTo(from: Token, to: Token): Range {
+    private rangeTokenTo(from: Token, to: Token): Range {
         return new Range(
             from.start,
             to.stop + 1,
@@ -549,6 +553,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 this.expToAST(ctx._right)
             );
 
+        else if(ctx instanceof BinaryOpLogContext)
+            return new BinaryExpression(
+                this.rangeContext(ctx),
+                ctx.bopLog().getText(),
+                this.expToAST(ctx._left),
+                this.expToAST(ctx._right)
+            )
+
         else if (ctx instanceof CallExprContext)
             return this.handleCall(ctx.call());
 
@@ -566,10 +578,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return this.handleInstanceCall(ctx);
         } else
             throw {
-                message: "Unsupported expression type: " + ctx.getText(),
+                message: "Unsupported expression type: " + this.streamText(ctx),
                 compilation: CompilationErrorType.Unsupported,
                 range: this.rangeContext(ctx),
-                detail: "AST"
+                detail: "AST-exp2AST"
             }
     }
 
