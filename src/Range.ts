@@ -1,5 +1,3 @@
-import {ParserRuleContext, TerminalNode, Token} from "antlr4";
-
 export default class Range {
     public start: number;
     public end: number;
@@ -26,49 +24,6 @@ export default class Range {
         this.column = column;
         this.text = text;
     }
-
-    /**
-     * Static factory to create a range from an ANTLR Context
-     */
-    // static fromContext(ctx: ParserRuleContext): Range {
-    //     const start = ctx.start.start;
-    //     const end = (ctx.stop?.stop || start) + 1; // Handle cases where _stop might be undefined
-    //
-    //     return new Range(
-    //         start,
-    //         end,
-    //         ctx.start.line,
-    //         ctx.start.column,
-    //         ctx.getText()
-    //     );
-    // }
-
-    /**
-     * Static factory to create a range from a single ANTLR Token
-     */
-    // static fromToken(token: Token): Range {
-    //     return new Range(
-    //         token.start,
-    //         token.stop + 1,
-    //         token.line,
-    //         token.column,
-    //         token.text
-    //     );
-    // }
-
-    // static fromTerminal(node: TerminalNode): Range {
-    //     return this.fromToken(node.symbol)
-    // }
-
-    // static fromTokenTo(from: Token, to: Token): Range {
-    //     return new Range(
-    //         from.start,
-    //         to.stop + 1,
-    //         from.line,
-    //         to.column,
-    //         "" // TODO
-    //     );
-    // }
 
     isEqual(range: Range): boolean {
         return (

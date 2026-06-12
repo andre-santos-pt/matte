@@ -190,14 +190,7 @@ ID: [a-zA-Z][a-zA-Z0-9_]*;
 
 STRING: '"'~([\n"])*'"';
 
-//TYPE: ID (LBRACK RBRACK)*;
-
 LINE_COMMENT: '//'~('\n'|'\r')*('\n'|'\r\n') -> channel(HIDDEN);
-
-// TODO: preserve empty lines
-//EMPTYLINE: [ \t]*('\n'|'\r\n') -> channel(HIDDEN);
-
-//HOLE: '_'+ -> skip;
 
 WS: [ \t\r\n]+ -> channel(HIDDEN) ;
 

@@ -90,28 +90,12 @@ export function buildASTandCall(source: string, call: string) : [Program, Expres
     const parser2 = new JavaGrammarParser(tokens2);
     let callCtx = parser2.exp();
 
-    return [
-        visitor.visitUnit(unitCtx),
-        visitor.expToAST(callCtx)
-        ]
+    const program = visitor.visitUnit(unitCtx)
+
+    visitor.tokenStream = tokens2
+    const exp = visitor.expToAST(callCtx)
+    return [program, exp]
 }
-
-// export function parseTreeToAST(ctx: UnitContext): Program {
-//     const visitor = new TreeVisitor();
-//     return visitor.visitUnit(ctx);
-// }
-
-// export function parseExpression(source: string, call: string): [Program, Expression] {
-//
-//     const visitor = new TreeVisitor();
-//     return [visitor.visitUnit(unit), visitor.expToAST(ctx)];
-// }
-//
-// export function parseExpression2(source: string, call: string): [Program, Expression] {
-//     const visitor = new TreeVisitor();
-//     return [visitor.visitUnit(getParser(source).unit()), visitor.expToAST(getParser(call).exp())];
-// }
-
 
 type ScopeEntry = {
     block: boolean;
@@ -138,11 +122,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             end,
             ctx.start.line,
             ctx.start.column,
-            this.tokenStream.getText(
-            new Interval(
-                ctx.start,
-                ctx.stop
-            ))
+            this.tokenStream.getText(new Interval(ctx.start, ctx.stop))
         );
     }
 
@@ -152,7 +132,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             token.stop + 1,
             token.line,
             token.column,
-            token.text
+            this.tokenStream.getText(new Interval(token, token))
         );
     }
 
@@ -166,7 +146,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             to.stop + 1,
             from.line,
             to.column,
-            "" // TODO
+            this.tokenStream.getText(new Interval(from, to))
         );
     }
     
