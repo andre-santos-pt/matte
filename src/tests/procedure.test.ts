@@ -112,6 +112,22 @@ describe('Matte Interpreter Test Procedure', () => {
                 ["isNotDigit(-1)", true],
             )
         })
+
+        it('isNotDigitNeg', () => {
+            cases(`
+            boolean isDigit(int n) {
+                return n >= 0 && n <=9;
+            }  
+            
+            boolean isNotDigit(int n) {
+                return !isDigit(n);
+            }            
+            `,
+                ["isNotDigit(4)", false],
+                ["isNotDigit(10)", true],
+                ["isNotDigit(-1)", true],
+            )
+        })
     })
 
 

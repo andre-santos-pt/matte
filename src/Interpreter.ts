@@ -407,7 +407,20 @@ export class Interpreter {
                     materialization: expVal.materialization
                 }
             }
-            // TODO not operator
+
+            else if (e.operator === "!") {
+                if (typeof expVal.evaluation !== "boolean")
+                    throw {
+                        range: e.expression.range,
+                        type: CompilationErrorType.TypeMismatch,
+                        message: `Type mismatch: expected boolean but got ${expVal.evaluation}`
+                    }
+                return {
+                    evaluation: !expVal.evaluation,
+                    materialization: expVal.materialization
+                }
+            }
+
             else
                 throw {
                     message: "Unsupported unary operator:" +  e.operator,
