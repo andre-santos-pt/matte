@@ -57,21 +57,28 @@ export abstract class Statement extends ASTNode { }
 
 export class Declaration extends Statement {
     name: string;
+    nameRange?: Range;
     immutable: boolean;
-    initializer?: Expression;
     type: TypeDeclaration | string;
-    constructor(range: Range | undefined, name: string, immutable: boolean, type: TypeDeclaration | string, initializer?: Expression) {
+    typeRange?: Range;
+    initializer?: Expression;
+    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, immutable: boolean, type: TypeDeclaration | string, typeRange: Range | undefined, initializer?: Expression) {
         if(initializer && initializer.type != type)
             throw {
                 message: "Cannot assign a " + initializer.type + " to a variable of type " + type,
                 compilation: CompilationErrorType.TypeMismatch,
-                range: initializer.range
+                range: initializer.range,
+                detail: {
+                    related: typeRange
+                }
             }
         super(range);
         this.name = name;
+        this.nameRange = nameRange;
         this.immutable = immutable;
-        this.initializer = initializer;
         this.type = type;
+        this.typeRange = typeRange;
+        this.initializer = initializer;
     }
 }
 
@@ -299,7 +306,7 @@ export class RelationalExpression extends BinaryExpression {
                 range: range
             }
 
-        if((operator == "==" || operator == "!=") && left.type != right.type)
+        if((operator == "==" || operator == "!=") && left.type != right.type) // TODO case int / double
             throw {
                 message: "Operands have incompatible compatible types; " + left.range?.text + " is " + left.type + " and " + right.range?.text + " is " + right.type,
                 compilation: CompilationErrorType.TypeMismatch,

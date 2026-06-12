@@ -167,7 +167,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
             if (this.typeContext) {
                 if (name == "this")
-                    return new Declaration(this.rangeTerminal(idCtx), "this", true, this.typeContext.name)
+                    return new Declaration(this.rangeTerminal(idCtx), "this", undefined, true, this.typeContext.name, undefined)
 
                 const find = this.typeContext.fields.find(f => f.name == name)
                 if (find)
@@ -211,8 +211,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                         return new Declaration(
                             this.rangeContext(p),
                             p._id.text,
+                            this.rangeToken(p._id),
                             false,
                             type ? type : p._type_.text,
+                            this.rangeToken(p._type_),
                         )
                     }) : []
                     let type = this.findType(mctx._type_.text)
@@ -284,8 +286,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 return new Declaration(
                     this.rangeContext(p),
                     p._id.text,
+                    this.rangeToken(p._id),
                     true,
-                    type ? type : p._type_.text
+                    type ? type : p._type_.text,
+                    this.rangeToken(p._type_)
                 )
             }) : []
 
@@ -295,7 +299,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 mctx._id.text,
                 this.rangeToken(mctx._id),
                 true,
-                [new Declaration(this.rangeToken(ctx._id), "this", true, typedec)].concat(params),
+                [new Declaration(this.rangeToken(ctx._id), "this", undefined, true, typedec, undefined)].concat(params),
                 type ? type : mctx._type_.text,
                 undefined
             ))
@@ -306,8 +310,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             const dec = new Declaration(
                 this.rangeContext(p),
                 p._id.text,
+                this.rangeToken(p._id),
                 true,
-                type ? type : p._type_.text
+                type ? type : p._type_.text,
+                this.rangeToken(p._type_)
             )
             typedec.fields.push(dec)
 
@@ -316,7 +322,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 p._id.text,
                 undefined,
                 true,
-                [new Declaration(this.rangeToken(ctx._id), "this", true, typedec)],
+                [new Declaration(this.rangeToken(ctx._id), "this", undefined, true, typedec, undefined)],
                 type ? type : p._type_.text,
                 new BlockStatement(undefined, [
                     new ReturnStatement(undefined, new Variable(undefined, dec))
@@ -332,7 +338,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             variables: new Map<string, Declaration>()
         })
         ctx.params()?.param_list().forEach(p => {
-            this.topScope().set(p._id.text, new Declaration(this.rangeContext(p), p._id.text, false, p._type_.text))
+            this.topScope().set(p._id.text, new Declaration(this.rangeContext(p), p._id.text, this.rangeToken(p._id), false, p._type_.text, this.rangeToken(p._type_)))
         })
         let body: Statement[] = ctx.statement_list().flatMap(s => this.visit(s))
         this.varScope.pop()
@@ -367,8 +373,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         const dec = new Declaration(
             this.rangeContext(ctx),//this.getRange(ctx),
             ctx._id.text,
+            this.rangeToken(ctx._id),
             false,
             ctx._type_.text,
+            this.rangeToken(ctx._type_),
             ctx.exp() ? this.expToAST(ctx.exp()) : undefined
         )
         this.topScope().set(dec.name, dec)
@@ -660,7 +668,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             let args = ctx._args ? ctx._args.exp_list().map(e => this.expToAST(e)) : []
             // TODO this is a bit hacky, we should check if the proc is an instance method and if so, add the target as first argument
             if (proc.instance)
-                args.unshift(new Variable(this.rangeContext(ctx), new Declaration(undefined, "this", true, proc.parameters[0].type)))
+                args.unshift(new Variable(this.rangeContext(ctx), new Declaration(undefined, "this", undefined, true, proc.parameters[0].type, undefined)))
             this.checkArgs(ctx, args, proc)
 
             return new CallExpression(

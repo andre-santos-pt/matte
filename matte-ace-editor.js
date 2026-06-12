@@ -27,6 +27,7 @@ export default class MatteAceEditor {
         this.editor.setOptions({
             highlightSelectedWord: false
         });
+        this.editor.setHighlightActiveLine(false);
 
         this.init();
 
@@ -39,6 +40,7 @@ export default class MatteAceEditor {
         this.stepListeners = [];
     }
 
+    secondaryMarker = undefined;
 
     init() {
         this.editor.selection.on("changeCursor", () => {
@@ -47,8 +49,22 @@ export default class MatteAceEditor {
 
             const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
             const err = this.result.errors.find(e => e.range != null && index >= e.range.start && index <= e.range.end);
-            if (err != null)
-                this.popup(err.range.start, err.error, true);
+            if (err != null) {
+                this.popup(err.range.start, err.message, true);
+                if(err.detail.related)
+                    this.secondaryMarker = this.editor.session.addMarker(
+                        this.range2Ace(err.detail.related),
+                        "error-secondary",
+                        "text"
+                    );
+            }
+            else {
+                this.popups.forEach(p => p.hide())
+                if(this.secondaryMarker) {
+                    this.editor.session.removeMarker(this.secondaryMarker);
+                    this.secondaryMarker = undefined
+                }
+            }
 
         });
         // TODO bug creates several when there are multiple editors
@@ -67,6 +83,12 @@ export default class MatteAceEditor {
             `.error-highlight {
             position: absolute;
             background-color: rgba(255, 0, 0, 0.3);
+            border-bottom: 2px wavy red;
+            z-index: 20;
+        }` ,
+            `.error-secondary {
+            position: absolute;
+            background-color: rgba(255, 255, 0, 1.0);
             border-bottom: 2px wavy red;
             z-index: 20;
         }` ,
@@ -293,6 +315,7 @@ export default class MatteAceEditor {
 
     range2Ace(range) {
         //const { Range } = ace.require("ace/range");
+        console.log(range)
         const startPos = this.editor.session.doc.indexToPosition(range.start);
         const endPos = this.editor.session.doc.indexToPosition(range.end);
         return new Range(startPos.row, startPos.column, endPos.row, endPos.column);
@@ -302,6 +325,11 @@ export default class MatteAceEditor {
         const current = parseInt(this.slider.value, 10);
         this.step(current+1);
         this.slider.value = (current+1).toString();
+    }
+
+    pretty(mat) {
+        // ¬
+        return mat.replaceAll("&&","∧").replaceAll("||", "∨")
     }
 
     step(index, cumulative = false) {
@@ -316,7 +344,7 @@ export default class MatteAceEditor {
             if(cumulative) {
                 const prev = this.result.trace.filter((prev, i) => i < index && prev.range.isEqual(t.range));
                 prevText = prev.map(p => {
-                    const mat = p.materialization ? " (" + p.materialization + ")" : "";
+                    const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
                     return this.prettyPrint(p.evaluation) + mat
                 }).join("\n")
                 if(prevText.length > 0)
@@ -329,7 +357,7 @@ export default class MatteAceEditor {
 
 
             if(t.evaluation != null) {
-                const mat = t.materialization !== t.evaluation.toString() ? t.materialization ? " (" + t.materialization + ")" : "" : "";
+                const mat = t.materialization !== t.evaluation.toString() ? t.materialization ? " (" + this.pretty(t.materialization) + ")" : "" : "";
                 this.popup(t.range.start, prevText + this.prettyPrint(t.evaluation) + mat, t.isCall, true);
             }
             this.stepListeners.forEach(l => l(this.result.trace, index));

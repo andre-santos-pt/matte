@@ -8,9 +8,7 @@ window.createMatteAceEditor = (container, width, height) => {
 
 window.matte = (input, call) => {
     const interpreter = new Interpreter();
-    const result = interpreter.parseAndRun(input);
-    console.log(result);
-    return result;
+    return interpreter.parseAndRun(input, call);
 }
 
 function consoleExtension(editor) {
