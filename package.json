@@ -2,13 +2,13 @@
   "name": "matte",
   "version": "1.0.0",
   "description": "",
-  "main": "mainMatte.js",
+  "main": "matteWebAce.js",
   "type": "module",
   "scripts": {
     "test": "jest",
     "antlr": "antlr4ts -visitor -o ./src/generated ./JavaGrammar.g4",
-    "lib": "esbuild src/Interpreter.ts --bundle --outfile=dist/bundle.js --format=esm --platform=browser --sourcemap --minify",
-    "pack": "npx esbuild mainMatte.js --bundle --minify --outfile=dist/matte.js"
+    "lib": "esbuild src/Interpreter.ts --bundle --outfile=dist/matte.js --format=esm --platform=browser --sourcemap --minify",
+    "ace": "npx esbuild matteWebAce.js --bundle --minify --outfile=dist/matte-web-ace.js"
   },
   "author": "",
   "license": "ISC",

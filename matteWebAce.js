@@ -1,5 +1,5 @@
 import MatteAceEditor from "./matte-ace-editor.js";
-import {Interpreter} from './dist/bundle.js';
+import {Interpreter} from './dist/matte.js';
 
 
 window.createMatteAceEditor = (container, width, height) => {
