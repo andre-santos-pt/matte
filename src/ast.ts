@@ -1,4 +1,6 @@
 import Range from "./Range";
+import {CompilationErrorType} from "./Interpreter";
+import {createDefaultEsmLegacyPreset} from "ts-jest";
 
 
 
@@ -59,6 +61,12 @@ export class Declaration extends Statement {
     initializer?: Expression;
     type: TypeDeclaration | string;
     constructor(range: Range | undefined, name: string, immutable: boolean, type: TypeDeclaration | string, initializer?: Expression) {
+        if(initializer && initializer.type != type)
+            throw {
+                message: "Cannot assign a " + initializer.type + " to a variable of type " + type,
+                compilation: CompilationErrorType.TypeMismatch,
+                range: initializer.range
+            }
         super(range);
         this.name = name;
         this.immutable = immutable;
@@ -70,10 +78,19 @@ export class Declaration extends Statement {
 export class Assignment extends Statement {
     variable: Declaration;
     expression: Expression;
-    constructor(range: Range, variable: Declaration, value: Expression) {
+    constructor(range: Range, variable: Declaration, expression: Expression) {
+        if(variable.type != expression.type)
+            throw {
+                message: "Cannot assign a " + expression.type + " to a variable of type " + variable.type,
+                compilation: CompilationErrorType.TypeMismatch,
+                range: expression.range,
+                detail: {
+                    related: variable.range,
+                }
+            }
         super(range);
         this.variable = variable;
-        this.expression = value;
+        this.expression = expression;
     }
 }
 
@@ -91,6 +108,12 @@ export class IfStatement extends Statement {
     elseBranch?: Statement;
 
     constructor(range: Range, condition: Expression, thenBranch: Statement, elseBranch: Statement | undefined) {
+        if(condition.type != "boolean")
+            throw {
+                message: "Not a boolean expression",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: condition.range
+            }
         super(range);
         this.guard = condition;
         this.thenBranch = thenBranch;
@@ -103,6 +126,12 @@ export class WhileStatement extends Statement {
     body: Statement;
 
     constructor(range: Range, condition: Expression, body: Statement) {
+        if(condition.type != "boolean")
+            throw {
+                message: "Not a boolean expression",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: condition.range
+            }
         super(range);
         this.guard = condition;
         this.body = body;
@@ -110,7 +139,7 @@ export class WhileStatement extends Statement {
 }
 
 export class BreakStatement extends Statement {
-
+ // TODO break location
 }
 
 export class ReturnStatement extends Statement {
@@ -119,6 +148,8 @@ export class ReturnStatement extends Statement {
         super(range);
         this.expression = expression;
     }
+
+    // TODO return type check
 }
 
 export class CallStatement extends Statement {
@@ -182,46 +213,161 @@ export class Variable extends Expression {
     }
 }
 
-function unaryType(operator: string, expression: Expression): string | TypeDeclaration | undefined{
-    if(operator == "-" || operator == "!")
-        return expression.type
-}
-
 export class UnaryExpression extends Expression {
     operator: string;
     expression: Expression;
     constructor(range: Range, operator: string, expression: Expression) {
-        super(range, unaryType(operator, expression));
+        if(operator == "-" && expression.type != "int" && expression.type != "double")
+            throw {
+                message: "Unary operator - can only be applied to numeric expressions",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: expression.range,
+                detail: "The expression '" + expression.range?.text + "' is of type " + expression.type
+            }
+
+        if(operator == "!" && expression.type != "boolean")
+            throw {
+                message: "Unary operator - can only be applied to boolean expressions",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: expression.range,
+                detail: "The expression '" + expression.range?.text + "' is of type " + expression.type
+            }
+
+        super(range, expression.type);
         this.operator = operator;
         this.expression = expression;
 
-        // TODO checks
+        // TODO truncate
     }
 }
 
-function binaryType(operator: string, left: Expression, right: Expression): string | TypeDeclaration | undefined{
-    if(operator == "+")
-        return left.type
-    // TODO
-}
-
-export class BinaryExpression extends Expression {
+export abstract class BinaryExpression extends Expression {
     operator: string;
     left: Expression;
     right: Expression;
-    constructor(range: Range, operator: string, left: Expression, right: Expression) {
-        super(range, binaryType(operator, left, right));
+    protected constructor(range: Range, operator: string, left: Expression, right: Expression, type: string) {
+        super(range, type);
         this.operator = operator;
         this.left = left;
         this.right = right;
     }
 }
 
+function isNumber(type?: string | TypeDeclaration) {
+    return type == "int" || type == "double"
+}
+
+export class ArithmeticExpression extends BinaryExpression {
+    constructor(range: Range, operator: string, left: Expression, right: Expression) {
+        if(!ArithmeticExpression.validOperator(operator))
+            throw {
+                message: "Invalid arithmetic operator",
+                compilation: CompilationErrorType.SyntaxError,
+                range: range
+            }
+
+        if(!isNumber(left.type))
+            throw {
+                message: "Number is expected to perform the operation '" + operator + "'",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: left.range
+            }
+
+        if(!isNumber(right.type))
+            throw {
+                message: "Number is expected to perform the operation '" + operator + "'",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: right.range
+            }
+
+        const type = left.type == "double" || right.type == "double" ? "double" : "int"
+        super(range, operator, left, right, type)
+    }
+
+    static validOperator(op: string) {
+        return op == '+' || op == '-' || op == '*' || op == '/' || op == '%'
+    }
+}
+
+
+export class RelationalExpression extends BinaryExpression {
+    constructor(range: Range, operator: string, left: Expression, right: Expression) {
+        if(!RelationalExpression.validOperator(operator))
+            throw {
+                message: "Invalid relational operator",
+                compilation: CompilationErrorType.SyntaxError,
+                range: range
+            }
+
+        if((operator == "==" || operator == "!=") && left.type != right.type)
+            throw {
+                message: "Operands have incompatible compatible types; " + left.range?.text + " is " + left.type + " and " + right.range?.text + " is " + right.type,
+                compilation: CompilationErrorType.TypeMismatch,
+                range: range
+            }
+
+        if(operator == '<' || operator == '<=' || operator == '>' || operator == '>=') {
+            if(!isNumber(left.type))
+                throw {
+                    message: "Number is expected to perform the comparison '" + operator + "'",
+                    compilation: CompilationErrorType.TypeMismatch,
+                    range: left.range
+                }
+
+            if(!isNumber(right.type))
+                throw {
+                    message: "Number is expected to perform the comparison '" + operator + "'",
+                    compilation: CompilationErrorType.TypeMismatch,
+                    range: right.range
+                }
+        }
+        super(range, operator, left, right, "boolean")
+    }
+
+    static validOperator(op: string) {
+        return op == '==' || op == '!=' || op == '<' || op == '<=' || op == '>' || op == '>='
+    }
+}
+
+export class LogicalExpression extends BinaryExpression {
+    constructor(range: Range, operator: string, left: Expression, right: Expression) {
+        if(!LogicalExpression.validOperator(operator))
+            throw {
+                message: "Invalid relational operator",
+                compilation: CompilationErrorType.SyntaxError,
+                range: range
+            }
+
+        if(left.type != "boolean")
+            throw {
+                message: "Boolean expression expected",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: left.range
+            }
+
+        if(right.type != "boolean")
+            throw {
+                message: "Boolean expression expected",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: right.range
+            }
+
+        super(range, operator, left, right, "boolean")
+    }
+
+    static validOperator(op: string) {
+        return op == '&&' || op == '||'
+    }
+}
+
+
+
 export class CallExpression extends Expression {
     procedure: Procedure;
     args: Expression[];
     instanceCall: boolean;
     constructor(range: Range, proc: Procedure, args: Expression[], instanceCall: boolean) {
+        // TODO arg types
         super(range, proc.returnType);
         this.procedure = proc;
         this.args = args;
@@ -243,6 +389,7 @@ export class NewObjectExpression extends Expression {
     type: TypeDeclaration;
     args: Expression[];
     constructor(range: Range, type: TypeDeclaration, args: Expression[]) {
+        // TODO arg types
         super(range, type);
         this.type = type;
         this.args = args;
@@ -263,7 +410,7 @@ export class FieldAccessExpression extends Expression {
     target: Expression;
     fieldName: string;
     constructor(range: Range, target: Expression, fieldName: string) {
-        super(range, target.type);
+        super(range, target.type); // TODO bug wrong type
         this.target = target;
         this.fieldName = fieldName;
     }

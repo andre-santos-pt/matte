@@ -1,5 +1,6 @@
 
 import {
+    ArithmeticExpression,
     Assignment,
     ASTNode,
     BinaryExpression,
@@ -12,7 +13,7 @@ import {
     IfStatement,
     IntLiteral, NewObjectExpression,
     Procedure,
-    Program,
+    Program, RelationalExpression,
     ReturnStatement,
     Statement, StringLiteral,
     UnaryExpression,
@@ -396,12 +397,6 @@ export class Interpreter {
         else if (e instanceof UnaryExpression) {
             const expVal = this.evaluate(e.expression);
             if (e.operator === "-") {
-                if (typeof expVal.evaluation !== "number")
-                    throw {
-                        range: e.expression.range,
-                        type: CompilationErrorType.TypeMismatch,
-                        message: `Type mismatch: expected number but got ${expVal.evaluation}`
-                    }
                 return {
                     evaluation: -expVal.evaluation,
                     materialization: expVal.materialization
@@ -409,18 +404,11 @@ export class Interpreter {
             }
 
             else if (e.operator === "!") {
-                if (typeof expVal.evaluation !== "boolean")
-                    throw {
-                        range: e.expression.range,
-                        type: CompilationErrorType.TypeMismatch,
-                        message: `Type mismatch: expected boolean but got ${expVal.evaluation}`
-                    }
                 return {
                     evaluation: !expVal.evaluation,
                     materialization: expVal.materialization
                 }
             }
-
             else
                 throw {
                     message: "Unsupported unary operator:" +  e.operator,
@@ -433,8 +421,7 @@ export class Interpreter {
             let evaluation = undefined
             let materialization = undefined
             if (['&&', '||'].includes(e.operator)) {
-                evaluation = this.handleLogical(e.left, e.right, e.operator)
-                // mate
+                [evaluation,materialization] = this.handleLogical(e.left, e.right, e.operator)
             }
             else {
                 const leftVal = this.evaluate(e.left);
@@ -442,13 +429,13 @@ export class Interpreter {
 
                 if (e.operator == '+' && (typeof leftVal.evaluation === "string" || typeof rightVal.evaluation === "string"))
                     evaluation = leftVal.evaluation.toString() + rightVal.evaluation.toString()
-                else if (['+', '-', '*', '/', '%'].includes(e.operator))
+                else if (ArithmeticExpression.validOperator(e.operator))
                     evaluation = this.handleArithmetic(
                         e.left, leftVal,
                         e.right, rightVal,
                         e.operator);
 
-                else if (['==', '!=', '>', '<', '>=', '<='].includes(e.operator))
+                else if (RelationalExpression.validOperator(e.operator))
                     evaluation = this.handleComparison(
                         e.left, leftVal,
                         e.right, rightVal,
@@ -581,21 +568,6 @@ export class Interpreter {
         number {
         let left = leftVal.evaluation;
         let right = rightVal.evaluation;
-
-        if (typeof left !== "number") {
-            throw {
-                range: leftExp.range,
-                type: CompilationErrorType.TypeMismatch,
-                message: `Type mismatch: expected number but got ${left}`
-            }
-        }
-        if (typeof right !== "number")
-            throw {
-                range: rightExp.range,
-                type: CompilationErrorType.TypeMismatch,
-                message: `Type mismatch: expected number but got ${right}`
-            }
-
         switch (operator) {
             case "+":
                 return left + right;
@@ -649,18 +621,29 @@ export class Interpreter {
                     range: leftExp.range,
                     type: CompilationErrorType.Unsupported,
                     message: `Unsupported operator: " + operator`,
-                    detail: "INTERPRETER"
+                    detail: "INTERPRETER-handleComparison"
                 }
         }
     }
 
-    handleLogical(leftExp: Expression, rightExp: Expression, operator: string): boolean {
+    handleLogical(leftExp: Expression, rightExp: Expression, operator: string): [boolean, string] {
             let leftVal = this.evaluate(leftExp).evaluation;
         switch (operator) {
             case "&&":
-                return leftVal && this.evaluate(rightExp).evaluation;
+                if(!leftVal)
+                    return [false, leftVal + " && ?"]
+                else {
+                    const rightVal = this.evaluate(rightExp).evaluation
+                    return [rightVal, leftVal + " && " + rightVal];
+                }
             case "||":
-                return leftVal ? leftVal : this.evaluate(rightExp).evaluation;
+                if(leftVal)
+                    return [true, leftVal + " || ?"]
+                else {
+                    const rightVal = this.evaluate(rightExp).evaluation
+                    return [rightVal, leftVal + " || " + rightVal]
+                }
+
             default:
                 throw {
                     range: leftExp.range,

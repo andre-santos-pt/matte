@@ -24,6 +24,7 @@ import JavaGrammarParser, {
     WhileStmtContext
 } from "./generated/JavaGrammarParser";
 import {
+    ArithmeticExpression,
     Assignment,
     BinaryExpression,
     BlockStatement,
@@ -34,9 +35,9 @@ import {
     Declaration, DoubleLiteral,
     Expression, FieldAccessExpression,
     IfStatement,
-    IntLiteral, NewObjectExpression,
+    IntLiteral, LogicalExpression, NewObjectExpression,
     Procedure,
-    Program,
+    Program, RelationalExpression,
     ReturnStatement,
     Statement, StringLiteral, TypeDeclaration,
     UnaryExpression,
@@ -445,7 +446,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             }
 
         const dec = this.varLookup(ctx._target.getText(), ctx._target.ID())
-        const inc = new BinaryExpression(
+        const inc = new ArithmeticExpression(
             this.rangeContext(ctx),
             "+",
             new Variable(
@@ -466,7 +467,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             }
 
         const dec = this.varLookup(ctx._target.getText(), ctx._target.ID())
-        const inc = new BinaryExpression(
+        const inc = new ArithmeticExpression(
             this.rangeContext(ctx),
             "-",
             new Variable(
@@ -530,7 +531,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             )
 
         else if (ctx instanceof BinaryOpAddContext)
-            return new BinaryExpression(
+            return new ArithmeticExpression(
                 this.rangeContext(ctx),
                 ctx.bopAdd().getText(),
                 this.expToAST(ctx._left),
@@ -538,7 +539,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             )
 
         else if (ctx instanceof BinaryOpMulContext)
-            return new BinaryExpression(
+            return new ArithmeticExpression(
                 this.rangeContext(ctx),
                 ctx.bopMul().getText(),
                 this.expToAST(ctx._left),
@@ -546,7 +547,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             );
 
         else if (ctx instanceof BinaryOpRelContext)
-            return new BinaryExpression(
+            return new RelationalExpression(
                 this.rangeContext(ctx),
                 ctx.bopRel().getText(),
                 this.expToAST(ctx._left),
@@ -554,7 +555,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             );
 
         else if(ctx instanceof BinaryOpLogContext)
-            return new BinaryExpression(
+            return new LogicalExpression(
                 this.rangeContext(ctx),
                 ctx.bopLog().getText(),
                 this.expToAST(ctx._left),
