@@ -106,6 +106,39 @@ describe('Matte Interpreter Objects', () => {
             }    
             `, CompilationErrorType.ImmutableVariable);
         })
+
+        it('call on reference', () => {
+            cases(`
+            record Point(double x, double y) { 
+                double sum() {
+                    return x + y;
+                }
+                double sumScale(double factor) {
+                    Point p = new Point(x * factor, y * factor);
+                    int s = p.sum();
+                    return s;
+                }
+            }
+            `,
+                ["new Point(1.2, -3.4).sumScale(2.0)", -4.4]
+            )
+        })
+
+        it('call on this', () => {
+            cases(`
+            record Point(double x, double y) { 
+                double sum() {
+                    return x + y;
+                }
+                
+                 double sumThis() {
+                    return this.sum();
+                }
+            }
+            `,
+                ["new Point(1.2, -3.4).sumThis()", -2.2]
+            )
+        })
     })
 
 

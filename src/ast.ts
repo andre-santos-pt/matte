@@ -23,9 +23,9 @@ export class Procedure extends ASTNode {
     nameRange: Range | undefined;
     parameters: Declaration[];
     instance: boolean;
-    returnType?: string;
+    returnType?: TypeDeclaration | string;
     body?: BlockStatement;
-    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, instance: boolean, parameters: Declaration[], returnType?: string, body?: BlockStatement) {
+    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, instance: boolean, parameters: Declaration[], returnType?: TypeDeclaration | string, body?: BlockStatement) {
         super(range);
         if(instance && parameters.length == 0)
             throw new Error("Instance procedures must have at least one parameter (the instance)");
@@ -51,15 +51,14 @@ export class TypeDeclaration {
     }
 }
 
-
 export abstract class Statement extends ASTNode { }
 
 export class Declaration extends Statement {
     name: string;
     immutable: boolean;
     initializer?: Expression;
-    type?: string | TypeDeclaration;
-    constructor(range: Range | undefined, name: string, immutable: boolean, type?: string | TypeDeclaration, initializer?: Expression) {
+    type: TypeDeclaration | string;
+    constructor(range: Range | undefined, name: string, immutable: boolean, type: TypeDeclaration | string, initializer?: Expression) {
         super(range);
         this.name = name;
         this.immutable = immutable;
@@ -131,16 +130,22 @@ export class CallStatement extends Statement {
     }
 }
 
-// TODO : DoubleLiteral, CharLiteral
+// TODO : CharLiteral
 
-export abstract class Expression extends ASTNode { }
+export abstract class Expression extends ASTNode {
+    type: string | TypeDeclaration | undefined
+    constructor(range: Range | undefined, type: string | TypeDeclaration | undefined) {
+        super(range);
+        this.type = type;
+    }
+}
 
 export abstract class Literal extends Expression { }
 
 export class IntLiteral extends Literal {
     value: number;
     constructor(range: Range | undefined, value: number) {
-        super(range);
+        super(range, "int");
         this.value = value;
     }
 }
@@ -148,7 +153,7 @@ export class IntLiteral extends Literal {
 export class DoubleLiteral extends Literal {
     value: number;
     constructor(range: Range | undefined, value: number) {
-        super(range);
+        super(range, "double");
         this.value = value;
     }
 }
@@ -156,7 +161,7 @@ export class DoubleLiteral extends Literal {
 export class BooleanLiteral extends Literal {
     value: boolean;
     constructor(range: Range | undefined, value: boolean) {
-        super(range);
+        super(range, "boolean");
         this.value = value;
     }
 }
@@ -164,28 +169,40 @@ export class BooleanLiteral extends Literal {
 export class StringLiteral extends Literal {
     value: string;
     constructor(range: Range | undefined, value: string) {
-        super(range);
+        super(range, "string");
         this.value = value;
     }
 }
 
-
 export class Variable extends Expression {
     declaration: Declaration;
     constructor(range: Range | undefined, declaration: Declaration) {
-        super(range);
+        super(range, declaration.type);
         this.declaration = declaration;
     }
+}
+
+function unaryType(operator: string, expression: Expression): string | TypeDeclaration | undefined{
+    if(operator == "-" || operator == "!")
+        return expression.type
 }
 
 export class UnaryExpression extends Expression {
     operator: string;
     expression: Expression;
     constructor(range: Range, operator: string, expression: Expression) {
-        super(range);
+        super(range, unaryType(operator, expression));
         this.operator = operator;
         this.expression = expression;
+
+        // TODO checks
     }
+}
+
+function binaryType(operator: string, left: Expression, right: Expression): string | TypeDeclaration | undefined{
+    if(operator == "+")
+        return left.type
+    // TODO
 }
 
 export class BinaryExpression extends Expression {
@@ -193,7 +210,7 @@ export class BinaryExpression extends Expression {
     left: Expression;
     right: Expression;
     constructor(range: Range, operator: string, left: Expression, right: Expression) {
-        super(range);
+        super(range, binaryType(operator, left, right));
         this.operator = operator;
         this.left = left;
         this.right = right;
@@ -205,7 +222,7 @@ export class CallExpression extends Expression {
     args: Expression[];
     instanceCall: boolean;
     constructor(range: Range, proc: Procedure, args: Expression[], instanceCall: boolean) {
-        super(range);
+        super(range, proc.returnType);
         this.procedure = proc;
         this.args = args;
         this.instanceCall = instanceCall;
@@ -216,7 +233,7 @@ export class UnboundCallExpression extends Expression {
     procedureName: string;
     args: Expression[];
     constructor(range: Range, procedureName: string, args: Expression[]) {
-        super(range);
+        super(range, undefined);
         this.procedureName = procedureName;
         this.args = args;
     }
@@ -226,7 +243,7 @@ export class NewObjectExpression extends Expression {
     type: TypeDeclaration;
     args: Expression[];
     constructor(range: Range, type: TypeDeclaration, args: Expression[]) {
-        super(range);
+        super(range, type);
         this.type = type;
         this.args = args;
     }
@@ -236,7 +253,7 @@ export class UnboundNewObjectExpression extends Expression {
     typeName: string;
     args: Expression[];
     constructor(range: Range, typeName: string, args: Expression[]) {
-        super(range);
+        super(range, typeName);
         this.typeName = typeName;
         this.args = args;
     }
@@ -246,7 +263,7 @@ export class FieldAccessExpression extends Expression {
     target: Expression;
     fieldName: string;
     constructor(range: Range, target: Expression, fieldName: string) {
-        super(range);
+        super(range, target.type);
         this.target = target;
         this.fieldName = fieldName;
     }

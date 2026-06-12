@@ -199,5 +199,5 @@ LINE_COMMENT: '//'~('\n'|'\r')*('\n'|'\r\n') -> channel(HIDDEN);
 
 //HOLE: '_'+ -> skip;
 
-WS: [ \t\r\n]+ -> skip ;
+WS: [ \t\r\n]+ -> channel(HIDDEN) ;
 

@@ -2,8 +2,8 @@ import {Interpreter,} from '../Interpreter';
 import assert from "assert";
 
 describe('Matte Interpreter Test Extensions', () => {
-    describe('Collections', () => {
-        it('console static', () => {
+    describe('static', () => {
+        it('println to console', () => {
             const originalLog = console.log;
             const logHistory: string[] = [];
 
@@ -12,7 +12,7 @@ describe('Matte Interpreter Test Extensions', () => {
                 originalLog.apply(console, args);
             };
             const interpreter = new Interpreter();
-            interpreter.addExtensionFunction("println", args => {
+            interpreter.addExtensionProcedure("println", args => {
                 console.log(args[0])
                 return {
                     evaluation: undefined,
@@ -25,6 +25,28 @@ describe('Matte Interpreter Test Extensions', () => {
                 println("!!");
             `)
             assert.deepStrictEqual(logHistory, ["3","1","!!"])
+        })
+
+        it('list', () => {
+            const interpreter = new Interpreter();
+            interpreter.addExtensionType("List", args => {
+                return {
+                    evaluation: [],
+                    materialization: undefined
+                }
+            },
+                ["add", args => {
+                    args[0].evaluation.push(args[1].evaluation)
+                    return { evaluation: undefined, materialization: undefined } } ]
+                )
+
+            // TODO type not found error
+
+            interpreter.parseAndRun(`
+                List list = new List();
+                list.add(3);
+            `)
+
         })
     })
 })

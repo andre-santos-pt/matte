@@ -1,7 +1,3 @@
-import JavaGrammarLexer from "./generated/JavaGrammarLexer";
-import JavaGrammarParser from "./generated/JavaGrammarParser";
-import {CharStreams, CommonTokenStream,} from "antlr4";
-
 import {
     Assignment,
     ASTNode,
@@ -19,20 +15,16 @@ import {
     ReturnStatement,
     Statement, StringLiteral,
     UnaryExpression,
-    UnboundCallExpression,
+    UnboundCallExpression, UnboundNewObjectExpression,
     Variable,
     WhileStatement
 } from "./ast";
 import Range from "./Range";
 
-import {parseExpression, parseTreeToAST} from "./antlr2ast";
+import {
+    buildAST, buildASTandCall
+} from "./antlr2ast";
 
-export function getParser(input: string) {
-    const chars = CharStreams.fromString(input);
-    const lexer = new JavaGrammarLexer(chars);
-    const tokens = new CommonTokenStream(lexer);
-    return new JavaGrammarParser(tokens);
-}
 
 interface InterpreterResult {
     errors: CompilationError[];
@@ -55,7 +47,9 @@ export enum CompilationErrorType {
     MethodNotFound = "METHOD_NOT_FOUND",
     MissingReturn = "MISSING_RETURN",
     ImmutableVariable = "IMMUTABLE_VAR",
-    Unsupported = "UNSUPPORTED"
+    Unsupported = "UNSUPPORTED",
+    NumberArgumentsMismatch = "N_ARGS_MISMATCH",
+    ArgumentTypesMismatch = "ARGS_TYPE_MISMATCH"
 }
 
 interface TraceEntry {
@@ -97,14 +91,15 @@ interface ExpressionEval {
 }
 
 
-type Extension = (...args: any[]) => ExpressionEval
+type ExtensionProcedure = (...args: any[]) => ExpressionEval
 
 export class Interpreter {
     private scope: StackFrame[] = []
     private trace: TraceEntry[] = []
 
     private loopCount = new Map()
-    private extensions: Map<string, Extension> = new Map()
+    private extensions: Map<string, ExtensionProcedure> = new Map()
+    private extensionTypes: Map<string, ExtensionProcedure> = new Map()
     private readonly maxLoopIterations?: number
     private readonly maxCallStack?: number  // TODO
 
@@ -113,8 +108,12 @@ export class Interpreter {
         this.maxCallStack = maxCallStack
     }
 
-    addExtensionFunction(name: string, extension: Extension) {
+    addExtensionProcedure(name: string, extension: ExtensionProcedure) {
         this.extensions.set(name, extension)
+    }
+
+    addExtensionType(name: string, constructor: ExtensionProcedure, ...operations: [string,ExtensionProcedure][]) {
+        this.extensionTypes.set(name, constructor)
     }
 
     compilationError(type: CompilationErrorType, msg: string, node: ASTNode) {
@@ -174,14 +173,13 @@ export class Interpreter {
         }
     }
 
-
     parseAndRun(source: string, call?: string): InterpreterResult {
-        let program: Program
-        let callExp: [Program?, Expression?] = [undefined, undefined]
+        let progAndCall: [Program?, Expression?] = [undefined, undefined]
         try {
-            program = parseTreeToAST(getParser(source).unit())
             if (call)
-                callExp = parseExpression(getParser(source).unit(), getParser(call).exp())
+                progAndCall = buildASTandCall(source, call)
+            else
+                progAndCall = [buildAST(source), undefined]
         } catch (e: any) {
             return {
                 result: undefined,
@@ -194,7 +192,7 @@ export class Interpreter {
                 }]
             }
         }
-        const [ast, exp] = call ? callExp : [program, undefined];
+        const [ast, exp] = progAndCall
         return this.runProgram(ast as Program, exp);
     }
 
@@ -427,6 +425,7 @@ export class Interpreter {
                     e.right, rightVal,
                     e.operator);
 
+            // TODO logical operators, etc.
 
             if (evaluation === undefined)
                 throw new Error("Unsupported operator: " + e.operator);
@@ -454,6 +453,18 @@ export class Interpreter {
                 evaluation: obj,
                 materialization: `new ${e.type.name}(${args.map(a => a.materialization || a.evaluation).join(", ")})`
             }
+        }
+        else if (e instanceof UnboundNewObjectExpression) {
+            const ext = this.extensionTypes.get(e.typeName)
+            if (ext) {
+                const args = e.args.map(a => this.evaluate(a).evaluation)
+                return ext.call(null, args)
+            } else
+                throw {
+                    compilation: CompilationErrorType.MethodNotFound,
+                    range: e.range,
+                    message: `No type named '${e.typeName}' found`,
+                }
         }
         else if(e instanceof FieldAccessExpression) {
             const objVal = this.evaluate(e.target)

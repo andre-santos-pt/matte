@@ -43,6 +43,23 @@ describe('Matte Interpreter Test Procedure', () => {
                 ["oneArg(0)", 60])
         })
 
+        it('missing one arg', () => {
+            compilationError(`
+            int oneArg(int i) {
+                int j = i + 5;
+                j = j + 5;
+                int z = i + j + 50;
+                return z;
+            }
+            
+            void main() {
+                oneArg();
+            }
+            `,
+                CompilationErrorType.NumberArgumentsMismatch
+            )
+        })
+
         it('two args', () => {
             cases(`
             int twoArgs(int i, int k) {
@@ -53,6 +70,23 @@ describe('Matte Interpreter Test Procedure', () => {
             }            
             `,
                 ["twoArgs(10, 50)", 80])
+        })
+
+        it('arg types mismatch', () => {
+            compilationError(`
+            int twoArgs(int i, int k) {
+                int j = i + 5;
+                j = j + 5;
+                int z = i + j + k;
+                return z;
+            }          
+            
+            void main() {
+                twoArgs(true, 3);
+            }
+            `,
+                CompilationErrorType.ArgumentTypesMismatch
+            )
         })
     })
 
