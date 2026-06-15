@@ -54,7 +54,6 @@ describe('Matte Interpreter Types', () => {
             )
         });
 
-
         it('mismatch call', () => {
             compilationError(`
             int g() {
@@ -66,6 +65,13 @@ describe('Matte Interpreter Types', () => {
                 else return 1;
             }
         `, CompilationErrorType.TypeMismatch, "f()"
+            )
+        });
+
+        it('array type', () => {
+            compilationError(`
+            int[] arr = 10;
+        `, CompilationErrorType.TypeMismatch
             )
         });
 

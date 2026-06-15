@@ -1,6 +1,7 @@
 
 import {
-    ArithmeticExpression,
+    ArithmeticExpression, ArrayAllocationExpression,
+    ArrayAssignment, ArrayElementExpression, ArrayLiteralExpression,
     Assignment,
     ASTNode,
     BinaryExpression,
@@ -51,7 +52,8 @@ export enum CompilationErrorType {
     ImmutableVariable = "IMMUTABLE_VAR",
     Unsupported = "UNSUPPORTED",
     NumberArgumentsMismatch = "N_ARGS_MISMATCH",
-    ArgumentTypesMismatch = "ARGS_TYPE_MISMATCH"
+    ArgumentTypesMismatch = "ARGS_TYPE_MISMATCH",
+    FieldNotFound = "FIELD_NOT_FOUND",
 }
 
 interface TraceEntry {
@@ -289,8 +291,22 @@ export class Interpreter {
                 evaluation: exp.evaluation,
                 materialization: exp.materialization,
                 declaration: s.variable.range
-            });
-        } else if (s instanceof IfStatement) {
+            })
+        }
+        else if(s instanceof ArrayAssignment) {
+
+            const arrayVal = this.evaluate(s.target).evaluation as Array<any>
+            // TODO null
+            const index = this.evaluate(s.index).evaluation
+            if(index < 0 || index >= arrayVal.length)
+                this.addTraceRuntimeError(s.index, {
+                        type: RuntimeErrorType.ArrayIndexOutOfBounds,
+                        message: "Array index out of bounds: " + index
+                    }
+                )
+            arrayVal[index] = this.evaluate(s.expression).evaluation
+        }
+        else if (s instanceof IfStatement) {
             const conditionVal = this.evaluate(s.guard);
             if (typeof conditionVal.evaluation !== "boolean")
                 throw {
@@ -489,6 +505,7 @@ export class Interpreter {
                 }
         }
         else if(e instanceof FieldAccessExpression) {
+            // TODO null check
             const objVal = this.evaluate(e.target)
             if (typeof objVal.evaluation !== "object" || objVal.evaluation === null)
                 throw {
@@ -506,6 +523,43 @@ export class Interpreter {
             return {
                 evaluation: fieldVal,
                 materialization: `${objVal.materialization}.${e.fieldName}`
+            }
+        }
+        else if(e instanceof ArrayLiteralExpression) {
+            const array = e.elements.map(el => this.evaluate(el).evaluation)
+            return {
+                evaluation: array,
+                materialization: array.toString()
+            }
+        }
+        else if(e instanceof ArrayAllocationExpression) {
+            const length = this.evaluate(e.dimensions[0]).evaluation // TODO multidim
+            const array = Array.from({length})
+            if(e.componentType == "int")
+                for(let i = 0; i != length; i++)
+                    array[i] = 0
+            // TODO other defaults
+            return {
+                evaluation: array,
+                materialization: array.toString()
+            }
+        }
+        else if(e instanceof ArrayElementExpression) {
+            const arrayVal = this.evaluate(e.target).evaluation as Array<any>
+
+            // TODO null check
+
+            const index = this.evaluate(e.index).evaluation
+            if(index < 0 || index >= arrayVal.length)
+                this.addTraceRuntimeError(e.index, {
+                        type: RuntimeErrorType.ArrayIndexOutOfBounds,
+                        message: "Array index out of bounds: " + index
+                    }
+                )
+
+            return {
+                evaluation: arrayVal[index],
+                materialization: undefined // TODO
             }
         }
         else throw {

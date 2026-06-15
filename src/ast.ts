@@ -1,8 +1,5 @@
 import Range from "./Range";
 import {CompilationErrorType} from "./Interpreter";
-import {createDefaultEsmLegacyPreset} from "ts-jest";
-
-
 
 export class Program {
     block?: BlockStatement;
@@ -40,6 +37,15 @@ export class Procedure extends ASTNode {
     }
 }
 
+type Type = PrimitiveType | TypeDeclaration | ArrayType
+
+enum PrimitiveType {
+    INT,
+    DOUBLE,
+    BOOLEAN,
+    STRING
+}
+
 export class TypeDeclaration {
     name: string;
     nameRange: Range;
@@ -53,6 +59,14 @@ export class TypeDeclaration {
     }
 }
 
+export class ArrayType {
+    componentType: Type
+
+    constructor(componentType: Type) {
+        this.componentType = componentType
+    }
+}
+
 export abstract class Statement extends ASTNode { }
 
 export class Declaration extends Statement {
@@ -63,7 +77,7 @@ export class Declaration extends Statement {
     typeRange?: Range;
     initializer?: Expression;
     constructor(range: Range | undefined, name: string, nameRange: Range | undefined, immutable: boolean, type: TypeDeclaration | string, typeRange: Range | undefined, initializer?: Expression) {
-        if(initializer && initializer.type != type)
+        if(initializer && initializer.type != undefined && initializer.type != type)
             throw {
                 message: "Cannot assign a " + initializer.type + " to a variable of type " + type,
                 compilation: CompilationErrorType.TypeMismatch,
@@ -98,6 +112,30 @@ export class Assignment extends Statement {
         super(range);
         this.variable = variable;
         this.expression = expression;
+    }
+}
+
+export class ArrayAssignment extends Statement {
+    target: Expression;
+    index: Expression;
+    expression: Expression;
+    constructor(range: Range,  target: Expression, index: Expression, expression: Expression) {
+        // if(target.type != expression.type) // TODO component type
+        //     throw {
+        //         message: "Cannot assign a " + expression.type + " to a variable of type " + target.type,
+        //         compilation: CompilationErrorType.TypeMismatch,
+        //         range: expression.range,
+        //         detail: {
+        //             related: target.range,
+        //         }
+        //     }
+        super(range);
+        this.target = target;
+        this.index = index;
+        this.expression = expression;
+        // TODO target type
+        // TODO index validation
+
     }
 }
 
@@ -260,6 +298,60 @@ export abstract class BinaryExpression extends Expression {
     }
 }
 
+export class ArrayLiteralExpression extends Expression {
+    elements: Expression[];
+    constructor(range: Range, elements: Expression[]) {
+        const types = new Set(elements.map(e => e.type))
+        if(types.size > 1)  // TODO uniform type
+            throw {
+                message: "Multiple expression types",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: range
+            }
+
+        super(range, types.size == 0 ? undefined : types.values().next().value+ "[]"); // TODO type
+        this.elements = elements;
+     }
+}
+
+export class ArrayAllocationExpression extends Expression {
+    componentType: TypeDeclaration | string
+    dimensions: Expression[];
+    constructor(range: Range, componentType: TypeDeclaration | string, dimensions: Expression[]) {
+        super(range, componentType.toString() + "[]"); // TODO type
+        this.componentType = componentType;
+        this.dimensions = dimensions;
+        // TODO dimensions > 1  positive int
+    }
+}
+
+function isArrayType(type: TypeDeclaration | string | undefined) {
+    return typeof type === "string" && (type as string).endsWith("[]")
+}
+
+
+export class ArrayElementExpression extends Expression {
+    target: Expression;
+    index: Expression;
+
+    constructor(range: Range, target: Expression, index: Expression) {
+        if(!isArrayType(target.type))
+            throw {
+                message: "Not an array",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: target.range
+            }
+
+        super(range, (target.type as string).substring(0, (target.type as string).length - 2)); // TODO type
+        this.target = target;
+        this.index = index;
+
+        // TODO target type
+        // TODO index validation
+    }
+
+}
+
 function isNumber(type?: string | TypeDeclaration) {
     return type == "int" || type == "double"
 }
@@ -416,8 +508,27 @@ export class UnboundNewObjectExpression extends Expression {
 export class FieldAccessExpression extends Expression {
     target: Expression;
     fieldName: string;
-    constructor(range: Range, target: Expression, fieldName: string) {
-        super(range, target.type); // TODO bug wrong type
+    constructor(range: Range, target: Expression, fieldName: string, fieldNameRange: Range) {
+        let type = undefined
+        if(isArrayType(target.type) && fieldName == "length")
+            type = "int"
+        else if(target instanceof Variable && (target as Variable).type instanceof TypeDeclaration) {
+            const type = (target as Variable).type as TypeDeclaration
+            const f = type.fields.find(f => f.name == fieldName)
+            if(!f)
+                throw {
+                    message: "Field '" + fieldName + "' is not declared in type '" + type.name + "'",
+                    compilation: CompilationErrorType.FieldNotFound,
+                    range: fieldNameRange
+                }
+        }
+        else throw {
+            message: "Not an object",
+            compilation: CompilationErrorType.TypeMismatch,
+            range: target.range
+        }
+
+        super(range, type); // TODO bug wrong type
         this.target = target;
         this.fieldName = fieldName;
     }

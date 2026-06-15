@@ -38,18 +38,6 @@ export default class Range {
         return this.end - this.start;
     }
 
-    /**
-     * Useful for applying the range to an input/textarea selection
-     */
-    applyToElement(
-        element: HTMLInputElement | HTMLTextAreaElement | null
-    ): void {
-        if (element && typeof element.setSelectionRange === "function") {
-            element.focus();
-            element.setSelectionRange(this.start, this.end);
-        }
-    }
-
     contains(offset: number): boolean {
         return offset >= this.start && offset <= this.end;
     }

@@ -1,4 +1,6 @@
 import JavaGrammarParser, {
+    ArrayAllocExprContext, ArrayAssignmentContext, ArrayExprContext,
+    ArrayLitExprContext,
     AssignmentContext,
     BinaryOpAddContext, BinaryOpLogContext,
     BinaryOpMulContext,
@@ -24,7 +26,8 @@ import JavaGrammarParser, {
     WhileStmtContext
 } from "./generated/JavaGrammarParser";
 import {
-    ArithmeticExpression,
+    ArithmeticExpression, ArrayAllocationExpression, ArrayAssignment,
+    ArrayElementExpression, ArrayLiteralExpression,
     Assignment,
     BinaryExpression,
     BlockStatement,
@@ -77,7 +80,7 @@ export function buildAST(source: string) {
     return visitor.visitUnit(unit);
 }
 
-export function buildASTandCall(source: string, call: string) : [Program, Expression] {
+export function buildASTandCall(source: string, call: string): [Program, Expression] {
     const chars = CharStreams.fromString(source);
     const lexer = new JavaGrammarLexer(chars);
     const tokens = new CommonTokenStream(lexer);
@@ -154,7 +157,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             this.tokenStream.getText(new Interval(from, to))
         );
     }
-    
+
     topScope(): Map<string, Declaration> {
         return this.varScope[this.varScope.length - 1].variables;
     }
@@ -375,7 +378,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             ctx._id.text,
             this.rangeToken(ctx._id),
             false,
-            ctx._type_.text,
+            ctx._type_.text + ctx.arrayDim_list().map(d => "[]"),
             this.rangeToken(ctx._type_),
             ctx.exp() ? this.expToAST(ctx.exp()) : undefined
         )
@@ -399,6 +402,17 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             this.rangeContext(ctx),
             dec,
             this.expToAST(ctx.exp())
+        )
+    }
+
+    visitArrayAssignment = (ctx: ArrayAssignmentContext) => {
+        const target = this.expToAST(ctx._target)
+        const index = this.expToAST(ctx._index)
+        return new ArrayAssignment(
+            this.rangeContext(ctx),
+            target,
+            index,
+            this.expToAST(ctx._expression)
         )
     }
 
@@ -562,12 +576,32 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 this.expToAST(ctx._right)
             );
 
-        else if(ctx instanceof BinaryOpLogContext)
+        else if (ctx instanceof BinaryOpLogContext)
             return new LogicalExpression(
                 this.rangeContext(ctx),
                 ctx.bopLog().getText(),
                 this.expToAST(ctx._left),
                 this.expToAST(ctx._right)
+            )
+
+        else if (ctx instanceof ArrayLitExprContext)
+            return new ArrayLiteralExpression(
+                this.rangeContext(ctx),
+                ctx.expList() ? ctx.expList().exp_list().map(e => this.expToAST(e)) : []
+            )
+
+        else if (ctx instanceof ArrayAllocExprContext)
+            return new ArrayAllocationExpression(
+                this.rangeContext(ctx),
+                ctx.ID().getText(), // TODO type
+                [this.expToAST(ctx.dimensions().exp())] // TODO multidim
+            )
+
+        else if (ctx instanceof ArrayExprContext)
+            return new ArrayElementExpression(
+                this.rangeContext(ctx),
+                this.expToAST(ctx._target),
+                this.expToAST(ctx._index),
             )
 
         else if (ctx instanceof CallExprContext)
@@ -580,7 +614,8 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return new FieldAccessExpression(
                 this.rangeContext(ctx),
                 this.expToAST(ctx._target),
-                ctx._fieldId.text
+                ctx._fieldId.text,
+                this.rangeToken(ctx._fieldId)
             )
 
         else if (ctx instanceof InstanceCallExprContext) {

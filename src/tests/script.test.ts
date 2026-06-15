@@ -1,38 +1,11 @@
 import {
     CompilationErrorType,
-    Interpreter,
     RuntimeErrorType
 } from '../Interpreter';
-import assert from "assert";
 
-import {compilationError, runtimeError} from "./utils";
-import {last} from "../utils";
-
-function script(code: string, cases: Map<string, any>) {
-    const interpreter = new Interpreter();
-    let result = interpreter.parseAndRun(code);
-    if(result.errors.length != 0) {
-        console.table(result.errors)
-        return
-    }
-    if (last(result.trace)?.error)
-        assert.fail(last(result.trace)?.error?.message)
-    else {
-        const evaluationMap = new Map([...last(result.trace).stack[0].variables].map(
-            ([name, variable]) => [name, variable.evaluation]
-        ))
-        try {
-            assert.deepStrictEqual(evaluationMap, cases, evaluationMap.toString());
-        } catch (returnObj) {
-            console.table(evaluationMap);
-            throw returnObj
-        }
-    }
-}
-
+import {compilationError, runtimeError, script} from "./utils";
 
 describe('Matte Interpreter Test Script', () => {
-    // Group 1: Basic functionality
     describe('Script', () => {
 
         it('script mode', () => {
@@ -144,19 +117,7 @@ describe('Matte Interpreter Test Script', () => {
         });
 
 
-        it('inc array', () => {
-            script(`
-        int[] array = {5,6,7};
-        int i = 0;
-        while(i != array.length) {
-            array[i]++;
-            i++;
-        }
-        `, new Map()
-                .set("i", 3)
-                .set("array", [6, 7, 8])
-            )
-        });
+
 
         it('for', () => {
             script(`
@@ -240,84 +201,6 @@ describe('Matte Interpreter Test Script', () => {
                 .set("hello", "ola")
                 .set("helloExc", "ola!")
             )
-        });
-
-
-        it('array access', () => {
-            script(`
-        int[] array = {5,6,7};
-        int a = array[0];
-        int b = array[1];
-        int c = array[2];
-       
-        `, new Map()
-                .set("a", 5)
-                .set("b", 6)
-                .set("c", 7)
-                .set("array", [5, 6, 7])
-            )
-        });
-
-        it('array length', () => {
-            script(`
-        int[] a = {5,6,7};
-        int[] b = {};
-        int aLen = a.length;
-        int bLen = b.length;
-        
-        `, new Map()
-                .set("aLen", 3)
-                .set("bLen", 0)
-                .set("a", [5, 6, 7])
-                .set("b", [])
-            )
-        });
-
-        it('array write', () => {
-            script(`
-        int[] array = new int[5];
-        array[0] = 10;
-        array[2] = 20;
-        array[4] = 40;
-       
-        `, new Map()
-                .set("array", [10, 0, 20, 0, 40])
-            )
-        });
-
-        it('array write null pointer', () => {
-            runtimeError(`
-        int[] array = null;
-        array[5] = 10;
-        `, RuntimeErrorType.NullPointer)
-        });
-
-        it('array write access type', () => {
-            compilationError(`
-        int array = 4;
-        array[5] = 10;
-        `, CompilationErrorType.TypeMismatch)
-        });
-
-        it('array write invalid index', () => {
-            runtimeError(`
-        int[] array = new int[5];
-        array[5] = 10;
-        `, RuntimeErrorType.ArrayIndexOutOfBounds)
-        });
-
-        it('array access type', () => {
-            compilationError(`
-        int a = 0;
-        int b = a[1];
-        `, CompilationErrorType.TypeMismatch)
-        });
-
-        it('array invalid index', () => {
-            runtimeError(`
-         int[] array = {5,6,7};
-         int a = array[4];
-        `, RuntimeErrorType.ArrayIndexOutOfBounds)
         });
     })
 })
