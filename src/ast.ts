@@ -170,12 +170,19 @@ export class ArrayAssignment extends Statement {
         //             related: target.range,
         //         }
         //     }
+        // TODO target type
+
+        if(index.type != PrimitiveType.INT)
+            throw {
+                message: "Expected an expression of type integer",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: index.range
+            }
         super(range);
         this.target = target;
         this.index = index;
         this.expression = expression;
-        // TODO target type
-        // TODO index validation
+
 
     }
 }
@@ -262,7 +269,6 @@ export abstract class Expression extends ASTNode {
     }
 }
 
-export interface FieldTarget { }
 
 export abstract class Literal extends Expression {
 }
@@ -303,7 +309,7 @@ export class StringLiteral extends Literal {
     }
 }
 
-export class Variable extends Expression implements FieldTarget {
+export class Variable extends Expression {
     declaration: Declaration;
 
     constructor(range: Range | undefined, declaration: Declaration) {
@@ -389,7 +395,7 @@ function isArrayType(type?: Type) {
 }
 
 
-export class ArrayElementExpression extends Expression implements FieldTarget {
+export class ArrayElementExpression extends Expression {
     target: Expression;
     index: Expression;
 
@@ -541,7 +547,7 @@ export class UnboundCallExpression extends Expression {
     }
 }
 
-export class NewObjectExpression extends Expression implements FieldTarget {
+export class NewObjectExpression extends Expression {
     type: TypeDeclaration;
     args: Expression[];
 
@@ -564,31 +570,57 @@ export class UnboundNewObjectExpression extends Expression {
     }
 }
 
+type FieldTarget = Variable | ArrayElementExpression | NewObjectExpression
+
 export class FieldAccessExpression extends Expression {
-    target: Expression;
+    target: FieldTarget;
     fieldName: string;
 
+    static isFieldTarget(obj: any): obj is FieldTarget {
+        return (
+            obj instanceof Variable ||
+            obj instanceof ArrayElementExpression ||
+            obj instanceof NewObjectExpression
+        );
+    }
+
     constructor(range: Range, target: Expression, fieldName: string, fieldNameRange: Range) {
-        let type: Type
-        if (isArrayType(target.type) && fieldName == "length")
-            type = PrimitiveType.INT
-        // TODO else if(target instanceof FieldTarget)
-        else if (target instanceof Variable && (target as Variable).type instanceof TypeDeclaration) {
-            type = (target as Variable).type as TypeDeclaration
-            const f = (type as TypeDeclaration).fields.find(f => f.name == fieldName)
-            if (!f)
+        if(!FieldAccessExpression.isFieldTarget(target))
+            throw {
+                message: "Invalid expression for field access'",
+                compilation: CompilationErrorType.TypeMismatch,
+                range: target.range
+            }
+// TODO remove to avoid Java-specific?
+        let type: Type | undefined
+        if (isArrayType(target.type)) {
+            if(fieldName == "length")
+                type = PrimitiveType.INT
+            else
                 throw {
-                    message: "Field '" + fieldName + "' is not declared in type '" + type.name + "'",
+                    message: "Invalid field '" + fieldName + "' for arrays",
                     compilation: CompilationErrorType.FieldNotFound,
                     range: fieldNameRange
                 }
-        } else throw {
+        }
+
+        else if (target.type instanceof TypeDeclaration) {
+            const dec = (target as Variable).type as TypeDeclaration
+            type = (dec as TypeDeclaration).fields.find(f => f.name == fieldName)?.type
+            if (!type)
+                throw {
+                    message: "Field '" + fieldName + "' is not declared in type '" + dec.name + "'",
+                    compilation: CompilationErrorType.FieldNotFound,
+                    range: fieldNameRange
+                }
+        }
+        else throw {
             message: "Not an object",
             compilation: CompilationErrorType.TypeMismatch,
             range: target.range
         }
 
-        super(range, type); // TODO bug wrong type
+        super(range, type);
         this.target = target;
         this.fieldName = fieldName;
     }

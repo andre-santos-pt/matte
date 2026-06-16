@@ -115,7 +115,7 @@ describe('Matte Interpreter Objects', () => {
                 }
                 double sumScale(double factor) {
                     Point p = new Point(x * factor, y * factor);
-                    int s = p.sum();
+                    double s = p.sum();
                     return s;
                 }
             }

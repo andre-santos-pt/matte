@@ -690,22 +690,28 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 range: this.rangeContext(ctx.exp())
             }
 
-        const typeName = target instanceof Variable ? target.declaration.type : target.type.name
+        //const typeName = target instanceof Variable ? target.declaration.type : target.type.name
 
-        const type = this.types.find(t => t.name == typeName)
+        //const type = this.findType(typeName)// this.types.find(t => t.name == typeName)
 
-        if (!type)
+        if(!(target.type instanceof TypeDeclaration))
             throw {
-                message: "Type '" + typeName + "' not found",
-                compilation: CompilationErrorType.TypeMismatch,
-                range: this.rangeContext(ctx.exp()),
-                detail: "AST-instanceCall"
+                message: "Unsupported target: " + ctx.exp().getText(),
+                compilation: CompilationErrorType.Unsupported,
+                range: this.rangeContext(ctx.exp())
             }
+        // if (!type)
+        //     throw {
+        //         message: "Type '" + typeName + "' not found",
+        //         compilation: CompilationErrorType.TypeMismatch,
+        //         range: this.rangeContext(ctx.exp()),
+        //         detail: "AST-instanceCall"
+        //     }
 
-        const proc = this.findMethodInType(type, ctx.call()._id.text)
+        const proc = this.findMethodInType(target.type, ctx.call()._id.text)
         if (!proc)
             throw {
-                message: "No method named '" + ctx.call()._id.text + "' found for type '" + typeName + "'",
+                message: "No method named '" + ctx.call()._id.text + "' found for type '" + target.type.name + "'",
                 compilation: CompilationErrorType.MethodNotFound,
                 range: this.rangeToken(ctx.call()._id),
                 detail: "AST-instanceCall"
