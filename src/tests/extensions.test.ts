@@ -40,8 +40,6 @@ describe('Matte Interpreter Test Extensions', () => {
                     return { evaluation: undefined, materialization: undefined } } ]
                 )
 
-            // TODO type not found error
-
             interpreter.parseAndRun(`
                 List list = new List();
                 list.add(3);

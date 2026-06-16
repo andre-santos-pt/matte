@@ -12,7 +12,7 @@ import {
     Declaration, DoubleLiteral,
     Expression, FieldAccessExpression,
     IfStatement,
-    IntLiteral, NewObjectExpression, PrimitiveType,
+    IntLiteral, NewObjectExpression, NullLiteral, PrimitiveType,
     Procedure,
     Program, RelationalExpression,
     ReturnStatement,
@@ -27,6 +27,7 @@ import Range from "./Range";
 import {
     buildAST, buildASTandCall
 } from "./antlr2ast";
+import {NotNull} from "antlr4ts/Decorators";
 
 
 interface InterpreterResult {
@@ -297,9 +298,17 @@ export class Interpreter {
             })
         }
         else if(s instanceof ArrayAssignment) {
+            const arrayVal = this.evaluate(s.target).evaluation
 
-            const arrayVal = this.evaluate(s.target).evaluation as Array<any>
+            if(arrayVal == null)
+                this.addTraceRuntimeError(s.target, {
+                        type: RuntimeErrorType.NullPointer,
+                        message: "Reference is null"
+                    }
+                )
             // TODO null
+
+
             const index = this.evaluate(s.index).evaluation
             if(index < 0 || index >= arrayVal.length)
                 this.addTraceRuntimeError(s.index, {
@@ -311,12 +320,6 @@ export class Interpreter {
         }
         else if (s instanceof IfStatement) {
             const conditionVal = this.evaluate(s.guard);
-            if (typeof conditionVal.evaluation !== "boolean")
-                throw {
-                    range: s.guard.range,
-                    type: CompilationErrorType.TypeMismatch,
-                    message: `Type mismatch: expected boolean expression`
-                }
             if (conditionVal.evaluation)
                 this.execute(s.thenBranch);
             else if (s.elseBranch)
@@ -324,13 +327,7 @@ export class Interpreter {
         } else if (s instanceof WhileStatement) {
             while (true) {
                 this.loopIteration(s)
-                const conditionVal = this.evaluate(s.guard);
-                if (typeof conditionVal.evaluation !== "boolean")
-                    throw {
-                        range: s.guard.range,
-                        type: CompilationErrorType.TypeMismatch,
-                        message: `Type mismatch: expected boolean expression`
-                    }
+                const conditionVal = this.evaluate(s.guard)
                 if (!conditionVal.evaluation) break;
                 try {
                     this.execute(s.body);
@@ -412,6 +409,11 @@ export class Interpreter {
         else if (e instanceof StringLiteral)
             return {
                 evaluation: e.value
+            }
+
+        else if(e instanceof NullLiteral)
+            return {
+                 evaluation: null
             }
         else if (e instanceof UnaryExpression) {
             const expVal = this.evaluate(e.expression);

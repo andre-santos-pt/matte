@@ -24,7 +24,7 @@ import JavaGrammarParser, {
     IncContext,
     InstanceCallExprContext,
     IntExprContext,
-    MethodContext,
+    MethodContext, NullExprContext,
     ObjectAllocExprContext,
     RecordContext,
     ReturnContext,
@@ -56,7 +56,7 @@ import {
     IfStatement,
     IntLiteral,
     LogicalExpression,
-    NewObjectExpression,
+    NewObjectExpression, NullLiteral,
     PrimitiveType,
     Procedure,
     Program,
@@ -584,6 +584,9 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 ctx.STRING().getText().substring(1, ctx.STRING().getText().length - 1)
             )
 
+            else if( ctx instanceof NullExprContext)
+                return new NullLiteral(this.rangeContext(ctx))
+
         else if (ctx instanceof UnaryOpContext)
             return new UnaryExpression(
                 this.rangeContext(ctx),
@@ -690,23 +693,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 range: this.rangeContext(ctx.exp())
             }
 
-        //const typeName = target instanceof Variable ? target.declaration.type : target.type.name
-
-        //const type = this.findType(typeName)// this.types.find(t => t.name == typeName)
-
         if(!(target.type instanceof TypeDeclaration))
             throw {
                 message: "Unsupported target: " + ctx.exp().getText(),
                 compilation: CompilationErrorType.Unsupported,
                 range: this.rangeContext(ctx.exp())
             }
-        // if (!type)
-        //     throw {
-        //         message: "Type '" + typeName + "' not found",
-        //         compilation: CompilationErrorType.TypeMismatch,
-        //         range: this.rangeContext(ctx.exp()),
-        //         detail: "AST-instanceCall"
-        //     }
 
         const proc = this.findMethodInType(target.type, ctx.call()._id.text)
         if (!proc)
@@ -753,7 +745,6 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         const proc = this.procedures.find(p => p.name == ctx._id.text)
         if (proc) {
             let args = ctx._args ? ctx._args.exp_list().map(e => this.expToAST(e)) : []
-            // TODO this is a bit hacky, we should check if the proc is an instance method and if so, add the target as first argument
             if (proc.instance)
                 args.unshift(new Variable(this.rangeContext(ctx), new Declaration(undefined, "this", undefined, true, proc.parameters[0].type, undefined)))
             this.checkArgs(ctx, args, proc)

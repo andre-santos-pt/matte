@@ -51,6 +51,17 @@ export enum PrimitiveType {
     STRING = "STRING"
 }
 
+function typeName(type: Type) {
+    if(isPrimitiveType(type))
+        return type.toString()
+    else if(type instanceof TypeDeclaration)
+        return type.name
+    else if(type instanceof ForeignType)
+        return type.name
+    else
+        return undefined
+}
+
 function isPrimitiveType(type: Type | undefined) {
     return type == PrimitiveType.INT || type == PrimitiveType.DOUBLE || type == PrimitiveType.BOOLEAN || type == PrimitiveType.STRING
 }
@@ -61,6 +72,10 @@ function isNumberType(type?: Type) {
 
 function isBooleanType(type?: Type) {
     return type == PrimitiveType.BOOLEAN
+}
+
+function isReferenceType(type?: Type) {
+    return type instanceof ArrayType || type instanceof TypeDeclaration || type instanceof ForeignType
 }
 
 function isSameType(a: Type | undefined, b: Type | undefined): boolean {
@@ -116,9 +131,12 @@ export class Declaration extends Statement {
     initializer?: Expression;
 
     constructor(range: Range | undefined, name: string, nameRange: Range | undefined, immutable: boolean, type: Type, typeRange: Range | undefined, initializer?: Expression) {
-        if (initializer && !(initializer.type instanceof ArrayType && !initializer.type.componentType) && !isSameType(initializer.type, type))
+        if (initializer
+            && !(isReferenceType(type) && initializer instanceof NullLiteral)
+            && !(initializer.type instanceof ArrayType && !initializer.type.componentType)
+            && !isSameType(initializer.type, type))
             throw {
-                message: "Cannot assign a " + initializer.type + " to a variable of type " + type,
+                message: "Cannot assign a " + initializer.type + " to a variable of type " + typeName(type),
                 compilation: CompilationErrorType.TypeMismatch,
                 range: initializer.range,
                 detail: {
@@ -306,6 +324,12 @@ export class StringLiteral extends Literal {
     constructor(range: Range | undefined, value: string) {
         super(range, PrimitiveType.STRING);
         this.value = value;
+    }
+}
+
+export class NullLiteral extends Literal {
+    constructor(range: Range) {
+        super(range);
     }
 }
 
