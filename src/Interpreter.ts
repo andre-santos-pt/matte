@@ -572,6 +572,7 @@ export class Interpreter {
 
     invocation(call: CallExpression):
         ExpressionEval {
+        this.addTrace(call, undefined, undefined)
         const p = call.procedure
         const variables: Map<string, TraceVariable> = new Map()
         if(p.instance) {
@@ -600,6 +601,7 @@ export class Interpreter {
         } catch (e: any) {
             if (e.evaluation !== undefined) {
                 this.scope.pop()
+                this.addTrace(call, e.evaluation, e.materialization)
                 return e
             } else
                 throw e
@@ -612,6 +614,7 @@ export class Interpreter {
             }
         }
         this.scope.pop()
+        this.addTrace(call, undefined, undefined)
         return {
             evaluation: undefined,
             materialization: undefined

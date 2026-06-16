@@ -611,7 +611,7 @@ export class FieldAccessExpression extends Expression {
     constructor(range: Range, target: Expression, fieldName: string, fieldNameRange: Range) {
         if(!FieldAccessExpression.isFieldTarget(target))
             throw {
-                message: "Invalid expression for field access'",
+                message: "Invalid expression for field access",
                 compilation: CompilationErrorType.TypeMismatch,
                 range: target.range
             }

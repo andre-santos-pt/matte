@@ -20,6 +20,7 @@ params: param (COMMA param)* ;
 
 param: type=ID? arrayDim* id=ID;
 
+
 arrayDim: LBRACK RBRACK;
 
 statement:
@@ -63,6 +64,8 @@ exp:
     LPAREN exp RPAREN                           # bracketsExpr
 
     | target=exp LBRACK index=exp RBRACK        # arrayExpr
+    | newCall                                   # objectAllocExpr
+    | target=exp DOT fieldId=ID                 # fieldExpr
     | uop target=exp                            # unaryOp
     | left=exp bopMul right=exp                 # binaryOpMul
     | left=exp bopAdd right=exp                 # binaryOpAdd
@@ -74,9 +77,7 @@ exp:
     | left=exp OR right=exp                     # orExpr
     | LCURLY elements=expList? RCURLY           # arrayLitExpr
     | NEW type=ID dimensions                    # arrayAllocExpr
-    | newCall                                   # objectAllocExpr
     | exp DOT call                              # instanceCallExpr
-    | target=exp DOT fieldId=ID                 # fieldExpr
     | ID                                        # idExpr
     | INT                                       # intExpr
     | DOUBLE                                    # doubleExpr

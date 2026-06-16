@@ -3,11 +3,10 @@ import {
     RuntimeErrorType
 } from '../Interpreter';
 
-import {compilationError, runtimeError, script} from "./utils";
+import {cases, compilationError, runtimeError, script} from "./utils";
 
 describe('Matte Interpreter Test Arrays', () => {
     describe('Script', () => {
-
         it('array access', () => {
             script(`
         int[] array = {5,6,7};
@@ -99,4 +98,21 @@ describe('Matte Interpreter Test Arrays', () => {
             )
         });
     })
+    describe('Functions', () => {
+
+        it('sum', () =>{
+            cases(`int sum(int[] a) {
+                int s = 0;
+                int i = 0;
+                while(i < a.length) {
+                    s = s + a[i];
+                    i++;
+                }
+                return s;
+            }`,
+                ["sum({1,2,3}",6],
+                ["sum({}",0])
+        })
+        }
+    )
 })
