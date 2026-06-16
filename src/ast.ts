@@ -5,6 +5,7 @@ export class Program {
     block?: BlockStatement;
     procedures: Procedure[] = [];
     typeDeclarations: TypeDeclaration[] = [];
+
     constructor(block?: BlockStatement, procedures: Procedure[] = [], typeDeclarations: TypeDeclaration[] = []) {
         this.block = block;
         this.procedures = procedures;
@@ -14,7 +15,10 @@ export class Program {
 
 export abstract class ASTNode {
     range?: Range;
-    constructor(range?: Range) { this.range = range; }
+
+    constructor(range?: Range) {
+        this.range = range;
+    }
 }
 
 export class Procedure extends ASTNode {
@@ -22,11 +26,12 @@ export class Procedure extends ASTNode {
     nameRange: Range | undefined;
     parameters: Declaration[];
     instance: boolean;
-    returnType?: TypeDeclaration | string;
+    returnType?: Type;
     body?: BlockStatement;
-    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, instance: boolean, parameters: Declaration[], returnType?: TypeDeclaration | string, body?: BlockStatement) {
+
+    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, instance: boolean, parameters: Declaration[], returnType?: Type, body?: BlockStatement) {
         super(range);
-        if(instance && parameters.length == 0)
+        if (instance && parameters.length == 0)
             throw new Error("Instance procedures must have at least one parameter (the instance)");
         this.name = name;
         this.nameRange = nameRange;
@@ -37,13 +42,36 @@ export class Procedure extends ASTNode {
     }
 }
 
-type Type = PrimitiveType | TypeDeclaration | ArrayType
+export type Type = PrimitiveType | TypeDeclaration | ArrayType | ForeignType
 
-enum PrimitiveType {
-    INT,
-    DOUBLE,
-    BOOLEAN,
-    STRING
+export enum PrimitiveType {
+    INT = "INT",
+    DOUBLE = "DOUBLE",
+    BOOLEAN = "BOOLEAN",
+    STRING = "STRING"
+}
+
+function isPrimitiveType(type: Type | undefined) {
+    return type == PrimitiveType.INT || type == PrimitiveType.DOUBLE || type == PrimitiveType.BOOLEAN || type == PrimitiveType.STRING
+}
+
+function isNumberType(type?: Type) {
+    return type == PrimitiveType.INT || type == PrimitiveType.DOUBLE
+}
+
+function isBooleanType(type?: Type) {
+    return type == PrimitiveType.BOOLEAN
+}
+
+function isSameType(a: Type | undefined, b: Type | undefined): boolean {
+    if (isPrimitiveType(a) || a instanceof TypeDeclaration)
+        return a == b
+    else if (a instanceof ArrayType)
+        return b instanceof ArrayType && isSameType(a.componentType, b.componentType)
+    else if (a instanceof ForeignType)
+        return b instanceof ForeignType && a.name == b.name
+    else
+        return false
 }
 
 export class TypeDeclaration {
@@ -51,6 +79,7 @@ export class TypeDeclaration {
     nameRange: Range;
     isRecord: boolean;
     fields: Declaration[];
+
     constructor(name: string, nameRange: Range, isRecord: boolean, fields: Declaration[]) {
         this.name = name;
         this.nameRange = nameRange;
@@ -60,24 +89,34 @@ export class TypeDeclaration {
 }
 
 export class ArrayType {
-    componentType: Type
+    componentType?: Type
 
-    constructor(componentType: Type) {
+    constructor(componentType?: Type) {
         this.componentType = componentType
     }
 }
 
-export abstract class Statement extends ASTNode { }
+export class ForeignType {
+    name: string
+
+    constructor(name: string) {
+        this.name = name
+    }
+}
+
+export abstract class Statement extends ASTNode {
+}
 
 export class Declaration extends Statement {
     name: string;
     nameRange?: Range;
     immutable: boolean;
-    type: TypeDeclaration | string;
+    type: Type;
     typeRange?: Range;
     initializer?: Expression;
-    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, immutable: boolean, type: TypeDeclaration | string, typeRange: Range | undefined, initializer?: Expression) {
-        if(initializer && initializer.type != undefined && initializer.type != type)
+
+    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, immutable: boolean, type: Type, typeRange: Range | undefined, initializer?: Expression) {
+        if (initializer && !(initializer.type instanceof ArrayType && !initializer.type.componentType) && !isSameType(initializer.type, type))
             throw {
                 message: "Cannot assign a " + initializer.type + " to a variable of type " + type,
                 compilation: CompilationErrorType.TypeMismatch,
@@ -99,8 +138,9 @@ export class Declaration extends Statement {
 export class Assignment extends Statement {
     variable: Declaration;
     expression: Expression;
+
     constructor(range: Range, variable: Declaration, expression: Expression) {
-        if(variable.type != expression.type)
+        if (!isSameType(variable.type, expression.type))
             throw {
                 message: "Cannot assign a " + expression.type + " to a variable of type " + variable.type,
                 compilation: CompilationErrorType.TypeMismatch,
@@ -119,7 +159,8 @@ export class ArrayAssignment extends Statement {
     target: Expression;
     index: Expression;
     expression: Expression;
-    constructor(range: Range,  target: Expression, index: Expression, expression: Expression) {
+
+    constructor(range: Range, target: Expression, index: Expression, expression: Expression) {
         // if(target.type != expression.type) // TODO component type
         //     throw {
         //         message: "Cannot assign a " + expression.type + " to a variable of type " + target.type,
@@ -141,6 +182,7 @@ export class ArrayAssignment extends Statement {
 
 export class BlockStatement extends Statement {
     statements: Statement[];
+
     constructor(range: Range | undefined, statements: Statement[]) {
         super(range);
         this.statements = statements;
@@ -153,7 +195,7 @@ export class IfStatement extends Statement {
     elseBranch?: Statement;
 
     constructor(range: Range, condition: Expression, thenBranch: Statement, elseBranch: Statement | undefined) {
-        if(condition.type != "boolean")
+        if (!isSameType(condition.type, PrimitiveType.BOOLEAN))
             throw {
                 message: "Not a boolean expression",
                 compilation: CompilationErrorType.TypeMismatch,
@@ -171,7 +213,7 @@ export class WhileStatement extends Statement {
     body: Statement;
 
     constructor(range: Range, condition: Expression, body: Statement) {
-        if(condition.type != "boolean")
+        if (!isSameType(condition.type, PrimitiveType.BOOLEAN))
             throw {
                 message: "Not a boolean expression",
                 compilation: CompilationErrorType.TypeMismatch,
@@ -184,11 +226,12 @@ export class WhileStatement extends Statement {
 }
 
 export class BreakStatement extends Statement {
- // TODO break location
+    // TODO break location
 }
 
 export class ReturnStatement extends Statement {
     expression?: Expression;
+
     constructor(range: Range | undefined, expression?: Expression) {
         super(range);
         this.expression = expression;
@@ -208,61 +251,74 @@ export class CallStatement extends Statement {
 
 // TODO : CharLiteral
 
+
+
 export abstract class Expression extends ASTNode {
-    type: string | TypeDeclaration | undefined
-    constructor(range: Range | undefined, type: string | TypeDeclaration | undefined) {
+    type?: Type
+
+    constructor(range: Range | undefined, type?: Type) {
         super(range);
         this.type = type;
     }
 }
 
-export abstract class Literal extends Expression { }
+export interface FieldTarget { }
+
+export abstract class Literal extends Expression {
+}
 
 export class IntLiteral extends Literal {
     value: number;
+
     constructor(range: Range | undefined, value: number) {
-        super(range, "int");
+        super(range, PrimitiveType.INT);
         this.value = value;
     }
 }
 
 export class DoubleLiteral extends Literal {
     value: number;
+
     constructor(range: Range | undefined, value: number) {
-        super(range, "double");
+        super(range, PrimitiveType.DOUBLE);
         this.value = value;
     }
 }
 
 export class BooleanLiteral extends Literal {
     value: boolean;
+
     constructor(range: Range | undefined, value: boolean) {
-        super(range, "boolean");
+        super(range, PrimitiveType.BOOLEAN);
         this.value = value;
     }
 }
 
 export class StringLiteral extends Literal {
     value: string;
+
     constructor(range: Range | undefined, value: string) {
-        super(range, "string");
+        super(range, PrimitiveType.STRING);
         this.value = value;
     }
 }
 
-export class Variable extends Expression {
+export class Variable extends Expression implements FieldTarget {
     declaration: Declaration;
+
     constructor(range: Range | undefined, declaration: Declaration) {
         super(range, declaration.type);
         this.declaration = declaration;
     }
 }
 
+
 export class UnaryExpression extends Expression {
     operator: string;
     expression: Expression;
+
     constructor(range: Range, operator: string, expression: Expression) {
-        if(operator == "-" && expression.type != "int" && expression.type != "double")
+        if (operator == "-" && !isNumberType(expression.type))
             throw {
                 message: "Unary operator - can only be applied to numeric expressions",
                 compilation: CompilationErrorType.TypeMismatch,
@@ -270,7 +326,7 @@ export class UnaryExpression extends Expression {
                 detail: "The expression '" + expression.range?.text + "' is of type " + expression.type
             }
 
-        if(operator == "!" && expression.type != "boolean")
+        if (operator == "!" && !isSameType(expression.type, PrimitiveType.BOOLEAN))
             throw {
                 message: "Unary operator - can only be applied to boolean expressions",
                 compilation: CompilationErrorType.TypeMismatch,
@@ -290,7 +346,8 @@ export abstract class BinaryExpression extends Expression {
     operator: string;
     left: Expression;
     right: Expression;
-    protected constructor(range: Range, operator: string, left: Expression, right: Expression, type: string) {
+
+    protected constructor(range: Range, operator: string, left: Expression, right: Expression, type: Type) {
         super(range, type);
         this.operator = operator;
         this.left = left;
@@ -300,49 +357,51 @@ export abstract class BinaryExpression extends Expression {
 
 export class ArrayLiteralExpression extends Expression {
     elements: Expression[];
+
     constructor(range: Range, elements: Expression[]) {
         const types = new Set(elements.map(e => e.type))
-        if(types.size > 1)  // TODO uniform type
+        if (types.size > 1)
             throw {
                 message: "Multiple expression types",
                 compilation: CompilationErrorType.TypeMismatch,
                 range: range
             }
 
-        super(range, types.size == 0 ? undefined : types.values().next().value+ "[]"); // TODO type
+        super(range, new ArrayType(types.size == 0 ? undefined : types.values().next().value));
         this.elements = elements;
-     }
+    }
 }
 
 export class ArrayAllocationExpression extends Expression {
-    componentType: TypeDeclaration | string
+    componentType: Type
     dimensions: Expression[];
-    constructor(range: Range, componentType: TypeDeclaration | string, dimensions: Expression[]) {
-        super(range, componentType.toString() + "[]"); // TODO type
+
+    constructor(range: Range, componentType: Type, dimensions: Expression[]) {
+        super(range, new ArrayType(componentType)); // TODO type
         this.componentType = componentType;
         this.dimensions = dimensions;
         // TODO dimensions > 1  positive int
     }
 }
 
-function isArrayType(type: TypeDeclaration | string | undefined) {
-    return typeof type === "string" && (type as string).endsWith("[]")
+function isArrayType(type?: Type) {
+    return type instanceof ArrayType
 }
 
 
-export class ArrayElementExpression extends Expression {
+export class ArrayElementExpression extends Expression implements FieldTarget {
     target: Expression;
     index: Expression;
 
     constructor(range: Range, target: Expression, index: Expression) {
-        if(!isArrayType(target.type))
+        if (!isArrayType(target.type))
             throw {
                 message: "Not an array",
                 compilation: CompilationErrorType.TypeMismatch,
                 range: target.range
             }
 
-        super(range, (target.type as string).substring(0, (target.type as string).length - 2)); // TODO type
+        super(range, (target.type as ArrayType).componentType);
         this.target = target;
         this.index = index;
 
@@ -352,34 +411,31 @@ export class ArrayElementExpression extends Expression {
 
 }
 
-function isNumber(type?: string | TypeDeclaration) {
-    return type == "int" || type == "double"
-}
 
 export class ArithmeticExpression extends BinaryExpression {
     constructor(range: Range, operator: string, left: Expression, right: Expression) {
-        if(!ArithmeticExpression.validOperator(operator))
+        if (!ArithmeticExpression.validOperator(operator))
             throw {
                 message: "Invalid arithmetic operator",
                 compilation: CompilationErrorType.SyntaxError,
                 range: range
             }
 
-        if(!isNumber(left.type))
+        if (!isNumberType(left.type))
             throw {
                 message: "Number is expected to perform the operation '" + operator + "'",
                 compilation: CompilationErrorType.TypeMismatch,
                 range: left.range
             }
 
-        if(!isNumber(right.type))
+        if (!isNumberType(right.type))
             throw {
                 message: "Number is expected to perform the operation '" + operator + "'",
                 compilation: CompilationErrorType.TypeMismatch,
                 range: right.range
             }
 
-        const type = left.type == "double" || right.type == "double" ? "double" : "int"
+        const type = left.type == PrimitiveType.DOUBLE || right.type == PrimitiveType.DOUBLE ? PrimitiveType.DOUBLE : PrimitiveType.INT
         super(range, operator, left, right, type)
     }
 
@@ -391,36 +447,36 @@ export class ArithmeticExpression extends BinaryExpression {
 
 export class RelationalExpression extends BinaryExpression {
     constructor(range: Range, operator: string, left: Expression, right: Expression) {
-        if(!RelationalExpression.validOperator(operator))
+        if (!RelationalExpression.validOperator(operator))
             throw {
                 message: "Invalid relational operator",
                 compilation: CompilationErrorType.SyntaxError,
                 range: range
             }
 
-        if((operator == "==" || operator == "!=") && left.type != right.type) // TODO case int / double
+        if ((operator == "==" || operator == "!=") && left.type != right.type) // TODO case int / double
             throw {
                 message: "Operands have incompatible compatible types; " + left.range?.text + " is " + left.type + " and " + right.range?.text + " is " + right.type,
                 compilation: CompilationErrorType.TypeMismatch,
                 range: range
             }
 
-        if(operator == '<' || operator == '<=' || operator == '>' || operator == '>=') {
-            if(!isNumber(left.type))
+        if (operator == '<' || operator == '<=' || operator == '>' || operator == '>=') {
+            if (!isNumberType(left.type))
                 throw {
                     message: "Number is expected to perform the comparison '" + operator + "'",
                     compilation: CompilationErrorType.TypeMismatch,
                     range: left.range
                 }
 
-            if(!isNumber(right.type))
+            if (!isNumberType(right.type))
                 throw {
                     message: "Number is expected to perform the comparison '" + operator + "'",
                     compilation: CompilationErrorType.TypeMismatch,
                     range: right.range
                 }
         }
-        super(range, operator, left, right, "boolean")
+        super(range, operator, left, right, PrimitiveType.BOOLEAN)
     }
 
     static validOperator(op: string) {
@@ -430,28 +486,28 @@ export class RelationalExpression extends BinaryExpression {
 
 export class LogicalExpression extends BinaryExpression {
     constructor(range: Range, operator: string, left: Expression, right: Expression) {
-        if(!LogicalExpression.validOperator(operator))
+        if (!LogicalExpression.validOperator(operator))
             throw {
                 message: "Invalid relational operator",
                 compilation: CompilationErrorType.SyntaxError,
                 range: range
             }
 
-        if(left.type != "boolean")
+        if (!isBooleanType(left.type))
             throw {
                 message: "Boolean expression expected",
                 compilation: CompilationErrorType.TypeMismatch,
                 range: left.range
             }
 
-        if(right.type != "boolean")
+        if (!isBooleanType(right.type))
             throw {
                 message: "Boolean expression expected",
                 compilation: CompilationErrorType.TypeMismatch,
                 range: right.range
             }
 
-        super(range, operator, left, right, "boolean")
+        super(range, operator, left, right, PrimitiveType.BOOLEAN)
     }
 
     static validOperator(op: string) {
@@ -460,11 +516,11 @@ export class LogicalExpression extends BinaryExpression {
 }
 
 
-
 export class CallExpression extends Expression {
     procedure: Procedure;
     args: Expression[];
     instanceCall: boolean;
+
     constructor(range: Range, proc: Procedure, args: Expression[], instanceCall: boolean) {
         // TODO arg types
         super(range, proc.returnType);
@@ -477,6 +533,7 @@ export class CallExpression extends Expression {
 export class UnboundCallExpression extends Expression {
     procedureName: string;
     args: Expression[];
+
     constructor(range: Range, procedureName: string, args: Expression[]) {
         super(range, undefined);
         this.procedureName = procedureName;
@@ -484,9 +541,10 @@ export class UnboundCallExpression extends Expression {
     }
 }
 
-export class NewObjectExpression extends Expression {
+export class NewObjectExpression extends Expression implements FieldTarget {
     type: TypeDeclaration;
     args: Expression[];
+
     constructor(range: Range, type: TypeDeclaration, args: Expression[]) {
         // TODO arg types
         super(range, type);
@@ -498,8 +556,9 @@ export class NewObjectExpression extends Expression {
 export class UnboundNewObjectExpression extends Expression {
     typeName: string;
     args: Expression[];
+
     constructor(range: Range, typeName: string, args: Expression[]) {
-        super(range, typeName);
+        super(range, new ForeignType(typeName));
         this.typeName = typeName;
         this.args = args;
     }
@@ -508,21 +567,22 @@ export class UnboundNewObjectExpression extends Expression {
 export class FieldAccessExpression extends Expression {
     target: Expression;
     fieldName: string;
+
     constructor(range: Range, target: Expression, fieldName: string, fieldNameRange: Range) {
-        let type = undefined
-        if(isArrayType(target.type) && fieldName == "length")
-            type = "int"
-        else if(target instanceof Variable && (target as Variable).type instanceof TypeDeclaration) {
-            const type = (target as Variable).type as TypeDeclaration
-            const f = type.fields.find(f => f.name == fieldName)
-            if(!f)
+        let type: Type
+        if (isArrayType(target.type) && fieldName == "length")
+            type = PrimitiveType.INT
+        // TODO else if(target instanceof FieldTarget)
+        else if (target instanceof Variable && (target as Variable).type instanceof TypeDeclaration) {
+            type = (target as Variable).type as TypeDeclaration
+            const f = (type as TypeDeclaration).fields.find(f => f.name == fieldName)
+            if (!f)
                 throw {
                     message: "Field '" + fieldName + "' is not declared in type '" + type.name + "'",
                     compilation: CompilationErrorType.FieldNotFound,
                     range: fieldNameRange
                 }
-        }
-        else throw {
+        } else throw {
             message: "Not an object",
             compilation: CompilationErrorType.TypeMismatch,
             range: target.range

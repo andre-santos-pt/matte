@@ -1,50 +1,74 @@
 import JavaGrammarParser, {
-    ArrayAllocExprContext, ArrayAssignmentContext, ArrayExprContext,
+    ArrayAllocExprContext,
+    ArrayAssignmentContext,
+    ArrayExprContext,
     ArrayLitExprContext,
     AssignmentContext,
-    BinaryOpAddContext, BinaryOpLogContext,
+    BinaryOpAddContext,
+    BinaryOpLogContext,
     BinaryOpMulContext,
     BinaryOpRelContext,
     BlockStmtContext,
     BoolExprContext,
     BreakContext,
     CallContext,
-    CallExprContext, DecContext,
-    DeclarationContext, DoubleExprContext,
-    ExpContext, FieldExprContext,
+    CallExprContext,
+    DecContext,
+    DeclarationContext,
+    DoubleExprContext,
+    ExpContext,
+    FieldExprContext,
     ForStmtContext,
     IdExprContext,
     IfElseStmtContext,
-    IncContext, InstanceCallExprContext,
+    IncContext,
+    InstanceCallExprContext,
     IntExprContext,
-    MethodContext, ObjectAllocExprContext, RecordContext,
+    MethodContext,
+    ObjectAllocExprContext,
+    RecordContext,
     ReturnContext,
     ScriptContext,
-    StatementContext, StringExprContext,
+    StatementContext,
+    StringExprContext,
     UnaryOpContext,
     UnitContext,
     WhileStmtContext
 } from "./generated/JavaGrammarParser";
 import {
-    ArithmeticExpression, ArrayAllocationExpression, ArrayAssignment,
-    ArrayElementExpression, ArrayLiteralExpression,
+    ArithmeticExpression,
+    ArrayAllocationExpression,
+    ArrayAssignment,
+    ArrayElementExpression,
+    ArrayLiteralExpression,
+    ArrayType,
     Assignment,
-    BinaryExpression,
     BlockStatement,
     BooleanLiteral,
     BreakStatement,
     CallExpression,
     CallStatement,
-    Declaration, DoubleLiteral,
-    Expression, FieldAccessExpression,
+    Declaration,
+    DoubleLiteral,
+    Expression,
+    FieldAccessExpression,
+    ForeignType,
     IfStatement,
-    IntLiteral, LogicalExpression, NewObjectExpression,
+    IntLiteral,
+    LogicalExpression,
+    NewObjectExpression,
+    PrimitiveType,
     Procedure,
-    Program, RelationalExpression,
+    Program,
+    RelationalExpression,
     ReturnStatement,
-    Statement, StringLiteral, TypeDeclaration,
+    Statement,
+    StringLiteral,
+    Type,
+    TypeDeclaration,
     UnaryExpression,
-    UnboundCallExpression, UnboundNewObjectExpression,
+    UnboundCallExpression,
+    UnboundNewObjectExpression,
     Variable,
     WhileStatement
 } from "./ast";
@@ -52,15 +76,15 @@ import Range from "./Range";
 import JavaGrammarVisitor from "./generated/JavaGrammarVisitor";
 import {
     CharStreams,
-    CommonTokenStream, Interval,
+    CommonTokenStream,
+    Interval,
     ParserRuleContext,
-    TerminalNode, Token
+    TerminalNode,
+    Token
 } from "antlr4";
 import {CompilationErrorType} from "./Interpreter";
 import {last} from "./utils";
-import {compilationError} from "./tests/utils";
 import JavaGrammarLexer from "./generated/JavaGrammarLexer";
-import {build} from "esbuild";
 
 
 export function getParser(input: string) {
@@ -170,7 +194,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
             if (this.typeContext) {
                 if (name == "this")
-                    return new Declaration(this.rangeTerminal(idCtx), "this", undefined, true, this.typeContext.name, undefined)
+                    return new Declaration(this.rangeTerminal(idCtx), "this", undefined, true, this.typeContext, undefined)
 
                 const find = this.typeContext.fields.find(f => f.name == name)
                 if (find)
@@ -190,8 +214,17 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         }
     }
 
-    findType(name: string): TypeDeclaration | undefined {
-        return this.types.find(t => t.name == name)
+    findType(name: string): Type | undefined {
+        if(name == "int")
+            return PrimitiveType.INT
+        else if(name == "double")
+            return PrimitiveType.DOUBLE
+        else if(name == "boolean")
+            return PrimitiveType.BOOLEAN
+        else if(name == "String")
+            return PrimitiveType.STRING
+        else
+            return this.types.find(t => t.name == name)
     }
 
     visitUnit = (ctx: UnitContext) => {
@@ -210,13 +243,13 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 if (ctx.getChild(i) instanceof MethodContext) {
                     const mctx = ctx.getChild(i) as MethodContext
                     const params = mctx.params() ? mctx.params().param_list().map(p => {
-                        let type = this.findType(p._id.text)
+                        let type = this.findType(p._type_.text)
                         return new Declaration(
                             this.rangeContext(p),
                             p._id.text,
                             this.rangeToken(p._id),
                             false,
-                            type ? type : p._type_.text,
+                            type ? type : new ForeignType(p._type_.text),
                             this.rangeToken(p._type_),
                         )
                     }) : []
@@ -227,7 +260,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                         this.rangeToken(mctx._id),
                         false,
                         params,
-                        type ? type : mctx._type_.text,
+                        type ? type : new ForeignType(mctx._type_.text),
                         undefined
                     ))
                 }
@@ -291,7 +324,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     p._id.text,
                     this.rangeToken(p._id),
                     true,
-                    type ? type : p._type_.text,
+                    type ? type : new ForeignType(p._type_.text),
                     this.rangeToken(p._type_)
                 )
             }) : []
@@ -303,19 +336,19 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 this.rangeToken(mctx._id),
                 true,
                 [new Declaration(this.rangeToken(ctx._id), "this", undefined, true, typedec, undefined)].concat(params),
-                type ? type : mctx._type_.text,
+                type ? type : new ForeignType(mctx._type_.text),
                 undefined
             ))
         })
 
         ctx.params().param_list().forEach(p => {
-            let type = this.findType(p._id.text)
+            let type = this.findType(p._type_.text)
             const dec = new Declaration(
                 this.rangeContext(p),
                 p._id.text,
                 this.rangeToken(p._id),
                 true,
-                type ? type : p._type_.text,
+                type ? type : new ForeignType(p._type_.text),
                 this.rangeToken(p._type_)
             )
             typedec.fields.push(dec)
@@ -326,7 +359,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 undefined,
                 true,
                 [new Declaration(this.rangeToken(ctx._id), "this", undefined, true, typedec, undefined)],
-                type ? type : p._type_.text,
+                type ? type : new ForeignType(p._type_.text),
                 new BlockStatement(undefined, [
                     new ReturnStatement(undefined, new Variable(undefined, dec))
                 ])
@@ -341,7 +374,8 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             variables: new Map<string, Declaration>()
         })
         ctx.params()?.param_list().forEach(p => {
-            this.topScope().set(p._id.text, new Declaration(this.rangeContext(p), p._id.text, this.rangeToken(p._id), false, p._type_.text, this.rangeToken(p._type_)))
+            let type = this.findType(p._type_.text)
+            this.topScope().set(p._id.text, new Declaration(this.rangeContext(p), p._id.text, this.rangeToken(p._id), false, type ? type : new ForeignType(p._type_.text), this.rangeToken(p._type_)))
         })
         let body: Statement[] = ctx.statement_list().flatMap(s => this.visit(s))
         this.varScope.pop()
@@ -373,12 +407,15 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     related: last(this.varScope).variables.get(ctx._id.text)?.range
                 }
             }
+        let type: Type | undefined = this.findType(ctx._type_.text)
+        if(type && ctx.arrayDim_list().length > 0)
+            type = new ArrayType(type)
         const dec = new Declaration(
             this.rangeContext(ctx),//this.getRange(ctx),
             ctx._id.text,
             this.rangeToken(ctx._id),
             false,
-            ctx._type_.text + ctx.arrayDim_list().map(d => "[]"),
+            type ? type : new ForeignType(ctx._type_.text),
             this.rangeToken(ctx._type_),
             ctx.exp() ? this.expToAST(ctx.exp()) : undefined
         )
@@ -435,17 +472,16 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         const ret: Statement[] = []
         if (ctx.for_().declaration())
             ret.push(this.visitDeclaration(ctx.for_().declaration()))
-        const body = this.visit(ctx.for_()._body)
+        let body = this.visit(ctx.for_()._body)
         if (ctx.for_()._progress) {
             const prog = this.visitStmt(ctx.for_()._progress) as Statement
             if (body instanceof BlockStatement)
                 body.statements.push(prog)
             else {
-                const block = new BlockStatement(
+                body = new BlockStatement(
                     this.rangeContext(ctx.for_()._body),
                     [body, prog]
                 )
-                body.statements.push(block)
             }
         }
         const guard = ctx.for_().exp() ?
@@ -456,7 +492,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             guard,
             body)
         )
-        return ret
+        return new BlockStatement(
+            this.rangeContext(ctx),
+            ret
+        )
     }
 
     visitInc = (ctx: IncContext) => {
@@ -552,13 +591,19 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 this.expToAST(ctx._target)
             )
 
-        else if (ctx instanceof BinaryOpAddContext)
+        else if (ctx instanceof BinaryOpAddContext) {
+            const left = this.expToAST(ctx._left)
+            const right = this.expToAST(ctx._right)
+            // TODO string concat
+            // if(left.type == PrimitiveType.STRING || right.type == PrimitiveType.STRING)
+            //     return new CallExpression(this.rangeContext(ctx), t)
             return new ArithmeticExpression(
                 this.rangeContext(ctx),
                 ctx.bopAdd().getText(),
-                this.expToAST(ctx._left),
-                this.expToAST(ctx._right)
+                left,
+                right
             )
+        }
 
         else if (ctx instanceof BinaryOpMulContext)
             return new ArithmeticExpression(
@@ -590,13 +635,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 ctx.expList() ? ctx.expList().exp_list().map(e => this.expToAST(e)) : []
             )
 
-        else if (ctx instanceof ArrayAllocExprContext)
+        else if (ctx instanceof ArrayAllocExprContext) {
+            let type: Type | undefined = this.findType(ctx.ID().getText())
             return new ArrayAllocationExpression(
                 this.rangeContext(ctx),
-                ctx.ID().getText(), // TODO type
+                type ? type : new ForeignType(ctx.ID().getText()),
                 [this.expToAST(ctx.dimensions().exp())] // TODO multidim
             )
-
+        }
         else if (ctx instanceof ArrayExprContext)
             return new ArrayElementExpression(
                 this.rangeContext(ctx),

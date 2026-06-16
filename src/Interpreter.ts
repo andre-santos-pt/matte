@@ -12,7 +12,7 @@ import {
     Declaration, DoubleLiteral,
     Expression, FieldAccessExpression,
     IfStatement,
-    IntLiteral, NewObjectExpression,
+    IntLiteral, NewObjectExpression, PrimitiveType,
     Procedure,
     Program, RelationalExpression,
     ReturnStatement,
@@ -185,6 +185,7 @@ export class Interpreter {
             else
                 progAndCall = [buildAST(source), undefined]
         } catch (e: any) {
+            if(e.compilation)
             return {
                 result: undefined,
                 trace: [],
@@ -195,6 +196,8 @@ export class Interpreter {
                     detail: e.detail
                 }]
             }
+            else
+                console.log(e.stack)
         }
         const [ast, exp] = progAndCall
         return this.runProgram(ast as Program, exp);
@@ -535,7 +538,7 @@ export class Interpreter {
         else if(e instanceof ArrayAllocationExpression) {
             const length = this.evaluate(e.dimensions[0]).evaluation // TODO multidim
             const array = Array.from({length})
-            if(e.componentType == "int")
+            if(e.componentType == PrimitiveType.INT)
                 for(let i = 0; i != length; i++)
                     array[i] = 0
             // TODO other defaults
