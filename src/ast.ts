@@ -615,10 +615,10 @@ export class FieldAccessExpression extends Expression {
                 compilation: CompilationErrorType.TypeMismatch,
                 range: target.range
             }
-// TODO remove to avoid Java-specific?
+
         let type: Type | undefined
         if (isArrayType(target.type)) {
-            if(fieldName == "length")
+            if(fieldName == "length")// TODO remove to avoid Java-specific?
                 type = PrimitiveType.INT
             else
                 throw {
@@ -639,8 +639,8 @@ export class FieldAccessExpression extends Expression {
                 }
         }
         else throw {
-            message: "Not an object",
-            compilation: CompilationErrorType.TypeMismatch,
+            message: "Not a valid target",
+            compilation: CompilationErrorType.Unsupported,
             range: target.range
         }
 

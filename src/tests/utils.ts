@@ -14,9 +14,9 @@ export function compilationError(code: string, expected: CompilationErrorType, c
     assert.equal(result.errors[0].type, expected);
 }
 
-export function runtimeError(code: string, expected: RuntimeErrorType) {
+export function runtimeError(code: string, expected: RuntimeErrorType, call?: string) {
     const interpreter = new Interpreter();
-    const result = interpreter.parseAndRun(code);
+    const result = interpreter.parseAndRun(code, call);
     if(result.errors.length != 0) {
         console.table(result.errors)
         assert.fail(`Compilation error: ${result.errors[0].message}`)

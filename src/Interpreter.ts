@@ -512,21 +512,16 @@ export class Interpreter {
         else if(e instanceof FieldAccessExpression) {
             // TODO null check
             const objVal = this.evaluate(e.target)
-            if (typeof objVal.evaluation !== "object" || objVal.evaluation === null)
-                throw {
-                    range: e.target.range,
-                    type: CompilationErrorType.TypeMismatch,
-                    message: `Type mismatch: expected object but got ${objVal.evaluation}`
-                }
-            const fieldVal = objVal.evaluation[e.fieldName]
-            if (fieldVal === undefined)
-                throw {
-                    range: e.range,
-                    type: CompilationErrorType.UndeclaredVariable,
-                    message: `Field ${e.fieldName} not found in object of type ${objVal.evaluation.$type}`
-                }
+            if(objVal.evaluation == null)
+                this.addTraceRuntimeError(
+                    e.target,
+                    {
+                        type: RuntimeErrorType.NullPointer,
+                        message: "Reference is null"
+                    }
+                )
             return {
-                evaluation: fieldVal,
+                evaluation: objVal.evaluation[e.fieldName],
                 materialization: `${objVal.materialization}.${e.fieldName}`
             }
         }

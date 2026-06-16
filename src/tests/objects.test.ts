@@ -1,5 +1,5 @@
-import {cases, compilationError} from "./utils";
-import {CompilationErrorType} from "../Interpreter";
+import {cases, compilationError, runtimeError} from "./utils";
+import {CompilationErrorType, RuntimeErrorType} from "../Interpreter";
 
 describe('Matte Interpreter Objects', () => {
     describe('Records', () => {
@@ -137,6 +137,22 @@ describe('Matte Interpreter Objects', () => {
             }
             `,
                 ["new Point(1.2, -3.4).sumThis()", -2.2]
+            )
+        })
+
+        it('call on null', () => {
+            runtimeError(`
+            record Point(double x, double y) { 
+              
+            }
+            
+            void main() {
+                Point r = null;
+                double x = r.x;
+            }
+            `,
+                RuntimeErrorType.NullPointer,
+                "main()"
             )
         })
     })
