@@ -575,7 +575,12 @@ export class NewObjectExpression extends Expression {
     type: TypeDeclaration;
     args: Expression[];
 
-    constructor(range: Range, type: TypeDeclaration, args: Expression[]) {
+    constructor(range: Range, type: Type, args: Expression[]) {
+        if(!(type instanceof TypeDeclaration))
+            throw {
+                message: "Not an object type",
+                compilation: CompilationErrorType.TypeMismatch
+            }
         // TODO arg types
         super(range, type);
         this.type = type;

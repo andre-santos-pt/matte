@@ -4,22 +4,23 @@ unit: (class | record | method)+ | script EOF ;
 
 script: statement+ EOF ;
 
-class: CLASS id+=ID+ LCURLY? member* RCURLY?;
+class: CLASS id=ID LCURLY? member* RCURLY?;
 
 member: method | field;
 
+// TODO constructor (classes)
+
 record: RECORD id=ID LPAREN params RPAREN LCURLY method* RCURLY;
 
-field: type=ID id=ID (ASSIGN expression=exp)? TERM?;
+field: type id=ID (ASSIGN expression=exp)? TERM?;
 
-method: type=ID arrayDim* id=ID LPAREN params? RPAREN LCURLY statement* RCURLY? ;
+method: type id=ID LPAREN params? RPAREN LCURLY statement* RCURLY? ;
 
-//constructor: modifiers+=ID* id=ID LPAREN params? RPAREN LCURLY? statement* RCURLY?;
+params: param (COMMA param)*;
 
-params: param (COMMA param)* ;
+param: type id=ID;
 
-param: type=ID? arrayDim* id=ID;
-
+type: id=ID arrayDim*;
 
 arrayDim: LBRACK RBRACK;
 
@@ -38,9 +39,11 @@ while: WHILE ((LPAREN expression=exp? RPAREN)|expression=exp) statement ;
 
 for: FOR LPAREN declaration? TERM expression=exp? TERM progress=statement? RPAREN body=statement ;
 
-declaration: type=ID arrayDim* id=ID (ASSIGN expression=exp)?;
+declaration: type id=ID (ASSIGN expression=exp)?;
 
-assignment: id=compId ASSIGN expression=exp;
+assignment: id=compId ASSIGN expression=exp; // TODO field set (classes)
+
+compId: ID (DOT ID)*;
 
 arrayAssignment: target=exp LBRACK index=exp RBRACK ASSIGN expression=exp;
 
@@ -54,18 +57,15 @@ call: id=ID LPAREN args=expList? RPAREN;
 
 break: BREAK;
 
-nop: TERM;
+nop: TERM; // TODO
 
 expList: exp (COMMA exp)*;
 
-compId: ID (DOT ID)*;
-
 exp:
     LPAREN exp RPAREN                           # bracketsExpr
-
-    | target=exp LBRACK index=exp RBRACK        # arrayExpr
     | newCall                                   # objectAllocExpr
     | target=exp DOT fieldId=ID                 # fieldExpr
+    | target=exp LBRACK index=exp RBRACK        # arrayExpr
     | uop target=exp                            # unaryOp
     | left=exp bopMul right=exp                 # binaryOpMul
     | left=exp bopAdd right=exp                 # binaryOpAdd
@@ -76,7 +76,7 @@ exp:
     | left=exp AND right=exp                    # andExpr
     | left=exp OR right=exp                     # orExpr
     | LCURLY elements=expList? RCURLY           # arrayLitExpr
-    | NEW type=ID dimensions                    # arrayAllocExpr
+    | NEW typeName=ID dimensions                # arrayAllocExpr
     | exp DOT call                              # instanceCallExpr
     | ID                                        # idExpr
     | INT                                       # intExpr
@@ -88,7 +88,7 @@ exp:
 ;
 
 newCall:
-    NEW type=ID LPAREN args=expList? RPAREN;
+    NEW typeName=ID LPAREN args=expList? RPAREN;
 
 instanceCallStatement:
     exp DOT call;
