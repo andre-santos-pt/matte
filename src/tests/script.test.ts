@@ -1,9 +1,9 @@
 import {
-    CompilationErrorType,
     RuntimeErrorType
 } from '../Interpreter';
 
 import {compilationError, runtimeError, script} from "./utils";
+import {CompilationErrorType} from "../ast";
 
 describe('Matte Interpreter Test Script', () => {
     describe('Script', () => {

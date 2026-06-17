@@ -1,4 +1,3 @@
-
 import {
     ArithmeticExpression, ArrayAllocationExpression,
     ArrayAssignment, ArrayElementExpression, ArrayLiteralExpression,
@@ -8,7 +7,7 @@ import {
     BlockStatement,
     BooleanLiteral, BreakStatement,
     CallExpression,
-    CallStatement,
+    CallStatement, CompilationError, CompilationErrorType,
     Declaration, DoubleLiteral,
     Expression, FieldAccessExpression,
     IfStatement,
@@ -34,27 +33,6 @@ interface InterpreterResult {
     errors: CompilationError[];
     result: any;
     trace: TraceEntry[];
-}
-
-interface CompilationError {
-    range: Range;
-    type: CompilationErrorType;
-    message: string;
-    detail?: any;
-}
-
-export enum CompilationErrorType {
-    SyntaxError = "SYNTAX",
-    UndeclaredVariable = "VAR_NOT_FOUND",
-    DuplicateVariable = "DUP_VAR",
-    TypeMismatch = "TYPE_MISMATCH",
-    MethodNotFound = "METHOD_NOT_FOUND",
-    MissingReturn = "MISSING_RETURN",
-    ImmutableVariable = "IMMUTABLE_VAR",
-    Unsupported = "UNSUPPORTED",
-    NumberArgumentsMismatch = "N_ARGS_MISMATCH",
-    ArgumentTypesMismatch = "ARGS_TYPE_MISMATCH",
-    FieldNotFound = "FIELD_NOT_FOUND",
 }
 
 interface TraceEntry {
@@ -117,7 +95,7 @@ export class Interpreter {
         this.extensions.set(name, extension)
     }
 
-    addExtensionType(name: string, constructor: ExtensionProcedure, ...operations: [string,ExtensionProcedure][]) {
+    addExtensionType(name: string, constructor: ExtensionProcedure, ...operations: [string, ExtensionProcedure][]) {
         this.extensionTypes.set(name, constructor)
     }
 
@@ -178,6 +156,7 @@ export class Interpreter {
         }
     }
 
+
     parseAndRun(source: string, call?: string): InterpreterResult {
         let progAndCall: [Program?, Expression?] = [undefined, undefined]
         try {
@@ -186,17 +165,17 @@ export class Interpreter {
             else
                 progAndCall = [buildAST(source), undefined]
         } catch (e: any) {
-            if(e.compilation)
-            return {
-                result: undefined,
-                trace: [],
-                errors: [{
-                    range: e.range,
-                    type: e.compilation,
-                    message: e.message,
-                    detail: e.detail
-                }]
-            }
+            if (e.compilation)
+                return {
+                    result: undefined,
+                    trace: [],
+                    errors: [{
+                        range: e.range,
+                        type: e.compilation,
+                        message: e.message,
+                        detail: e.detail
+                    }]
+                }
             else
                 console.log(e.stack)
         }
@@ -220,31 +199,30 @@ export class Interpreter {
             }
         }
 
-        return this.tryRun(() => {
-            if (program.block) {
-                this.scope.push({
-                    variables: new Map()
-                })
-                return this.tryRun(() => {
-                    (program.block as BlockStatement).statements.forEach(i => this.execute(i));
-                    this.addTrace((program.block as BlockStatement), undefined, undefined)
-                    this.scope.pop()
-                    return {
-                        errors: [],
-                        result: undefined,
-                        trace: structuredClone(this.trace)
-                    }
-                })
-            } else {
-                return this.tryRun(() => {
-                    return {
-                        errors: [],
-                        result: this.evaluate(call as Expression),
-                        trace: structuredClone(this.trace)
-                    }
-                });
-            }
-        })
+        if (program.block) {
+            this.scope.push({
+                variables: new Map()
+            })
+            return this.tryRun(() => {
+                (program.block as BlockStatement).statements.forEach(i => this.execute(i));
+                this.addTrace((program.block as BlockStatement), undefined, undefined)
+                this.scope.pop()
+                return {
+                    errors: [],
+                    result: undefined,
+                    trace: structuredClone(this.trace)
+                }
+            })
+        } else {
+            return this.tryRun(() => {
+                return {
+                    errors: [],
+                    result: this.evaluate(call as Expression),
+                    trace: structuredClone(this.trace)
+                }
+            });
+        }
+
     }
 
     tryRun(exec: () => InterpreterResult):
@@ -254,7 +232,7 @@ export class Interpreter {
         } catch (e: any) {
             if (e.compilation)
                 return {
-                    errors: [ {
+                    errors: [{
                         range: e.range,
                         type: e.compilation,
                         message: e.value,
@@ -296,11 +274,10 @@ export class Interpreter {
                 materialization: exp.materialization,
                 declaration: s.variable.range
             })
-        }
-        else if(s instanceof ArrayAssignment) {
+        } else if (s instanceof ArrayAssignment) {
             const arrayVal = this.evaluate(s.target).evaluation
 
-            if(arrayVal == null)
+            if (arrayVal == null)
                 this.addTraceRuntimeError(s.target, {
                         type: RuntimeErrorType.NullPointer,
                         message: "Reference is null"
@@ -310,15 +287,14 @@ export class Interpreter {
 
 
             const index = this.evaluate(s.index).evaluation
-            if(index < 0 || index >= arrayVal.length)
+            if (index < 0 || index >= arrayVal.length)
                 this.addTraceRuntimeError(s.index, {
                         type: RuntimeErrorType.ArrayIndexOutOfBounds,
                         message: "Array index out of bounds: " + index
                     }
                 )
             arrayVal[index] = this.evaluate(s.expression).evaluation
-        }
-        else if (s instanceof IfStatement) {
+        } else if (s instanceof IfStatement) {
             const conditionVal = this.evaluate(s.guard);
             if (conditionVal.evaluation)
                 this.execute(s.thenBranch);
@@ -374,19 +350,13 @@ export class Interpreter {
         if (e instanceof Variable) {
             let variable = this.topScope().variables.get((e as Variable).declaration.name);
 
-            if(!variable && this.topScope().variables.get("this")) {
+            if (!variable && this.topScope().variables.get("this")) {
                 const fieldVal = this.topScope().variables.get("this")?.evaluation[(e as Variable).declaration.name]
-                if(fieldVal === undefined)
-                    this.compilationError(CompilationErrorType.UndeclaredVariable, `Variable ${e.declaration.name} not declared`, e)
                 return {
                     evaluation: fieldVal,
                     materialization: undefined
                 }
             }
-
-            // TODO remove this and rely on static checking to ensure variable is always found
-            if (!variable)
-                this.compilationError(CompilationErrorType.UndeclaredVariable, `Variable ${e.declaration.name} not declared`, e)
 
             return {
                 evaluation: variable?.evaluation,
@@ -411,9 +381,9 @@ export class Interpreter {
                 evaluation: e.value
             }
 
-        else if(e instanceof NullLiteral)
+        else if (e instanceof NullLiteral)
             return {
-                 evaluation: null
+                evaluation: null
             }
         else if (e instanceof UnaryExpression) {
             const expVal = this.evaluate(e.expression);
@@ -422,17 +392,14 @@ export class Interpreter {
                     evaluation: -expVal.evaluation,
                     materialization: expVal.materialization
                 }
-            }
-
-            else if (e.operator === "!") {
+            } else if (e.operator === "!") {
                 return {
                     evaluation: !expVal.evaluation,
                     materialization: expVal.materialization
                 }
-            }
-            else
+            } else
                 throw {
-                    message: "Unsupported unary operator:" +  e.operator,
+                    message: "Unsupported unary operator:" + e.operator,
                     compilation: CompilationErrorType.Unsupported,
                     range: e.range,
                     detail: "INTERPRETER-evaluate"
@@ -442,9 +409,8 @@ export class Interpreter {
             let evaluation = undefined
             let materialization = undefined
             if (['&&', '||'].includes(e.operator)) {
-                [evaluation,materialization] = this.handleLogical(e.left, e.right, e.operator)
-            }
-            else {
+                [evaluation, materialization] = this.handleLogical(e.left, e.right, e.operator)
+            } else {
                 const leftVal = this.evaluate(e.left);
                 const rightVal = this.evaluate(e.right);
 
@@ -467,7 +433,7 @@ export class Interpreter {
 
             if (evaluation === undefined)
                 throw {
-                    message: "Unsupported binary operator:" +  e.operator,
+                    message: "Unsupported binary operator:" + e.operator,
                     compilation: CompilationErrorType.Unsupported,
                     range: e.range,
                     detail: "INTERPRETER-evaluate"
@@ -481,10 +447,9 @@ export class Interpreter {
         } else if (e instanceof CallExpression) {
             return this.invocation(e as CallExpression)
 
-        } else if(e instanceof UnboundCallExpression) {
+        } else if (e instanceof UnboundCallExpression) {
             return this.handleUnboundCall(e)
-        }
-        else if (e instanceof NewObjectExpression) {
+        } else if (e instanceof NewObjectExpression) {
             const obj: any = {$type: e.type.name}
             const args = e.args.map(a => this.evaluate(a))
             if (e.type.isRecord) {
@@ -496,8 +461,7 @@ export class Interpreter {
                 evaluation: obj,
                 materialization: `new ${e.type.name}(${args.map(a => a.materialization || a.evaluation).join(", ")})`
             }
-        }
-        else if (e instanceof UnboundNewObjectExpression) {
+        } else if (e instanceof UnboundNewObjectExpression) {
             const ext = this.extensionTypes.get(e.typeName)
             if (ext) {
                 const args = e.args.map(a => this.evaluate(a).evaluation)
@@ -508,11 +472,10 @@ export class Interpreter {
                     range: e.range,
                     message: `No type named '${e.typeName}' found`,
                 }
-        }
-        else if(e instanceof FieldAccessExpression) {
+        } else if (e instanceof FieldAccessExpression) {
             // TODO null check
             const objVal = this.evaluate(e.target)
-            if(objVal.evaluation == null)
+            if (objVal.evaluation == null)
                 this.addTraceRuntimeError(
                     e.target,
                     {
@@ -524,33 +487,30 @@ export class Interpreter {
                 evaluation: objVal.evaluation[e.fieldName],
                 materialization: `${objVal.materialization}.${e.fieldName}`
             }
-        }
-        else if(e instanceof ArrayLiteralExpression) {
+        } else if (e instanceof ArrayLiteralExpression) {
             const array = e.elements.map(el => this.evaluate(el).evaluation)
             return {
                 evaluation: array,
                 materialization: array.toString()
             }
-        }
-        else if(e instanceof ArrayAllocationExpression) {
+        } else if (e instanceof ArrayAllocationExpression) {
             const length = this.evaluate(e.dimensions[0]).evaluation // TODO multidim
             const array = Array.from({length})
-            if(e.componentType == PrimitiveType.INT)
-                for(let i = 0; i != length; i++)
+            if (e.componentType == PrimitiveType.INT)
+                for (let i = 0; i != length; i++)
                     array[i] = 0
             // TODO other defaults
             return {
                 evaluation: array,
                 materialization: array.toString()
             }
-        }
-        else if(e instanceof ArrayElementExpression) {
+        } else if (e instanceof ArrayElementExpression) {
             const arrayVal = this.evaluate(e.target).evaluation as Array<any>
 
             // TODO null check
 
             const index = this.evaluate(e.index).evaluation
-            if(index < 0 || index >= arrayVal.length)
+            if (index < 0 || index >= arrayVal.length)
                 this.addTraceRuntimeError(e.index, {
                         type: RuntimeErrorType.ArrayIndexOutOfBounds,
                         message: "Array index out of bounds: " + index
@@ -561,8 +521,7 @@ export class Interpreter {
                 evaluation: arrayVal[index],
                 materialization: undefined // TODO
             }
-        }
-        else throw {
+        } else throw {
             message: "Unsupported expression type:" + (e as any).constructor.name,
             compilation: CompilationErrorType.Unsupported,
             range: e.range,
@@ -575,7 +534,7 @@ export class Interpreter {
         this.addTrace(call, undefined, undefined)
         const p = call.procedure
         const variables: Map<string, TraceVariable> = new Map()
-        if(p.instance) {
+        if (p.instance) {
             const thisVal = this.evaluate(call.args[0])
             variables.set("this", {
                 name: "this",
@@ -584,7 +543,7 @@ export class Interpreter {
             })
         }
         call.args.forEach((e, i) => {
-            if(i == 0 && call.instanceCall) return;
+            if (i == 0 && call.instanceCall) return;
             const eVal = this.evaluate(e)
             variables.set(p.parameters[i].name, {
                 name: p.parameters[i].name,
@@ -684,17 +643,17 @@ export class Interpreter {
     }
 
     handleLogical(leftExp: Expression, rightExp: Expression, operator: string): [boolean, string] {
-            let leftVal = this.evaluate(leftExp).evaluation;
+        let leftVal = this.evaluate(leftExp).evaluation;
         switch (operator) {
             case "&&":
-                if(!leftVal)
+                if (!leftVal)
                     return [false, leftVal + " && ?"]
                 else {
                     const rightVal = this.evaluate(rightExp).evaluation
                     return [rightVal, leftVal + " && " + rightVal];
                 }
             case "||":
-                if(leftVal)
+                if (leftVal)
                     return [true, leftVal + " || ?"]
                 else {
                     const rightVal = this.evaluate(rightExp).evaluation

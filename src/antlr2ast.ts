@@ -48,7 +48,7 @@ import {
     BooleanLiteral,
     BreakStatement,
     CallExpression,
-    CallStatement,
+    CallStatement, CompilationError, CompilationErrorType,
     Declaration,
     DoubleLiteral,
     Expression,
@@ -83,9 +83,9 @@ import {
     TerminalNode,
     Token
 } from "antlr4";
-import {CompilationErrorType} from "./Interpreter";
 import {last} from "./utils";
 import JavaGrammarLexer from "./generated/JavaGrammarLexer";
+
 
 
 export function getParser(input: string) {
@@ -93,6 +93,24 @@ export function getParser(input: string) {
     const lexer = new JavaGrammarLexer(chars);
     const tokens = new CommonTokenStream(lexer);
     return new JavaGrammarParser(tokens);
+}
+
+export function compile(source: string): Program | CompilationError  {
+    try {
+        return buildAST(source)
+    } catch (e: any) {
+        if (e.compilation)
+            return {
+                range: e.range,
+                type: e.compilation,
+                message: e.message,
+                detail: e.detail
+            }
+        else {
+            console.log(e.stack)
+            throw e
+        }
+    }
 }
 
 export function buildAST(source: string) {

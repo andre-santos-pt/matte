@@ -1,5 +1,25 @@
 import Range from "./Range";
-import {CompilationErrorType} from "./Interpreter";
+
+export interface CompilationError {
+    range: Range;
+    type: CompilationErrorType;
+    message: string;
+    detail?: any;
+}
+
+export enum CompilationErrorType {
+    SyntaxError = "SYNTAX",
+    UndeclaredVariable = "VAR_NOT_FOUND",
+    DuplicateVariable = "DUP_VAR",
+    TypeMismatch = "TYPE_MISMATCH",
+    MethodNotFound = "METHOD_NOT_FOUND",
+    MissingReturn = "MISSING_RETURN",
+    ImmutableVariable = "IMMUTABLE_VAR",
+    Unsupported = "UNSUPPORTED",
+    NumberArgumentsMismatch = "N_ARGS_MISMATCH",
+    ArgumentTypesMismatch = "ARGS_TYPE_MISMATCH",
+    FieldNotFound = "FIELD_NOT_FOUND",
+}
 
 export class Program {
     block?: BlockStatement;

@@ -1,5 +1,6 @@
 import {cases, compilationError, runtimeError} from "./utils";
-import {CompilationErrorType, RuntimeErrorType} from "../Interpreter";
+import {CompilationErrorType} from "../ast";
+import {RuntimeErrorType} from "../Interpreter";
 
 describe('Matte Interpreter Objects', () => {
     describe('Records', () => {

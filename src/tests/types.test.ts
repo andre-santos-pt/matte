@@ -1,9 +1,17 @@
-import {CompilationErrorType} from '../Interpreter';
 
 import {compilationError} from "./utils";
+import {compile} from "../antlr2ast";
+import {CompilationErrorType, Program} from "../ast";
 
 describe('Matte Interpreter Types', () => {
     describe('Script', () => {
+
+        it('test', () => {
+            const p = compile(`
+                int i = 10;
+            `)
+        });
+
 
         it('mismatch binary', () => {
             compilationError(`

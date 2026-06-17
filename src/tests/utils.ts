@@ -1,10 +1,10 @@
 import {
-    CompilationErrorType,
     Interpreter,
     RuntimeErrorType
 } from "../Interpreter";
 import assert from "assert";
 import {last} from "../utils";
+import {CompilationErrorType} from "../ast";
 
 export function compilationError(code: string, expected: CompilationErrorType, call?: string) {
     const interpreter = new Interpreter();
