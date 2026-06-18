@@ -66,13 +66,13 @@ export class Procedure extends ASTNode {
 export type Type = PrimitiveType | TypeDeclaration | ArrayType | ForeignType
 
 export enum PrimitiveType {
-    INT = "INT",
-    DOUBLE = "DOUBLE",
-    BOOLEAN = "BOOLEAN",
-    STRING = "STRING"
+    INT = "int",
+    DOUBLE = "double",
+    BOOLEAN = "boolean",
+    STRING = "String"
 }
 
-function typeName(type: Type) {
+export function typeName(type: Type) {
     if(isPrimitiveType(type))
         return type.toString()
     else if(type instanceof TypeDeclaration)
@@ -83,23 +83,23 @@ function typeName(type: Type) {
         return undefined
 }
 
-function isPrimitiveType(type: Type | undefined) {
+export function isPrimitiveType(type: Type | undefined) {
     return type == PrimitiveType.INT || type == PrimitiveType.DOUBLE || type == PrimitiveType.BOOLEAN || type == PrimitiveType.STRING
 }
 
-function isNumberType(type?: Type) {
+export function isNumberType(type?: Type) {
     return type == PrimitiveType.INT || type == PrimitiveType.DOUBLE
 }
 
-function isBooleanType(type?: Type) {
+export function isBooleanType(type?: Type) {
     return type == PrimitiveType.BOOLEAN
 }
 
-function isReferenceType(type?: Type) {
+export function isReferenceType(type?: Type) {
     return type instanceof ArrayType || type instanceof TypeDeclaration || type instanceof ForeignType
 }
 
-function isSameType(a: Type | undefined, b: Type | undefined): boolean {
+export function isSameType(a: Type | undefined, b: Type | undefined): boolean {
     if (isPrimitiveType(a) || a instanceof TypeDeclaration)
         return a == b
     else if (a instanceof ArrayType)
@@ -161,7 +161,7 @@ export class Declaration extends Statement {
                 compilation: StaticErrorType.TypeMismatch,
                 range: initializer.range,
                 detail: {
-                    related: typeRange
+                    related: [typeRange]
                 }
             }
         super(range);
@@ -181,11 +181,11 @@ export class Assignment extends Statement {
     constructor(range: Range, variable: Declaration, expression: Expression) {
         if (!isSameType(variable.type, expression.type))
             throw {
-                message: "Cannot assign a " + expression.type + " to a variable of type " + variable.type,
+                message: "This type of this expression is " + expression.type + ", but the variable has type " + variable.type,
                 compilation: StaticErrorType.TypeMismatch,
                 range: expression.range,
                 detail: {
-                    related: variable.range,
+                    related: [variable.typeRange],
                 }
             }
         super(range);
@@ -235,18 +235,22 @@ export class BlockStatement extends Statement {
     }
 }
 
+function checkGuardType(condition: Expression) {
+    if (!isSameType(condition.type, PrimitiveType.BOOLEAN))
+        throw {
+            message: "This expression has type " + condition.type + " (boolean is expected)",
+            compilation: StaticErrorType.TypeMismatch,
+            range: condition.range
+        }
+}
+
 export class IfStatement extends Statement {
     guard: Expression;
     thenBranch: Statement;
     elseBranch?: Statement;
 
     constructor(range: Range, condition: Expression, thenBranch: Statement, elseBranch: Statement | undefined) {
-        if (!isSameType(condition.type, PrimitiveType.BOOLEAN))
-            throw {
-                message: "Not a boolean expression",
-                compilation: StaticErrorType.TypeMismatch,
-                range: condition.range
-            }
+        checkGuardType(condition);
         super(range);
         this.guard = condition;
         this.thenBranch = thenBranch;
@@ -259,12 +263,7 @@ export class WhileStatement extends Statement {
     body: Statement;
 
     constructor(range: Range, condition: Expression, body: Statement) {
-        if (!isSameType(condition.type, PrimitiveType.BOOLEAN))
-            throw {
-                message: "Not a boolean expression",
-                compilation: StaticErrorType.TypeMismatch,
-                range: condition.range
-            }
+        checkGuardType(condition);
         super(range);
         this.guard = condition;
         this.body = body;

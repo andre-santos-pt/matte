@@ -56,7 +56,7 @@ import {
     FieldAccessExpression,
     ForeignType,
     IfStatement,
-    IntLiteral,
+    IntLiteral, isSameType,
     LogicalExpression,
     NewObjectExpression,
     NullLiteral,
@@ -213,8 +213,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         return this.varScope[this.varScope.length - 1].variables;
     }
 
-    varLookup(name: string, idCtx: TerminalNode): Declaration {
+    varLookup(name: string, idCtx: TerminalNode, exp?: Expression): Declaration {
+        let varsInScope: Declaration[] = []
         for (let i = this.varScope.length - 1; i >= 0; i--) {
+            varsInScope.push(...Array.from(this.varScope[i].variables.values()))
             const scope = this.varScope[i].variables;
             if (scope.has(name))
                 return scope.get(name)!
@@ -234,9 +236,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         throw {
             compilation: StaticErrorType.UndeclaredVariable,
             range: this.rangeTerminal(idCtx),
-            message: `Variable ${name} not declared`,
+            message: `Variable ${name} not found`,
             detail: {
-                related: [...last(this.varScope).variables.values()].map(v => v.range)
+                related: [...varsInScope.map(v => v.nameRange)],
+                hint: varsInScope.length == 0 && exp ? "If the intention is to have a new variable, write its type on the left (" + exp.type + ")"  :
+                    varsInScope.length > 0 ? "Variables in scope are: " + varsInScope.map(v => v.name).join() :  undefined
             }
         }
     }
@@ -322,7 +326,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                             range: this.rangeToken(c._id),
                             message: `No method named '${c._id.text}' found`,
                             detail: {
-                                related: this.procedures.map(p => p.nameRange)
+                                related: [this.procedures.map(p => p.nameRange)]
                             }
                         }
                     proc.body = this.visitMethod(ctx.getChild(i) as MethodContext)
@@ -446,7 +450,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 range: this.rangeToken(ctx._id),
                 message: `Duplicate variable '${ctx._id}'`,
                 detail: {
-                    related: last(this.varScope).variables.get(ctx._id.text)?.range
+                    related: [last(this.varScope).variables.get(ctx._id.text)?.range]
                 }
             }
         let type: Type | undefined = this.findType(ctx.type_())
@@ -464,21 +468,22 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitAssignment = (ctx: AssignmentContext) => {
-        const dec = this.varLookup(ctx.compId().ID(0).getText(), ctx.compId().ID(0))
+        const exp = this.expToAST(ctx.exp())
+        const dec = this.varLookup(ctx.compId().ID(0).getText(), ctx.compId().ID(0), exp)
         if (dec.immutable)
             throw {
                 compilation: StaticErrorType.ImmutableVariable,
                 range: this.rangeContext(ctx),
                 message: `Variable '${dec.name}' is immutable and cannot be assigned to`,
                 detail: {
-                    related: dec.range
+                    related: [dec.range]
                 }
             }
 
         return new Assignment(
             this.rangeContext(ctx),
             dec,
-            this.expToAST(ctx.exp())
+            exp
         )
     }
 
@@ -803,20 +808,36 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     private checkArgs(ctx: CallContext, args: Expression[], proc: Procedure) {
         if (proc.parameters.length != args.length)
             throw {
-                message: 'Wrong number of arguments',
+                message: "Method '" + proc.name + "' expects " + proc.parameters.length + " arguments (not " + args.length + ")",
                 compilation: StaticErrorType.NumberArgumentsMismatch,
-                range: this.rangeContext(ctx),
-                detail: "AST-getArgs"
+                range: this.rangeContext(ctx.expList()),
+                detail: {
+                    related: [... proc.parameters.map(p => p.typeRange)]
+                }
             }
 
         proc.parameters.forEach((p, index) => {
-            if (p.type != args[index].type)
+            if (!isSameType(p.type, args[index].type))
                 throw {
-                    message: 'Argument type mismatch',
+                    message: "The " + this.toWordOrder(index) + " parameter of method '" + proc.name + "' is of type '" + proc.parameters[index].type + "' (not '" + args[index].type + "')",
                     compilation: StaticErrorType.ArgumentTypesMismatch,
                     range: this.rangeContext(ctx._args ? ctx._args.exp(proc.instance ? index - 1 : index) : ctx),
-                    detail: "AST-getArgs"
+                    detail: {
+                        related: [proc.parameters[index].typeRange]
+                    }
                 }
         })
+    }
+
+    private toWordOrder(n: number) {
+        switch (n) {
+            case 0: return "first"
+            case 1: return "second"
+            case 2: return "third"
+            case 3: return "forth"
+            case 4: return "fifth"
+            case 5: return "sixth"
+            default: return n + "th"
+        }
     }
 }

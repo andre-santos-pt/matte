@@ -40,39 +40,50 @@ export default class MatteAceEditor {
         this.stepListeners = [];
     }
 
-    secondaryMarker = undefined;
+    secondaryMarkers = [];
 
+    clearSecondaryMarkers() {
+        this.secondaryMarkers.forEach(m => {
+            this.editor.session.removeMarker(m);
+        })
+        this.secondaryMarkers = []
+    }
     init() {
         this.editor.selection.on("changeCursor", () => {
+            this.popups.forEach(p => p.hide())
+            this.clearSecondaryMarkers()
             if (this.result == null)
                 return;
             const err = this.result.error
             const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
             if (err && index >= err.range.start && index <= err.range.end) {
-                let message = err.message
+                let message = err.message.replace(/'(.*?)'/g, '<i>$1</i>');
 
                 if(err.detail) {
-                    if(err.detail.related)
-                        this.secondaryMarker = this.editor.session.addMarker(
-                            this.range2Ace(err.detail.related),
-                            "error-secondary",
-                            "text"
-                        )
+                    if(err.detail.related) {
+                        err.detail.related.forEach(r => {
+                            this.secondaryMarkers.push(this.editor.session.addMarker(
+                                this.range2Ace(r),
+                                "error-secondary",
+                                "text"
+                            ))
+                        })
+                    }
                     if(err.detail.hint)
-                        message += " Hint: " + err.detail.hint
+                        message += "\n<i>" + err.detail.hint + "</i>"
 
                 }
-                this.popups.forEach(p => p.hide())
+               // this.popups.forEach(p => p.hide())
                 this.popup(err.range.start, message, true);
 
             }
-            else {
-                this.popups.forEach(p => p.hide())
-                if(this.secondaryMarker) {
-                    this.editor.session.removeMarker(this.secondaryMarker);
-                    this.secondaryMarker = undefined
-                }
-            }
+            // else {
+            //     this.popups.forEach(p => p.hide())
+            //     if(this.secondaryMarker) {
+            //         this.editor.session.removeMarker(this.secondaryMarker);
+            //         this.secondaryMarker = undefined
+            //     }
+            // }
 
         });
         // TODO bug creates several when there are multiple editors
@@ -122,6 +133,16 @@ export default class MatteAceEditor {
             font-size: 10pt !important;
             ///box-shadow: 1px 1px 5px rgba(0,0,0,0.5);
             white-space: pre-wrap;
+        }`,
+            `
+
+        .my-error-tooltip b {
+            color: #ff5555; /* Make the bold part bright red */
+            font-weight: bold;
+        }
+        .my-error-tooltip i {
+            color: #ffb86c; /* Make the italic part orange */
+            font-weight: bold;
         }`
         ];
 
@@ -313,11 +334,15 @@ export default class MatteAceEditor {
         const x = top ? pos.column - 1: this.editor.session.getLine(pos.row).length; // end of line
         const canvasPos = this.editor.renderer.textToScreenCoordinates(y, x);
         if(top)
-            canvasPos.pageY -= 25;
+            canvasPos.pageY -= 25 * (1 + (message.split('\n').length - 1));
         else
             canvasPos.pageX += 10;
         this.popups.push(tip);
-        tip.show(message, canvasPos.pageX, canvasPos.pageY);
+        tip.setClassName("my-error-tooltip");
+        tip.setHtml(message);
+        tip.setPosition(canvasPos.pageX, canvasPos.pageY)
+        tip.show()
+        //tip.show(message, canvasPos.pageX, canvasPos.pageY);
     }
 
     range2Ace(range) {
