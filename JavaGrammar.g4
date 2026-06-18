@@ -4,7 +4,7 @@ unit: (class | record | method)+ | script EOF ;
 
 script: statement+ EOF ;
 
-class: CLASS id=ID LCURLY? member* RCURLY?;
+class: CLASS id=ID LCURLY member* RCURLY;
 
 member: method | field;
 
@@ -12,9 +12,9 @@ member: method | field;
 
 record: RECORD id=ID LPAREN params RPAREN LCURLY method* RCURLY;
 
-field: type id=ID (ASSIGN expression=exp)? TERM?;
+field: type id=ID (ASSIGN expression=exp)? TERM;
 
-method: type id=ID LPAREN params? RPAREN LCURLY statement* RCURLY? ;
+method: type id=ID LPAREN params? RPAREN LCURLY statement* RCURLY ;
 
 params: param (COMMA param)*;
 
@@ -29,7 +29,7 @@ LCURLY statement* RCURLY  #BlockStmt
 | if                     #IfElseStmt
 | while                    #WhileStmt
 | for                       #ForStmt
-| ((declaration | assignment | arrayAssignment | inc | dec | return | break | call | instanceCallStatement) TERM?) #Stmt
+| ((declaration | assignment | arrayAssignment | inc | dec | return | break | call | instanceCallStatement) TERM) #Stmt
 //| nop
 ;
 
@@ -193,6 +193,8 @@ CHAR: '\''.'\'';
 ID: [a-zA-Z][a-zA-Z0-9_]*;
 
 STRING: '"'~([\n"])*'"';
+
+//NL: ('\n'|'\r\n');
 
 LINE_COMMENT: '//'~('\n'|'\r')*('\n'|'\r\n') -> channel(HIDDEN);
 

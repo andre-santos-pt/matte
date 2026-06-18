@@ -24,17 +24,18 @@ import JavaGrammarParser, {
     IncContext,
     InstanceCallExprContext,
     IntExprContext,
-    MethodContext, NullExprContext,
+    MethodContext,
+    NullExprContext,
     ObjectAllocExprContext,
     RecordContext,
     ReturnContext,
     ScriptContext,
     StatementContext,
     StringExprContext,
+    TypeContext,
     UnaryOpContext,
     UnitContext,
-    WhileStmtContext,
-    TypeContext
+    WhileStmtContext
 } from "./generated/JavaGrammarParser";
 import {
     ArithmeticExpression,
@@ -48,7 +49,7 @@ import {
     BooleanLiteral,
     BreakStatement,
     CallExpression,
-    CallStatement, CompilationError, CompilationErrorType,
+    CallStatement,
     Declaration,
     DoubleLiteral,
     Expression,
@@ -57,13 +58,16 @@ import {
     IfStatement,
     IntLiteral,
     LogicalExpression,
-    NewObjectExpression, NullLiteral,
+    NewObjectExpression,
+    NullLiteral,
     PrimitiveType,
     Procedure,
     Program,
     RelationalExpression,
     ReturnStatement,
     Statement,
+    StaticError,
+    StaticErrorType,
     StringLiteral,
     Type,
     TypeDeclaration,
@@ -85,17 +89,10 @@ import {
 } from "antlr4";
 import {last} from "./utils";
 import JavaGrammarLexer from "./generated/JavaGrammarLexer";
+import {checkBracketMatching, MatteErrorListener} from "./MatteErrorListener";
 
 
-
-export function getParser(input: string) {
-    const chars = CharStreams.fromString(input);
-    const lexer = new JavaGrammarLexer(chars);
-    const tokens = new CommonTokenStream(lexer);
-    return new JavaGrammarParser(tokens);
-}
-
-export function compile(source: string): Program | CompilationError  {
+export function compile(source: string): Program | StaticError  {
     try {
         return buildAST(source)
     } catch (e: any) {
@@ -113,24 +110,35 @@ export function compile(source: string): Program | CompilationError  {
     }
 }
 
-export function buildAST(source: string) {
-    const chars = CharStreams.fromString(source);
+function getTokenStreamAndParser(input: string): [CommonTokenStream, MatteErrorListener, JavaGrammarParser] {
+    const errorListener = new MatteErrorListener(input)
+    const chars = CharStreams.fromString(input);
     const lexer = new JavaGrammarLexer(chars);
+    lexer.removeErrorListeners()
+    lexer.addErrorListener(errorListener)
     const tokens = new CommonTokenStream(lexer);
+    const bracketErrors = checkBracketMatching(tokens)
     const parser = new JavaGrammarParser(tokens);
-    let unit = parser.unit();
-    const visitor = new TreeVisitor(tokens);
-    return visitor.visitUnit(unit);
+   // parser._errHandler = new BailErrorStrategy()
+    parser.removeErrorListeners()
+    parser.addErrorListener(errorListener)
+    return [tokens,errorListener,parser];
+}
+
+
+export function buildAST(source: string) {
+    const [tokens, errorListener, parser] = getTokenStreamAndParser(source)
+    let unit = parser.unit()
+    errorListener.checkErrors()
+    const visitor = new TreeVisitor(tokens)
+    return visitor.visitUnit(unit)
 }
 
 export function buildASTandCall(source: string, call: string): [Program, Expression] {
-    const chars = CharStreams.fromString(source);
-    const lexer = new JavaGrammarLexer(chars);
-    const tokens = new CommonTokenStream(lexer);
-    const parser = new JavaGrammarParser(tokens);
+    const [tokens, errorListener, parser] = getTokenStreamAndParser(source)
     let unitCtx = parser.unit();
+    errorListener.checkErrors()
     const visitor = new TreeVisitor(tokens);
-
     const chars2 = CharStreams.fromString(call);
     const lexer2 = new JavaGrammarLexer(chars2);
     const tokens2 = new CommonTokenStream(lexer2);
@@ -224,7 +232,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 break
         }
         throw {
-            compilation: CompilationErrorType.UndeclaredVariable,
+            compilation: StaticErrorType.UndeclaredVariable,
             range: this.rangeTerminal(idCtx),
             message: `Variable ${name} not declared`,
             detail: {
@@ -310,7 +318,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     const proc = this.procedures.find(p => p.name == c._id.text)
                     if (!proc)
                         throw {
-                            compilation: CompilationErrorType.MethodNotFound,
+                            compilation: StaticErrorType.MethodNotFound,
                             range: this.rangeToken(c._id),
                             message: `No method named '${c._id.text}' found`,
                             detail: {
@@ -434,7 +442,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     visitDeclaration = (ctx: DeclarationContext) => {
         if (last(this.varScope).variables.has(ctx._id.text))
             throw {
-                compilation: CompilationErrorType.DuplicateVariable,
+                compilation: StaticErrorType.DuplicateVariable,
                 range: this.rangeToken(ctx._id),
                 message: `Duplicate variable '${ctx._id}'`,
                 detail: {
@@ -459,7 +467,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         const dec = this.varLookup(ctx.compId().ID(0).getText(), ctx.compId().ID(0))
         if (dec.immutable)
             throw {
-                compilation: CompilationErrorType.ImmutableVariable,
+                compilation: StaticErrorType.ImmutableVariable,
                 range: this.rangeContext(ctx),
                 message: `Variable '${dec.name}' is immutable and cannot be assigned to`,
                 detail: {
@@ -534,7 +542,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         if (!(ctx._target instanceof IdExprContext))
             throw {
                 message: "Unsupported target: " + ctx.getText(),
-                compilation: CompilationErrorType.Unsupported,
+                compilation: StaticErrorType.Unsupported,
                 range: this.rangeContext(ctx)
             }
 
@@ -555,7 +563,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         if (!(ctx._target instanceof IdExprContext))
             throw {
                 message: "Unsupported target: " + ctx.getText(),
-                compilation: CompilationErrorType.Unsupported,
+                compilation: StaticErrorType.Unsupported,
                 range: this.rangeContext(ctx)
             }
 
@@ -701,7 +709,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         } else
             throw {
                 message: "Unsupported expression type: " + this.streamText(ctx),
-                compilation: CompilationErrorType.Unsupported,
+                compilation: StaticErrorType.Unsupported,
                 range: this.rangeContext(ctx),
                 detail: "AST-exp2AST"
             }
@@ -718,14 +726,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         if (!(target instanceof Variable || target instanceof NewObjectExpression))
             throw {
                 message: "Unsupported target: " + ctx.exp().getText(),
-                compilation: CompilationErrorType.Unsupported,
+                compilation: StaticErrorType.Unsupported,
                 range: this.rangeContext(ctx.exp())
             }
 
         if (!(target.type instanceof TypeDeclaration))
             throw {
                 message: "Unsupported target: " + ctx.exp().getText(),
-                compilation: CompilationErrorType.Unsupported,
+                compilation: StaticErrorType.Unsupported,
                 range: this.rangeContext(ctx.exp())
             }
 
@@ -733,7 +741,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         if (!proc)
             throw {
                 message: "No method named '" + ctx.call()._id.text + "' found for type '" + target.type.name + "'",
-                compilation: CompilationErrorType.MethodNotFound,
+                compilation: StaticErrorType.MethodNotFound,
                 range: this.rangeToken(ctx.call()._id),
                 detail: "AST-instanceCall"
             }
@@ -796,7 +804,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         if (proc.parameters.length != args.length)
             throw {
                 message: 'Wrong number of arguments',
-                compilation: CompilationErrorType.NumberArgumentsMismatch,
+                compilation: StaticErrorType.NumberArgumentsMismatch,
                 range: this.rangeContext(ctx),
                 detail: "AST-getArgs"
             }
@@ -805,7 +813,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             if (p.type != args[index].type)
                 throw {
                     message: 'Argument type mismatch',
-                    compilation: CompilationErrorType.ArgumentTypesMismatch,
+                    compilation: StaticErrorType.ArgumentTypesMismatch,
                     range: this.rangeContext(ctx._args ? ctx._args.exp(proc.instance ? index - 1 : index) : ctx),
                     detail: "AST-getArgs"
                 }

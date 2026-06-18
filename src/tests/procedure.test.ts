@@ -1,5 +1,5 @@
 import {cases, compilationError} from "./utils";
-import {CompilationErrorType} from "../Interpreter";
+import {StaticErrorType} from "../ast";
 
 describe('Matte Interpreter Test Procedure', () => {
     describe('Independent', () => {
@@ -26,7 +26,7 @@ describe('Matte Interpreter Test Procedure', () => {
                 return nop();
             }            
             `,
-               CompilationErrorType.MethodNotFound,
+                StaticErrorType.MethodNotFound,
                 "noargs()");
         })
 
@@ -56,7 +56,7 @@ describe('Matte Interpreter Test Procedure', () => {
                 oneArg();
             }
             `,
-                CompilationErrorType.NumberArgumentsMismatch
+                StaticErrorType.NumberArgumentsMismatch
             )
         })
 
@@ -85,7 +85,7 @@ describe('Matte Interpreter Test Procedure', () => {
                 twoArgs(true, 3);
             }
             `,
-                CompilationErrorType.ArgumentTypesMismatch
+                StaticErrorType.ArgumentTypesMismatch
             )
         })
 

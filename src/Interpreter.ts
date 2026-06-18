@@ -7,7 +7,7 @@ import {
     BlockStatement,
     BooleanLiteral, BreakStatement,
     CallExpression,
-    CallStatement, CompilationError, CompilationErrorType,
+    CallStatement, StaticError, StaticErrorType,
     Declaration, DoubleLiteral,
     Expression, FieldAccessExpression,
     IfStatement,
@@ -26,11 +26,10 @@ import Range from "./Range";
 import {
     buildAST, buildASTandCall
 } from "./antlr2ast";
-import {NotNull} from "antlr4ts/Decorators";
 
 
 interface InterpreterResult {
-    errors: CompilationError[];
+    error?: StaticError;
     result: any;
     trace: TraceEntry[];
 }
@@ -99,15 +98,6 @@ export class Interpreter {
         this.extensionTypes.set(name, constructor)
     }
 
-    compilationError(type: CompilationErrorType, msg: string, node: ASTNode) {
-        throw {
-            type,
-            compilation: true,
-            range: node.range,
-            value: msg
-        };
-    }
-
     loopIteration(loop: WhileStatement) {
         if (this.maxLoopIterations) {
             if (this.loopCount.has(loop)) {
@@ -169,12 +159,12 @@ export class Interpreter {
                 return {
                     result: undefined,
                     trace: [],
-                    errors: [{
+                    error: {
                         range: e.range,
                         type: e.compilation,
                         message: e.message,
                         detail: e.detail
-                    }]
+                    }
                 }
             else
                 console.log(e.stack)
@@ -187,14 +177,14 @@ export class Interpreter {
         if (!program.block && !call)
             throw {
                 range: undefined,
-                type: CompilationErrorType.SyntaxError,
+                type: StaticErrorType.SyntaxError,
                 message: "No block or call provided in the program"
             }
 
         if (call && program.block) {
             throw {
                 range: call.range,
-                type: CompilationErrorType.SyntaxError,
+                type: StaticErrorType.SyntaxError,
                 message: "Cannot have both a block and a call in the program"
             }
         }
@@ -232,18 +222,18 @@ export class Interpreter {
         } catch (e: any) {
             if (e.compilation)
                 return {
-                    errors: [{
+                    error: {
                         range: e.range,
                         type: e.compilation,
                         message: e.value,
                         detail: e.detail
-                    }],
+                    },
                     result: undefined,
                     trace: structuredClone(this.trace)
                 }
             else if (e.runtimeError) {
                 return {
-                    errors: [],
+                    error: undefined,
                     result: undefined,
                     trace: structuredClone(this.trace)
                 }
@@ -339,7 +329,7 @@ export class Interpreter {
             return ext.call(null, args)
         } else
             throw {
-                compilation: CompilationErrorType.MethodNotFound,
+                compilation: StaticErrorType.MethodNotFound,
                 range: exp.range,
                 message: `No method named '${exp.procedureName}' found`,
             }
@@ -400,7 +390,7 @@ export class Interpreter {
             } else
                 throw {
                     message: "Unsupported unary operator:" + e.operator,
-                    compilation: CompilationErrorType.Unsupported,
+                    compilation: StaticErrorType.Unsupported,
                     range: e.range,
                     detail: "INTERPRETER-evaluate"
                 }
@@ -434,7 +424,7 @@ export class Interpreter {
             if (evaluation === undefined)
                 throw {
                     message: "Unsupported binary operator:" + e.operator,
-                    compilation: CompilationErrorType.Unsupported,
+                    compilation: StaticErrorType.Unsupported,
                     range: e.range,
                     detail: "INTERPRETER-evaluate"
                 }
@@ -468,7 +458,7 @@ export class Interpreter {
                 return ext.call(null, args)
             } else
                 throw {
-                    compilation: CompilationErrorType.MethodNotFound,
+                    compilation: StaticErrorType.MethodNotFound,
                     range: e.range,
                     message: `No type named '${e.typeName}' found`,
                 }
@@ -523,7 +513,7 @@ export class Interpreter {
             }
         } else throw {
             message: "Unsupported expression type:" + (e as any).constructor.name,
-            compilation: CompilationErrorType.Unsupported,
+            compilation: StaticErrorType.Unsupported,
             range: e.range,
             detail: "INTERPRETER"
         }
@@ -568,7 +558,7 @@ export class Interpreter {
         if (call.procedure.returnType) {
             throw {
                 range: p.nameRange,
-                type: CompilationErrorType.MissingReturn,
+                type: StaticErrorType.MissingReturn,
                 message: `Procedure ${p.name} is expected to return a value of type ${p.returnType} but no return statement was reached`
             }
         }
@@ -598,7 +588,7 @@ export class Interpreter {
             default:
                 throw {
                     range: leftExp.range,
-                    type: CompilationErrorType.Unsupported,
+                    type: StaticErrorType.Unsupported,
                     message: `Unsupported operator: " + operator`,
                     detail: "INTERPRETER"
                 }
@@ -613,7 +603,7 @@ export class Interpreter {
         if (typeof left !== typeof right) {
             throw {
                 range: leftExp.range,
-                type: CompilationErrorType.TypeMismatch,
+                type: StaticErrorType.TypeMismatch,
                 message: `Type mismatch: cannot compare ${left} with ${right}`,
                 detail: "INTERPRETER-handleComparison"
             }
@@ -635,7 +625,7 @@ export class Interpreter {
             default:
                 throw {
                     range: leftExp.range,
-                    type: CompilationErrorType.Unsupported,
+                    type: StaticErrorType.Unsupported,
                     message: `Unsupported operator: " + operator`,
                     detail: "INTERPRETER-handleComparison"
                 }
@@ -663,7 +653,7 @@ export class Interpreter {
             default:
                 throw {
                     range: leftExp.range,
-                    type: CompilationErrorType.Unsupported,
+                    type: StaticErrorType.Unsupported,
                     message: `Unsupported operator: " + operator`,
                     detail: "INTERPRETER-handleLogical"
                 }

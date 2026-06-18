@@ -4,22 +4,22 @@ import {
 } from "../Interpreter";
 import assert from "assert";
 import {last} from "../utils";
-import {CompilationErrorType} from "../ast";
+import {StaticErrorType} from "../ast";
 
-export function compilationError(code: string, expected: CompilationErrorType, call?: string) {
+export function compilationError(code: string, expected: StaticErrorType, call?: string) {
     const interpreter = new Interpreter();
     const result = interpreter.parseAndRun(code, call);
-    if(result.errors.length == 0)
+    if(result.error == undefined)
         assert.fail( "expected a compilation error")
-    assert.equal(result.errors[0].type, expected);
+    assert.equal(result.error.type, expected);
 }
 
 export function runtimeError(code: string, expected: RuntimeErrorType, call?: string) {
     const interpreter = new Interpreter();
     const result = interpreter.parseAndRun(code, call);
-    if(result.errors.length != 0) {
-        console.table(result.errors)
-        assert.fail(`Compilation error: ${result.errors[0].message}`)
+    if(result.error != undefined) {
+        console.table(result.error)
+        assert.fail(`Compilation error: ${result.error.message}`)
     }
     assert.equal(last(result.trace).error?.type, expected);
 }
@@ -28,9 +28,9 @@ export function cases(code: string, ...tests: [string, any][]) {
     const interpreter = new Interpreter();
     tests.forEach(t => {
         const result = interpreter.parseAndRun(code, t[0]);
-        if(result.errors.length != 0) {
-            console.table(result.errors)
-            assert.fail(`Compilation error: ${result.errors[0].message}`)
+        if(result.error != undefined) {
+            console.table(result.error)
+            assert.fail(`Compilation error: ${result.error.message}`)
         }
         assert.deepStrictEqual(result.result.evaluation, t[1]);
     })
@@ -39,9 +39,9 @@ export function cases(code: string, ...tests: [string, any][]) {
 export function script(code: string, cases: Map<string, any>) {
     const interpreter = new Interpreter();
     let result = interpreter.parseAndRun(code);
-    if(result.errors.length != 0) {
-        console.table(result.errors)
-        assert.fail("error: " + result.errors[0].message)
+    if(result.error != undefined) {
+        console.table(result.error)
+        assert.fail("error: " + result.error.message)
     }
     if (last(result.trace)?.error)
         assert.fail(last(result.trace)?.error?.message)

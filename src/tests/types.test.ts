@@ -1,7 +1,7 @@
 
 import {compilationError} from "./utils";
 import {compile} from "../antlr2ast";
-import {CompilationErrorType, Program} from "../ast";
+import {StaticErrorType, Program} from "../ast";
 
 describe('Matte Interpreter Types', () => {
     describe('Script', () => {
@@ -17,14 +17,14 @@ describe('Matte Interpreter Types', () => {
             compilationError(`
         int i = 10;
         int j = i + true;
-        `, CompilationErrorType.TypeMismatch
+        `, StaticErrorType.TypeMismatch
             )
         });
 
         it('mismatch init', () => {
             compilationError(`
         boolean i = 10;
-        `, CompilationErrorType.TypeMismatch
+        `, StaticErrorType.TypeMismatch
             )
         });
 
@@ -32,7 +32,7 @@ describe('Matte Interpreter Types', () => {
             compilationError(`
         int i = 10;
         i = 1.2;
-        `, CompilationErrorType.TypeMismatch
+        `, StaticErrorType.TypeMismatch
             )
         });
 
@@ -40,7 +40,7 @@ describe('Matte Interpreter Types', () => {
             compilationError(`
         int i = 10;
         boolean j = !i;
-        `, CompilationErrorType.TypeMismatch
+        `, StaticErrorType.TypeMismatch
             )
         });
 
@@ -49,7 +49,7 @@ describe('Matte Interpreter Types', () => {
         int i = 10;
         if(i) 
             i = 0;
-        `, CompilationErrorType.TypeMismatch
+        `, StaticErrorType.TypeMismatch
             )
         });
 
@@ -58,7 +58,7 @@ describe('Matte Interpreter Types', () => {
         int i = 10;
         while(i) 
             i--;
-        `, CompilationErrorType.TypeMismatch
+        `, StaticErrorType.TypeMismatch
             )
         });
 
@@ -72,14 +72,14 @@ describe('Matte Interpreter Types', () => {
                 if(g()) return -1;
                 else return 1;
             }
-        `, CompilationErrorType.TypeMismatch, "f()"
+        `, StaticErrorType.TypeMismatch, "f()"
             )
         });
 
         it('array type', () => {
             compilationError(`
             int[] arr = 10;
-        `, CompilationErrorType.TypeMismatch
+        `, StaticErrorType.TypeMismatch
             )
         });
 

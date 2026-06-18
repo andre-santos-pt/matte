@@ -1,5 +1,5 @@
 import {cases, compilationError, runtimeError} from "./utils";
-import {CompilationErrorType} from "../ast";
+import {StaticErrorType} from "../ast";
 import {RuntimeErrorType} from "../Interpreter";
 
 describe('Matte Interpreter Objects', () => {
@@ -45,7 +45,7 @@ describe('Matte Interpreter Objects', () => {
                 double test() {
                     return z();
                 }
-            }`, CompilationErrorType.MethodNotFound,
+            }`, StaticErrorType.MethodNotFound,
                 "new Point(1.2, -3.4).test()"
             )
         })
@@ -56,7 +56,7 @@ describe('Matte Interpreter Objects', () => {
              double sum() {
                     return x + z;
              }
-            `, CompilationErrorType.UndeclaredVariable);
+            `, StaticErrorType.UndeclaredVariable);
         })
 
         it('record method direct fields', () => {
@@ -105,7 +105,7 @@ describe('Matte Interpreter Objects', () => {
                     x = newX;
                 }
             }    
-            `, CompilationErrorType.ImmutableVariable);
+            `, StaticErrorType.ImmutableVariable);
         })
 
         it('call on reference', () => {

@@ -46,17 +46,25 @@ export default class MatteAceEditor {
         this.editor.selection.on("changeCursor", () => {
             if (this.result == null)
                 return;
-
+            const err = this.result.error
             const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
-            const err = this.result.errors.find(e => e.range != null && index >= e.range.start && index <= e.range.end);
-            if (err != null) {
-                this.popup(err.range.start, err.message, true);
-                if(err.detail.related)
-                    this.secondaryMarker = this.editor.session.addMarker(
-                        this.range2Ace(err.detail.related),
-                        "error-secondary",
-                        "text"
-                    );
+            if (err && index >= err.range.start && index <= err.range.end) {
+                let message = err.message
+
+                if(err.detail) {
+                    if(err.detail.related)
+                        this.secondaryMarker = this.editor.session.addMarker(
+                            this.range2Ace(err.detail.related),
+                            "error-secondary",
+                            "text"
+                        )
+                    if(err.detail.hint)
+                        message += " Hint: " + err.detail.hint
+
+                }
+                this.popups.forEach(p => p.hide())
+                this.popup(err.range.start, message, true);
+
             }
             else {
                 this.popups.forEach(p => p.hide())
@@ -248,7 +256,40 @@ export default class MatteAceEditor {
         console.log(this.result)
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();
-        if(this.result.errors.length === 0) {
+        if(this.result.error) {
+            const e = this.result.error
+            if(e.range != null) {
+                if(e.isStaticError) {
+                    this.editor.session.addMarker(
+                        this.range2Ace(e.range),
+                        "ace_error-squiggle",
+                        "text"
+                    );
+                    this.editor.session.setAnnotations([{
+                        row: e.range.line - 1, // 0-index
+                        column: 0,
+                        text: e.error,
+                        type: "error" // Options: "error", "warning", or "info"
+                    }]);
+                }
+                else {
+                    this.editor.session.addMarker(
+                        this.range2Ace(e.range),
+                        "error-highlight",
+                        "text"
+                    );
+                    this.slider.max = (this.result.trace.length - 1).toString();
+                    this.slider.value = this.slider.max;
+                    this.stepBtn.hidden = true;
+                    this.slider.hidden = false;
+                    this.cumulative.hidden = false;
+                    //this.step(this.result.trace.length - 1);
+                }
+            }
+            else
+                this.resultLabel.innerHTML = '<b>' + e.message + '</b>';
+        }
+        else {
             this.resultLabel.innerHTML = '';
             // TODO handle void
             // TODO handle script (show var state)
@@ -259,40 +300,6 @@ export default class MatteAceEditor {
             this.stepBtn.hidden = false;
             this.cumulative.hidden = false;
             this.slider.hidden = true;
-        }
-        else {
-            this.result.errors.forEach(e => {
-                if(e.range != null) {
-                    if(e.isStaticError) {
-                        this.editor.session.addMarker(
-                            this.range2Ace(e.range),
-                            "ace_error-squiggle",
-                            "text"
-                        );
-                        this.editor.session.setAnnotations([{
-                            row: e.range.line - 1, // 0-index
-                            column: 0,
-                            text: e.error,
-                            type: "error" // Options: "error", "warning", or "info"
-                        }]);
-                    }
-                    else {
-                        this.editor.session.addMarker(
-                            this.range2Ace(e.range),
-                            "error-highlight",
-                            "text"
-                        );
-                        this.slider.max = (this.result.trace.length - 1).toString();
-                        this.slider.value = this.slider.max;
-                        this.stepBtn.hidden = true;
-                        this.slider.hidden = false;
-                        this.cumulative.hidden = false;
-                        this.step(this.result.trace.length - 1);
-                    }
-                }
-                else
-                    this.resultLabel.innerHTML = '<b>' + e.error + '</b>';
-            });
         }
         this.afterRunListeners.forEach(l => l(this.result));
     }

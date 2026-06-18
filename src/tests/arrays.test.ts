@@ -1,9 +1,9 @@
 import {
-    CompilationErrorType,
     RuntimeErrorType
 } from '../Interpreter';
 
 import {cases, compilationError, runtimeError, script} from "./utils";
+import {StaticErrorType} from "../ast";
 
 describe('Matte Interpreter Test Arrays', () => {
     describe('Script', () => {
@@ -60,7 +60,7 @@ describe('Matte Interpreter Test Arrays', () => {
             compilationError(`
         int array = 4;
         array[5] = 10;
-        `, CompilationErrorType.TypeMismatch)
+        `, StaticErrorType.TypeMismatch)
         });
 
         it('array write invalid index', () => {
@@ -74,7 +74,7 @@ describe('Matte Interpreter Test Arrays', () => {
             compilationError(`
         int a = 0;
         int b = a[1];
-        `, CompilationErrorType.TypeMismatch)
+        `, StaticErrorType.TypeMismatch)
         });
 
         it('array invalid index', () => {
@@ -110,8 +110,8 @@ describe('Matte Interpreter Test Arrays', () => {
                 }
                 return s;
             }`,
-                ["sum({1,2,3}",6],
-                ["sum({}",0])
+                ["sum({1,2,3})",6],
+                ["sum({})",0])
         })
         }
     )

@@ -1,9 +1,7 @@
-import {
-    RuntimeErrorType
-} from '../Interpreter';
+import {RuntimeErrorType} from '../Interpreter';
 
 import {compilationError, runtimeError, script} from "./utils";
-import {CompilationErrorType} from "../ast";
+import {StaticErrorType} from "../ast";
 
 describe('Matte Interpreter Test Script', () => {
     describe('Script', () => {
@@ -27,8 +25,30 @@ describe('Matte Interpreter Test Script', () => {
         int j = i + 5;
         x = j + 5;
         int z = i + j + 50;
-        `, CompilationErrorType.UndeclaredVariable)
+        `, StaticErrorType.UndeclaredVariable)
         });
+
+        it('unknown token', () => {
+            compilationError(`
+        #i = 10;
+        `, StaticErrorType.TokenError)
+        });
+
+        it('missing semicolon', () => {
+            compilationError(`
+        int i = 10
+        int j = i + 5;
+        `, StaticErrorType.SyntaxError)
+        });
+
+        it('EOF', () => {
+            compilationError(`
+        int i = 0;
+        while(i != 10) {
+            i = i + 1;
+            `, StaticErrorType.SyntaxError)
+        })
+
 
         it('var not found exp', () => {
             compilationError(`
@@ -36,7 +56,7 @@ describe('Matte Interpreter Test Script', () => {
         int j = i + 5;
         j = a + 5;
         int z = i + j + 50;
-        `, CompilationErrorType.UndeclaredVariable)
+        `, StaticErrorType.UndeclaredVariable)
         });
 
 
@@ -45,7 +65,7 @@ describe('Matte Interpreter Test Script', () => {
         int i = 10;
         int j = i + 5;
         int i = j + 5;
-        `, CompilationErrorType.DuplicateVariable)
+        `, StaticErrorType.DuplicateVariable)
         });
 
 
@@ -54,7 +74,7 @@ describe('Matte Interpreter Test Script', () => {
         int i = 10;
         boolean j = true;
         int x = j + i;
-        `, CompilationErrorType.TypeMismatch)
+        `, StaticErrorType.TypeMismatch)
         });
 
         it('if', () => {
@@ -178,7 +198,7 @@ describe('Matte Interpreter Test Script', () => {
             
         }
         int j = i;
-        `, CompilationErrorType.UndeclaredVariable)
+        `, StaticErrorType.UndeclaredVariable)
         });
 
         it('nested for', () => {
