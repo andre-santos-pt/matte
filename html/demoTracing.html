@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+    <title>Demo tracing exercise</title>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+<script src="../dist/matte-web-ace.js" defer></script>
+
+
+<hr>
+<h1>Tracing</h1>
+<matte-ace height="160" width="400" call="" ext-trace var="i">
+int i;
+i = 1;
+int j = i;
+i = j * 2;
+i = i * 3;
+</matte-ace>
+
+<script>
+function trace(editor) {
+    let div;
+    editor.beforeRunListeners.push(() => {
+        if(div) div.remove();
+    });
+    editor.afterRunListeners.push((r) => {
+        console.log(r)
+        const varName = this.getAttribute("var");
+        div = document.createElement("div");
+        editor.container.after(div);
+        const span = document.createElement("span");
+        span.textContent = "Tracing variable " + varName + ": ";
+        div.appendChild(span);
+        const trace = [];
+        r.trace.children.map(t => t.stack.variables.get(varName)).forEach(t => {
+            if(t !== undefined && t.evaluation !== trace[trace.length - 1]) {
+                trace.push(t.evaluation);
+                const text = document.createElement("input");
+                text.type = "text";
+                text.style.cssText ="margin: 5px; padding: 3px; width: 20px;";
+                const correct = t.evaluation;
+                text.addEventListener( "change", () => {
+                    if(text.value === correct.toString()) {
+                        text.style.backgroundColor = "lightgreen";
+                    } else {
+                        text.style.backgroundColor = "salmon";
+                    }
+                });
+                div.append(text);
+            }
+        });
+    });
+    editor.stepListeners.push((t) => {
+        const varName = this.getAttribute("var");
+        const value = editor.interpreter.get(varName);
+        if(value !== undefined) {
+            const text = document.createElement("input");
+            text.type = "text";
+            text.style.cssText ="margin: 5px; padding: 3px; width: 20px;";
+            text.value = value;
+            div.append(text);
+        }
+    });
+}
+</script>
+<hr>
+
+</body>
+</html>

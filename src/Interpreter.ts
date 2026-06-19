@@ -39,7 +39,7 @@ interface InterpreterResult {
 }
 
 export interface TraceEntry {
-    stack: StackFrame[],
+    stack: StackFrame,
     children?: TraceEntry[],
     range?: Range,
     materialization?: string,
@@ -148,7 +148,7 @@ export class Interpreter {
 
     addTraceRange(range: Range | undefined, call : boolean, evaluation: any, materialization?: string) {
         const entry = {
-            stack: structuredClone(this.scope),
+            stack: structuredClone(last(this.scope)),
             range,
             materialization,
             evaluation,
@@ -162,7 +162,7 @@ export class Interpreter {
 
     addTraceRuntimeError(node: ASTNode, error: RuntimeError) {
         last(this.traceStack).children?.push({
-            stack: structuredClone(this.scope),
+            stack: structuredClone(last(this.scope)),
             range: node.range,
             error
         });
@@ -226,7 +226,7 @@ export class Interpreter {
                 variables: new Map()
             })
             this.trace = {
-                stack: [],
+                stack: last(this.scope),
                 children: [],
             }
             this.traceStack.push(this.trace)
@@ -358,8 +358,8 @@ export class Interpreter {
             let exp = undefined
             if(s.expression) {
                 exp = this.evaluate(s.expression)
-                if(s.expression instanceof Literal)
-                    this.addTrace(s.expression, s.expression.value)
+                if(s.expression.isSimple())
+                    this.addTrace(s.expression, exp.evaluation)
                 throw exp
             }
             else {
@@ -397,7 +397,6 @@ export class Interpreter {
                     materialization: undefined
                 }
             }
-            this.addTrace(e, variable?.evaluation, variable?.materialization)
             return {
                 evaluation: variable?.evaluation,
                 materialization: variable?.materialization
@@ -596,10 +595,11 @@ export class Interpreter {
             return eVal
         })
         const mat = p.name + "(" + argValues.map(a => a?.evaluation).join() + ")" // TODO mat
-        this.addTrace(call, undefined, mat)
         this.scope.push({
             variables
         })
+        this.addTrace(call, undefined, mat)
+
         try {
             p.body?.statements?.forEach(s => this.execute(s));
         } catch (e: any) {

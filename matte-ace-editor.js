@@ -268,24 +268,16 @@ export default class MatteAceEditor {
         this.slider.after(this.cumulative);
     }
 
-    addStackTable() {
-        this.stackTable = document.createElement("div");
-        this.container.after(this.stackTable);
-    }
-
-
     runParser() {
         this.beforeRunListeners.forEach(l => l());
         const code = this.editor.getValue() + (this.include == null? "" : "\n\n" + this.include)
         this.result = window.matte(code,this.callBox.value === "" ? null : this.callBox.value, this.extensions);
-        console.log(this.result)
-        this.trace = flatTrace(this.result.trace)
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();
         if(this.result.error) {
             const e = this.result.error
             if(e.range != null) {
-                if(e.isStaticError) {
+                if(e.isStaticError) { // TODO remove?
                     this.editor.session.addMarker(
                         this.range2Ace(e.range),
                         "ace_error-squiggle",
@@ -315,6 +307,7 @@ export default class MatteAceEditor {
                 this.resultLabel.innerHTML = '<b>' + e.message + '</b>';
         }
         else {
+            this.trace = flatTrace(this.result.trace)
             this.resultLabel.innerHTML = '';
             // TODO handle void
             // TODO handle script (show var state)
@@ -377,7 +370,8 @@ export default class MatteAceEditor {
             if(t.range)
                 this.editor.revealRange(this.range2Ace(t.range));
             this.popups.forEach(p => p.hide());
-            this.createScopePopups(t.stack.variables);
+            if(t.stack.variables)
+                this.createScopePopups(t.stack.variables);
 
             let prevText = "";
             if(cumulative) {
@@ -389,11 +383,6 @@ export default class MatteAceEditor {
                 if(prevText.length > 0)
                     prevText += "\n";
             }
-
-            // TODO to extension
-            if(this.stackTable)
-                this.createVerticalTable(t.stack[t.stack.length-1], this.stackTable)
-
 
             if(t.evaluation != null) {
                 const mat = t.materialization !== t.evaluation.toString() ? t.materialization ? " (" + this.pretty(t.materialization) + ")" : "" : "";

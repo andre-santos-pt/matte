@@ -314,11 +314,19 @@ export abstract class Expression extends ASTNode {
         this.range = undefined
         this.getChildren().forEach(c => c.setLoose())
     }
+
+    isSimple() {
+        return false;
+    }
 }
 
 
 export abstract class Literal<T> extends Expression {
     abstract value: T
+
+    isSimple(): boolean {
+        return true
+    }
 }
 
 export class IntLiteral extends Literal<number> {
@@ -371,6 +379,10 @@ export class Variable extends Expression {
     constructor(range: Range | undefined, declaration: Declaration) {
         super(range, declaration.type);
         this.declaration = declaration;
+    }
+
+    isSimple(): boolean {
+        return true
     }
 }
 

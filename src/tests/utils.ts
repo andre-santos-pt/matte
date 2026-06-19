@@ -55,7 +55,7 @@ export function script(code: string, cases: Map<string, any>) {
         const mapToObj = (m:Map<any, any>) =>
             Object.fromEntries([...m.entries()]);
 
-        const evaluationMap = new Map([...lastTrace(result.trace).stack[0].variables].map(
+        const evaluationMap = new Map([...lastTrace(result.trace).stack.variables].map(
             ([name, variable]) => [name, variable.evaluation]
         ))
         const actual = JSON.parse(JSON.stringify(mapToObj(evaluationMap)))

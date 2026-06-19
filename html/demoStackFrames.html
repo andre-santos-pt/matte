@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+    <title>Demo stack frames</title>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+<script src="../dist/matte-web-ace.js" defer></script>
+
+<h1>Stack frames</h1>
+<hr>
+<matte-ace height="160" width="400" call="sum({1,2,3})" ext-table>
+    int sum(int[] a) {
+    int s = 0;
+    int i = 0;
+    while(i < a.length) {
+    s = s + a[i];
+    i++;
+    }
+    return s;
+    }
+</matte-ace>
+<hr>
+
+<script>
+    function table(editor) {
+        const table = document.createElement('table');
+        const tbody = table.createTBody();
+        editor.stepListeners.push((t, i) => {
+            tbody.innerHTML = "";
+            for (const [key, value] of t[i].stack.variables) {
+                const row = tbody.insertRow();
+                const th = document.createElement('th');
+                th.textContent = key;
+                th.style.textAlign = "left";
+                row.appendChild(th);
+
+                const td = row.insertCell();
+                td.textContent = value.evaluation;
+            }
+        })
+        editor.container.after(table)
+
+    }
+</script>
+
+</body>
+</html>
