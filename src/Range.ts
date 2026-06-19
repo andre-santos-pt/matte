@@ -3,7 +3,7 @@ export default class Range {
     public end: number;
     public line: number;
     public column: number;
-    public text: string;
+    public text?: string;
     /**
      * @param startOffset Absolute character index (start)
      * @param endOffset Absolute character index (end)
@@ -16,7 +16,7 @@ export default class Range {
         endOffset: number,
         line: number,
         column: number,
-        text: string
+        text?: string
     ) {
         this.start = startOffset;
         this.end = endOffset;
@@ -41,4 +41,12 @@ export default class Range {
     contains(offset: number): boolean {
         return offset >= this.start && offset <= this.end;
     }
+
+    // setLoose() {
+    //     this.text = undefined
+    // }
+    //
+    // isLoose() {
+    //     return this.text == undefined
+    // }
 }

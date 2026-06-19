@@ -149,6 +149,7 @@ export function buildASTandCall(source: string, call: string): [Program, Express
 
     visitor.tokenStream = tokens2
     const exp = visitor.expToAST(callCtx)
+    exp.setLoose()
     return [program, exp]
 }
 

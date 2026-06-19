@@ -103,7 +103,7 @@ export function isSameType(a: Type | undefined, b: Type | undefined): boolean {
     if (isPrimitiveType(a) || a instanceof TypeDeclaration)
         return a == b
     else if (a instanceof ArrayType)
-        return b instanceof ArrayType && isSameType(a.componentType, b.componentType)
+        return b instanceof ArrayType && (isSameType(a.componentType, b.componentType) || a.componentType == undefined || b.componentType == undefined)
     else if (a instanceof ForeignType)
         return b instanceof ForeignType && a.name == b.name
     else
@@ -305,6 +305,15 @@ export abstract class Expression extends ASTNode {
         super(range);
         this.type = type;
     }
+
+    getChildren() : Expression[] {
+        return []
+    }
+
+    setLoose() {
+        this.range = undefined
+        this.getChildren().forEach(c => c.setLoose())
+    }
 }
 
 
@@ -390,6 +399,10 @@ export class UnaryExpression extends Expression {
 
         // TODO truncate
     }
+
+    getChildren(): Expression[] {
+        return [this.expression]
+    }
 }
 
 export abstract class BinaryExpression extends Expression {
@@ -402,6 +415,10 @@ export abstract class BinaryExpression extends Expression {
         this.operator = operator;
         this.left = left;
         this.right = right;
+    }
+
+    getChildren(): Expression[] {
+        return [this.left, this.right]
     }
 }
 
@@ -420,6 +437,10 @@ export class ArrayLiteralExpression extends Expression {
         super(range, new ArrayType(types.size == 0 ? undefined : types.values().next().value));
         this.elements = elements;
     }
+
+    getChildren() : Expression[] {
+        return this.elements
+    }
 }
 
 export class ArrayAllocationExpression extends Expression {
@@ -431,6 +452,10 @@ export class ArrayAllocationExpression extends Expression {
         this.componentType = componentType;
         this.dimensions = dimensions;
         // TODO dimensions > 1  positive int
+    }
+
+    getChildren() : Expression[] {
+        return this.dimensions
     }
 }
 
@@ -457,6 +482,10 @@ export class ArrayElementExpression extends Expression {
 
         // TODO target type
         // TODO index validation
+    }
+
+    getChildren() : Expression[] {
+        return [this.target, this.index]
     }
 
 }
@@ -578,6 +607,10 @@ export class CallExpression extends Expression {
         this.args = args;
         this.instanceCall = instanceCall;
     }
+
+    getChildren() : Expression[] {
+        return this.args
+    }
 }
 
 export class UnboundCallExpression extends Expression {
@@ -588,6 +621,10 @@ export class UnboundCallExpression extends Expression {
         super(range, undefined);
         this.procedureName = procedureName;
         this.args = args;
+    }
+
+    getChildren() : Expression[] {
+        return this.args
     }
 }
 
@@ -606,6 +643,10 @@ export class NewObjectExpression extends Expression {
         this.type = type;
         this.args = args;
     }
+
+    getChildren() : Expression[] {
+        return this.args
+    }
 }
 
 export class UnboundNewObjectExpression extends Expression {
@@ -616,6 +657,10 @@ export class UnboundNewObjectExpression extends Expression {
         super(range, new ForeignType(typeName));
         this.typeName = typeName;
         this.args = args;
+    }
+
+    getChildren() : Expression[] {
+        return this.args
     }
 }
 
@@ -672,5 +717,9 @@ export class FieldAccessExpression extends Expression {
         super(range, type);
         this.target = target;
         this.fieldName = fieldName;
+    }
+
+    getChildren(): Expression[] {
+        return [this.target]
     }
 }

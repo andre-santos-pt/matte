@@ -360,8 +360,12 @@ export default class MatteAceEditor {
     }
 
     pretty(mat) {
-        // ¬
-        return mat.replaceAll("&&","∧").replaceAll("||", "∨")
+        return mat
+            .replaceAll("&&","∧")
+            .replaceAll("||", "∨")
+            .replaceAll("!","¬")
+            .replaceAll("<=", "≤")
+            .replaceAll(">=", "≥")
     }
 
     step(index, cumulative = false) {
