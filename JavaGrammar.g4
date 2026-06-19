@@ -33,11 +33,15 @@ LCURLY statement* RCURLY  #BlockStmt
 //| nop
 ;
 
+
+
 if: IF ((LPAREN expression=exp? RPAREN)|expression=exp) ifcase=statement (ELSE elsecase=statement)?;
 
 while: WHILE ((LPAREN expression=exp? RPAREN)|expression=exp) statement ;
 
-for: FOR LPAREN declaration? TERM expression=exp? TERM progress=statement? RPAREN body=statement ; // TODO declaration | assignment
+for: FOR LPAREN declaration? TERM expression=exp? TERM forProgress? RPAREN body=statement ; // TODO declaration | assignment
+
+forProgress: assignment|inc|dec;
 
 declaration: type id=ID (ASSIGN expression=exp)?;
 

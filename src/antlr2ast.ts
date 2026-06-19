@@ -514,12 +514,16 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
 
     visitForStmt = (ctx: ForStmtContext) => {
+        this.varScope.push({
+            block: true,
+            variables: new Map<string, Declaration>()
+        })
         const ret: Statement[] = []
         if (ctx.for_().declaration())
             ret.push(this.visitDeclaration(ctx.for_().declaration()))
         let body = this.visit(ctx.for_()._body)
-        if (ctx.for_()._progress) {
-            const prog = this.visitStmt(ctx.for_()._progress) as Statement
+        if (ctx.for_().forProgress()) {
+            const prog = this.visitStmt(ctx.for_().forProgress()) as Statement
             if (body instanceof BlockStatement)
                 body.statements.push(prog)
             else {
@@ -537,6 +541,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             guard,
             body)
         )
+        this.varScope.pop()
         return new BlockStatement(
             this.rangeContext(ctx),
             ret

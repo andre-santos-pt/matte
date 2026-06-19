@@ -32,6 +32,7 @@ interface InterpreterResult {
     error?: StaticError;
     result: any;
     trace: TraceEntry[];
+    program?: Program;
 }
 
 interface TraceEntry {
@@ -200,7 +201,8 @@ export class Interpreter {
                 return {
                     errors: [],
                     result: undefined,
-                    trace: structuredClone(this.trace)
+                    trace: structuredClone(this.trace),
+                    program
                 }
             })
         } else {
@@ -208,7 +210,8 @@ export class Interpreter {
                 return {
                     errors: [],
                     result: this.evaluate(call as Expression),
-                    trace: structuredClone(this.trace)
+                    trace: structuredClone(this.trace),
+                    program
                 }
             });
         }
