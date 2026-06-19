@@ -317,10 +317,11 @@ export abstract class Expression extends ASTNode {
 }
 
 
-export abstract class Literal extends Expression {
+export abstract class Literal<T> extends Expression {
+    abstract value: T
 }
 
-export class IntLiteral extends Literal {
+export class IntLiteral extends Literal<number> {
     value: number;
 
     constructor(range: Range | undefined, value: number) {
@@ -329,7 +330,7 @@ export class IntLiteral extends Literal {
     }
 }
 
-export class DoubleLiteral extends Literal {
+export class DoubleLiteral extends Literal<number> {
     value: number;
 
     constructor(range: Range | undefined, value: number) {
@@ -338,7 +339,7 @@ export class DoubleLiteral extends Literal {
     }
 }
 
-export class BooleanLiteral extends Literal {
+export class BooleanLiteral extends Literal<boolean> {
     value: boolean;
 
     constructor(range: Range | undefined, value: boolean) {
@@ -347,7 +348,7 @@ export class BooleanLiteral extends Literal {
     }
 }
 
-export class StringLiteral extends Literal {
+export class StringLiteral extends Literal<string> {
     value: string;
 
     constructor(range: Range | undefined, value: string) {
@@ -356,7 +357,9 @@ export class StringLiteral extends Literal {
     }
 }
 
-export class NullLiteral extends Literal {
+export class NullLiteral extends Literal<undefined> {
+    value: undefined
+
     constructor(range: Range) {
         super(range);
     }

@@ -1,3 +1,6 @@
+import {TraceEntry} from "./src/Interpreter.ts";
+import {countTraceEntries, flatTrace, last} from "./src/utils.ts";
+
 const { Range } = ace.require("ace/range");
 
 export default class MatteAceEditor {
@@ -194,16 +197,16 @@ export default class MatteAceEditor {
         }
     }
 
-    addInspector() {
-        const jlk = this;
-        this.editor.selection.on('changeSelection', ()=> {
-            var range = this.editor.getSelectionRange()
-            let log = this.result.trace.filter(t => t.range.line === range.start.row + 1).map(t => t.materialization);
-            if (log.length > 0) {
-                this.popup(0, log.join("\n"));
-            }
-        });
-    }
+    // addInspector() {
+    //     const jlk = this;
+    //     this.editor.selection.on('changeSelection', ()=> {
+    //         var range = this.editor.getSelectionRange()
+    //         let log = this.result.trace.filter(t => t.range.line === range.start.row + 1).map(t => t.materialization);
+    //         if (log.length > 0) {
+    //             this.popup(0, log.join("\n"));
+    //         }
+    //     });
+    // }
 
     addCallBox(call) {
         this.runBox = document.createElement('div');
@@ -270,11 +273,13 @@ export default class MatteAceEditor {
         this.container.after(this.stackTable);
     }
 
+
     runParser() {
         this.beforeRunListeners.forEach(l => l());
         const code = this.editor.getValue() + (this.include == null? "" : "\n\n" + this.include)
         this.result = window.matte(code,this.callBox.value === "" ? null : this.callBox.value, this.extensions);
         console.log(this.result)
+        this.trace = flatTrace(this.result.trace)
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();
         if(this.result.error) {
@@ -299,12 +304,11 @@ export default class MatteAceEditor {
                         "error-highlight",
                         "text"
                     );
-                    this.slider.max = (this.result.trace.length - 1).toString();
+                    this.slider.max = (this.trace.length).toString();
                     this.slider.value = this.slider.max;
                     this.stepBtn.hidden = true;
                     this.slider.hidden = false;
                     this.cumulative.hidden = false;
-                    //this.step(this.result.trace.length - 1);
                 }
             }
             else
@@ -316,7 +320,7 @@ export default class MatteAceEditor {
             // TODO handle script (show var state)
             if(this.result.result !== undefined)
                 this.resultLabel.innerHTML = ' = ' + JSON.stringify(this.result.result.evaluation);
-            this.slider.max = (this.result.trace.length).toString();
+            this.slider.max = (this.trace.length).toString();
             this.slider.value = "0";
             this.stepBtn.hidden = false;
             this.cumulative.hidden = false;
@@ -346,8 +350,6 @@ export default class MatteAceEditor {
     }
 
     range2Ace(range) {
-        //const { Range } = ace.require("ace/range");
-        console.log(range)
         const startPos = this.editor.session.doc.indexToPosition(range.start);
         const endPos = this.editor.session.doc.indexToPosition(range.end);
         return new Range(startPos.row, startPos.column, endPos.row, endPos.column);
@@ -369,16 +371,17 @@ export default class MatteAceEditor {
     }
 
     step(index, cumulative = false) {
-        const lastIndex =  this.result.trace.length - 1;
+        const lastIndex = this.trace.length - 1;
         if (index >= 0 && index <= lastIndex) {
-            const t = this.result.trace[index];
-            this.editor.revealRange(this.range2Ace(t.range));
+            const t = this.trace[index];
+            if(t.range)
+                this.editor.revealRange(this.range2Ace(t.range));
             this.popups.forEach(p => p.hide());
-            this.createScopePopups(t.stack[t.stack.length-1].variables);
+            this.createScopePopups(t.stack.variables);
 
             let prevText = "";
             if(cumulative) {
-                const prev = this.result.trace.filter((prev, i) => i < index && prev.range.isEqual(t.range));
+                const prev = this.trace.filter((prev, i) => i < index && prev.range.isEqual(t.range));
                 prevText = prev.map(p => {
                     const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
                     return this.prettyPrint(p.evaluation) + mat
@@ -396,14 +399,14 @@ export default class MatteAceEditor {
                 const mat = t.materialization !== t.evaluation.toString() ? t.materialization ? " (" + this.pretty(t.materialization) + ")" : "" : "";
                 this.popup(t.range.start, prevText + this.prettyPrint(t.evaluation) + mat, t.isCall, true);
             }
-            this.stepListeners.forEach(l => l(this.result.trace, index));
+            this.stepListeners.forEach(l => l(this.trace, index));
             //console.log(index + "/" + this.result.trace.length);
             this.slider.focus();
         }
         else {
-            const lastRange = this.range2Ace(this.result.trace[lastIndex]);
+            const lastRange = this.range2Ace(this.trace[lastIndex]);
             this.editor.gotoLine(lastRange.end.row + 1, 1);
-            this.stepListeners.forEach(l => l(this.result.trace, index));
+            this.stepListeners.forEach(l => l(this.trace, index));
         }
     }
 
@@ -483,6 +486,9 @@ export default class MatteAceEditor {
     }
 
     createScopePopups(dataMap) {
+        if(dataMap === undefined)
+            return
+
         for (const [key, value] of dataMap) {
             const mat = value.materialization === value.evaluation.toString() ? "" : value.materialization ? " (" + value.materialization + ")" : "";
                 this.popup(value.declaration.end, this.prettyPrint(value.evaluation) + mat, value.isParameter, false);

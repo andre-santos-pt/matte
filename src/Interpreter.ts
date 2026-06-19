@@ -19,7 +19,7 @@ import {
     UnaryExpression,
     UnboundCallExpression, UnboundNewObjectExpression,
     Variable,
-    WhileStatement
+    WhileStatement, Literal
 } from "./ast";
 import Range from "./Range";
 
@@ -27,18 +27,20 @@ import {
     buildAST, buildASTandCall
 } from "./antlr2ast";
 import {CallContext} from "./generated/JavaGrammarParser";
+import {last} from "./utils";
 
 
 interface InterpreterResult {
     error?: StaticError;
     result: any;
-    trace: TraceEntry[];
+    trace?: TraceEntry;
     program?: Program;
     call?: Expression;
 }
 
-interface TraceEntry {
+export interface TraceEntry {
     stack: StackFrame[],
+    children?: TraceEntry[],
     range?: Range,
     materialization?: string,
     evaluation?: any,
@@ -80,7 +82,8 @@ type ExtensionProcedure = (...args: any[]) => ExpressionEval
 
 export class Interpreter {
     private scope: StackFrame[] = []
-    private trace: TraceEntry[] = []
+    private trace?: TraceEntry = undefined
+    private traceStack: TraceEntry[] = []
     private traceOn = true
 
     private loopCount = new Map()
@@ -127,33 +130,38 @@ export class Interpreter {
     }
 
     addTrace(node: ASTNode, evaluation: any, materialization?: string) {
-        this.addTraceRange(node.range, false, evaluation, materialization)
+        const t = this.addTraceRange(node.range, node instanceof CallExpression, evaluation, materialization)
+        if(node instanceof CallExpression) {
+            this.traceStack.push(t)
+            if(!this.trace)
+                this.trace = t
+        }
     }
 
-    addCallTrace(procedure: Procedure, callMaterialization: string) {
-        this.addTraceRange(procedure.nameRange, true, undefined, callMaterialization)
+    addCallTraceEnd(call: CallExpression, result: ExpressionEval | undefined) {
+        if(this.traceStack.length > 1)
+            this.traceStack.pop()
+
+        this.addTrace(call, result?.evaluation, result?.materialization)
     }
+
 
     addTraceRange(range: Range | undefined, call : boolean, evaluation: any, materialization?: string) {
+        const entry = {
+            stack: structuredClone(this.scope),
+            range,
+            materialization,
+            evaluation,
+            call,
+            children: call ? [] : undefined
+        }
         if(range != undefined)
-            this.trace.push({
-                range,
-                materialization,
-                evaluation,
-                call,
-                stack: structuredClone(this.scope)
-            });
-    }
-
-    execNoTrace(exec: () => any) {
-        this.traceOn = false
-        const ret = exec()
-        this.traceOn = true
-        return ret
+            last(this.traceStack).children?.push(entry)
+        return entry
     }
 
     addTraceRuntimeError(node: ASTNode, error: RuntimeError) {
-        this.trace.push({
+        last(this.traceStack).children?.push({
             stack: structuredClone(this.scope),
             range: node.range,
             error
@@ -163,6 +171,13 @@ export class Interpreter {
         }
     }
 
+
+    execNoTrace(exec: () => any) {
+        this.traceOn = false
+        const ret = exec()
+        this.traceOn = true
+        return ret
+    }
 
     parseAndRun(source: string, call?: string): InterpreterResult {
         let progAndCall: [Program?, Expression?] = [undefined, undefined]
@@ -175,7 +190,7 @@ export class Interpreter {
             if (e.compilation)
                 return {
                     result: undefined,
-                    trace: [],
+                    trace: undefined,
                     error: {
                         range: e.range,
                         type: e.compilation,
@@ -210,6 +225,11 @@ export class Interpreter {
             this.scope.push({
                 variables: new Map()
             })
+            this.trace = {
+                stack: [],
+                children: [],
+            }
+            this.traceStack.push(this.trace)
             return this.tryRun(() => {
                 (program.block as BlockStatement).statements.forEach(i => this.execute(i));
                 this.addTrace((program.block as BlockStatement), undefined, undefined)
@@ -337,8 +357,9 @@ export class Interpreter {
         } else if (s instanceof ReturnStatement) {
             let exp = undefined
             if(s.expression) {
-                exp = this.evaluate(s.expression as Expression)
-                this.addTrace(s, exp.evaluation, exp.materialization)
+                exp = this.evaluate(s.expression)
+                if(s.expression instanceof Literal)
+                    this.addTrace(s.expression, s.expression.value)
                 throw exp
             }
             else {
@@ -376,7 +397,7 @@ export class Interpreter {
                     materialization: undefined
                 }
             }
-
+            this.addTrace(e, variable?.evaluation, variable?.materialization)
             return {
                 evaluation: variable?.evaluation,
                 materialization: variable?.materialization
@@ -579,13 +600,12 @@ export class Interpreter {
         this.scope.push({
             variables
         })
-        this.addCallTrace(p, mat)
         try {
             p.body?.statements?.forEach(s => this.execute(s));
         } catch (e: any) {
             if (e.evaluation !== undefined) {
+                this.addCallTraceEnd(call, e)
                 this.scope.pop()
-                this.addTrace(call, e.evaluation, e.materialization)
                 return e
             } else
                 throw e
@@ -598,7 +618,7 @@ export class Interpreter {
             }
         }
         this.scope.pop()
-       // this.addTrace(call, undefined, undefined)
+        this.addCallTraceEnd(call, undefined)
         return {
             evaluation: undefined,
             materialization: undefined

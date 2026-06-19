@@ -3,7 +3,7 @@ import {
     RuntimeErrorType
 } from "../Interpreter";
 import assert from "assert";
-import {last} from "../utils";
+import {last, lastTrace} from "../utils";
 import {StaticErrorType} from "../ast";
 
 export function compilationError(code: string, expected: StaticErrorType, call?: string) {
@@ -21,7 +21,10 @@ export function runtimeError(code: string, expected: RuntimeErrorType, call?: st
         console.table(result.error)
         assert.fail(`Compilation error: ${result.error.message}`)
     }
-    assert.equal(last(result.trace).error?.type, expected);
+    if(!result.trace)
+        assert.fail(`No trace`)
+
+    assert.equal(lastTrace(result.trace).error?.type, expected);
 }
 
 export function cases(code: string, ...tests: [string, any][]) {
@@ -43,14 +46,16 @@ export function script(code: string, cases: Map<string, any>) {
         console.table(result.error)
         assert.fail("error: " + result.error.message)
     }
-    if (last(result.trace)?.error)
-        assert.fail(last(result.trace)?.error?.message)
+    if(!result.trace)
+        assert.fail(`No trace`)
+    if (lastTrace(result.trace)?.error)
+        assert.fail(lastTrace(result.trace)?.error?.message)
     else {
 
         const mapToObj = (m:Map<any, any>) =>
             Object.fromEntries([...m.entries()]);
 
-        const evaluationMap = new Map([...last(result.trace).stack[0].variables].map(
+        const evaluationMap = new Map([...lastTrace(result.trace).stack[0].variables].map(
             ([name, variable]) => [name, variable.evaluation]
         ))
         const actual = JSON.parse(JSON.stringify(mapToObj(evaluationMap)))
