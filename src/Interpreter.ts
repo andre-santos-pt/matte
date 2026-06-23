@@ -1,32 +1,42 @@
 import {
-    ArithmeticExpression, ArrayAllocationExpression,
-    ArrayAssignment, ArrayElementExpression, ArrayLiteralExpression,
+    ArithmeticExpression,
+    ArrayAllocationExpression,
+    ArrayAssignment,
+    ArrayElementExpression,
+    ArrayLiteralExpression,
     Assignment,
     ASTNode,
     BinaryExpression,
     BlockStatement,
-    BooleanLiteral, BreakStatement,
+    BooleanLiteral,
+    BreakStatement,
     CallExpression,
-    CallStatement, StaticError, StaticErrorType,
-    Declaration, DoubleLiteral,
-    Expression, FieldAccessExpression,
+    CallStatement,
+    Declaration,
+    DoubleLiteral,
+    Expression,
+    FieldAccessExpression,
     IfStatement,
-    IntLiteral, NewObjectExpression, NullLiteral, PrimitiveType,
-    Procedure,
-    Program, RelationalExpression,
+    IntLiteral,
+    NewObjectExpression,
+    NullLiteral,
+    PrimitiveType,
+    Program,
+    RelationalExpression,
     ReturnStatement,
-    Statement, StringLiteral,
+    Statement,
+    StaticError,
+    StaticErrorType,
+    StringLiteral,
     UnaryExpression,
-    UnboundCallExpression, UnboundNewObjectExpression,
+    UnboundCallExpression,
+    UnboundNewObjectExpression,
     Variable,
-    WhileStatement, Literal
+    WhileStatement
 } from "./ast";
 import Range from "./Range";
 
-import {
-    buildAST, buildASTandCall
-} from "./antlr2ast";
-import {CallContext} from "./generated/JavaGrammarParser";
+import {buildAST, buildASTandCall} from "./antlr2ast";
 import {last} from "./utils";
 
 
@@ -41,10 +51,12 @@ interface InterpreterResult {
 export interface TraceEntry {
     stack: StackFrame,
     children?: TraceEntry[],
+    parent?: TraceEntry,
     range?: Range,
     materialization?: string,
     evaluation?: any,
     call?: boolean,
+    returnStatement?: boolean,
     error?: RuntimeError
 }
 
@@ -129,38 +141,48 @@ export class Interpreter {
         return this.scope[this.scope.length - 1];
     }
 
-    addTrace(node: ASTNode, evaluation: any, materialization?: string) {
-        const t = this.addTraceRange(node.range, node instanceof CallExpression, evaluation, materialization)
-        if(node instanceof CallExpression) {
+    private addTrace(node: ASTNode, call: boolean, evaluation: any, materialization?: string) {
+        if(!this.traceOn)
+            return
+
+        const t = this.addTraceRange(node.range, call, node instanceof ReturnStatement, evaluation, materialization)
+        if(node instanceof CallExpression && call) {
             this.traceStack.push(t)
-            if(!this.trace)
+            if(!this.trace) {
                 this.trace = t
+                t.range = node.procedure.nameRange
+            }
         }
     }
 
-    addCallTraceEnd(call: CallExpression, result: ExpressionEval | undefined) {
+    private addCallTraceEnd(call: CallExpression, evaluation: any, materialization: any) {
+        if(!this.traceOn)
+            return
+
         if(this.traceStack.length > 1)
             this.traceStack.pop()
 
-        this.addTrace(call, result?.evaluation, result?.materialization)
+        this.addTrace(call, false, evaluation, materialization)
     }
 
 
-    addTraceRange(range: Range | undefined, call : boolean, evaluation: any, materialization?: string) {
+    private addTraceRange(range: Range | undefined, call : boolean, returnStatement: boolean, evaluation: any, materialization?: string) {
         const entry = {
             stack: structuredClone(last(this.scope)),
             range,
             materialization,
             evaluation,
             call,
-            children: call ? [] : undefined
+            children: call ? [] : undefined,
+            parent: last(this.traceStack),
+            returnStatement
         }
         if(range != undefined)
             last(this.traceStack).children?.push(entry)
         return entry
     }
 
-    addTraceRuntimeError(node: ASTNode, error: RuntimeError) {
+    private addTraceRuntimeError(node: ASTNode, error: RuntimeError) {
         last(this.traceStack).children?.push({
             stack: structuredClone(last(this.scope)),
             range: node.range,
@@ -232,7 +254,7 @@ export class Interpreter {
             this.traceStack.push(this.trace)
             return this.tryRun(() => {
                 (program.block as BlockStatement).statements.forEach(i => this.execute(i));
-                this.addTrace((program.block as BlockStatement), undefined, undefined)
+                this.addTrace((program.block as BlockStatement), false, undefined, undefined)
                 this.scope.pop()
                 return {
                     errors: [],
@@ -288,7 +310,7 @@ export class Interpreter {
         else if (s instanceof Declaration) {
             if (s.initializer != null) {
                 const exp = this.evaluate(s.initializer as Expression)
-                this.addTrace(s, exp.evaluation, exp.materialization)
+                this.addTrace(s, false, exp.evaluation, exp.materialization)
                 this.topScope().variables.set(s.name, {
                     name: s.name,
                     evaluation: exp.evaluation,
@@ -298,7 +320,7 @@ export class Interpreter {
             }
         } else if (s instanceof Assignment) {
             const exp = this.evaluate(s.expression);
-            this.addTrace(s.expression, exp.evaluation, exp.materialization)
+            this.addTrace(s.expression, false, exp.evaluation, exp.materialization)
             this.topScope().variables.set(s.variable.name, {
                 name: s.variable.name,
                 evaluation: exp.evaluation,
@@ -357,13 +379,15 @@ export class Interpreter {
         } else if (s instanceof ReturnStatement) {
             let exp = undefined
             if(s.expression) {
+                //const tmp = this.execNoTrace(() => this.evaluate(s.expression!))
+                this.addTrace(s, false, undefined, this.materialize(s.expression))
                 exp = this.evaluate(s.expression)
                 if(s.expression.isSimple())
-                    this.addTrace(s.expression, exp.evaluation)
+                    this.addTrace(s.expression, false, exp.evaluation)
                 throw exp
             }
             else {
-                this.addTrace(s, undefined, undefined)
+                this.addTrace(s, false, undefined, undefined)
                 throw exp
             }
             // TODO return void
@@ -385,6 +409,31 @@ export class Interpreter {
             }
     }
 
+    materialize(e: Expression) : string | undefined {
+        if (e instanceof Variable) {
+            let variable = this.topScope().variables.get((e as Variable).declaration.name);
+
+            if (!variable && this.topScope().variables.get("this")) {
+                const fieldVal = this.topScope().variables.get("this")?.evaluation[(e as Variable).declaration.name]
+                return fieldVal.materialization
+            } else
+                return variable?.materialization
+        }
+        else if(e instanceof BinaryExpression) {
+            if(e.left.isSimple() && e.right.isSimple())
+                return this.execNoTrace(() => this.evaluate(e).evaluation)
+
+            const left = e.left.isSimple() ? this.execNoTrace(() => this.evaluate(e.left).evaluation) : this.materialize(e.left)
+            const right = e.right.isSimple() ? this.execNoTrace(() => this.evaluate(e.right).evaluation) : this.materialize(e.right)
+            return left + " " + e.operator + " " + right
+        }
+        else if(e instanceof CallExpression) {
+            return e.procedure.name + "(" + e.args.map(a=>this.materialize(a)).join() + ")"
+        }
+        else
+            return e.range?.text
+    }
+
     evaluate(e: Expression):
         ExpressionEval {
         if (e instanceof Variable) {
@@ -403,37 +452,42 @@ export class Interpreter {
             }
         } else if (e instanceof IntLiteral)
             return {
-                evaluation: e.value
+                evaluation: e.value,
+                materialization: e.value.toString()
             }
 
         else if (e instanceof DoubleLiteral)
             return {
-                evaluation: e.value
+                evaluation: e.value,
+                materialization: e.value.toString()
             }
 
         else if (e instanceof BooleanLiteral)
             return {
-                evaluation: e.value
+                evaluation: e.value,
+                materialization: e.value.toString()
             }
         else if (e instanceof StringLiteral)
             return {
-                evaluation: e.value
+                evaluation: e.value,
+                materialization: e.value.toString()
             }
 
         else if (e instanceof NullLiteral)
             return {
-                evaluation: null
+                evaluation: null,
+                materialization: "null"
             }
         else if (e instanceof UnaryExpression) {
             const expVal = this.evaluate(e.expression);
             if (e.operator === "-") {
-                this.addTrace(e, -expVal.evaluation, "-(" + expVal.evaluation + ")")
+                this.addTrace(e, false, -expVal.evaluation, "-(" + expVal.evaluation + ")")
                 return {
                     evaluation: -expVal.evaluation,
                     materialization: expVal.materialization
                 }
             } else if (e.operator === "!") {
-                this.addTrace(e, !expVal.evaluation, "!(" + expVal.evaluation + ")")
+                this.addTrace(e, false, !expVal.evaluation, "!(" + expVal.evaluation + ")")
                 return {
                     evaluation: !expVal.evaluation,
                     materialization: expVal.materialization
@@ -480,7 +534,7 @@ export class Interpreter {
                     detail: "INTERPRETER-evaluate"
                 }
 
-            this.addTrace(e, evaluation, materialization)
+            this.addTrace(e, false, evaluation, materialization)
             return {
                 evaluation,
                 materialization
@@ -598,13 +652,14 @@ export class Interpreter {
         this.scope.push({
             variables
         })
-        this.addTrace(call, undefined, mat)
+        this.addTrace(call, true, undefined, mat)
 
         try {
             p.body?.statements?.forEach(s => this.execute(s));
         } catch (e: any) {
             if (e.evaluation !== undefined) {
-                this.addCallTraceEnd(call, e)
+                //const resMat = p.name + "(" + argValues.map(a => a?.evaluation).join() + ")"
+                this.addCallTraceEnd(call, e.evaluation, e.materialization)
                 this.scope.pop()
                 return e
             } else
@@ -617,8 +672,8 @@ export class Interpreter {
                 message: `Procedure ${p.name} is expected to return a value of type ${p.returnType} but no return statement was reached`
             }
         }
+        this.addCallTraceEnd(call, undefined, undefined)
         this.scope.pop()
-        this.addCallTraceEnd(call, undefined)
         return {
             evaluation: undefined,
             materialization: undefined
@@ -637,7 +692,10 @@ export class Interpreter {
             case "*":
                 return left * right;
             case "/":
-                return left / right;
+                if(leftExp.type == PrimitiveType.INT || rightExp.type == PrimitiveType.INT) // TODO remove to translation? (java-specific)
+                    return (left / right) | 0
+                else
+                    return left / right;
             case "%":
                 return left % right;
             default:

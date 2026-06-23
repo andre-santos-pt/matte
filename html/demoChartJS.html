@@ -26,7 +26,6 @@ function chart(editor) {
     const canvas = document.createElement('canvas');
     wrapper.appendChild(canvas);
     editor.container.after(wrapper);
-
     let chart = new Chart(canvas, {
         type: 'bar',
         data: {
