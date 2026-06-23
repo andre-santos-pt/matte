@@ -282,6 +282,13 @@ export class ReturnStatement extends Statement {
         this.expression = expression;
     }
 
+    returnRange() : Range | undefined {
+        if(this.range)
+            return new Range(this.range?.start, this.range?.start + 6, this.range?.line, this.range?.column, "return")
+        else
+            return this.range
+    }
+
     // TODO return type check
 }
 

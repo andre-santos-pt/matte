@@ -36,6 +36,41 @@ function consoleExtension(editor) {
     });
 }
 
+window.callchain = (editor) => {
+    function stack(n) {
+        if(!n.parent)
+            return [];
+        else
+            return [...stack(n.parent), n.parent]
+    }
+    const div = document.createElement('div');
+    div.style.border = "1px solid black";
+    div.style.padding = "5px";
+    editor.container.after(div)
+    editor.afterRunListeners.push((r) => console.log(editor.trace))
+    editor.stepListeners.push((t, i) => {
+        let html = ""
+        const s = stack(t[i])
+        for(let j = 0; j < s.length; j++) {
+            html += "<span style='font-family: monospace'>"
+            for (let d = j; d !== 0; d--)
+                html += "&nbsp;&nbsp;&nbsp;&nbsp;"
+            html += s[j].materialization
+
+            for(let r = i; r >= 0; r--)
+                if(t[r].returnStatement && t[r].parent === s[j]) {
+                    html += " \u279c " + t[r].materialization
+                    break
+                }
+
+            html += "</span><br>"
+        }
+
+        div.replaceChildren()
+        div.innerHTML = html
+    })
+}
+
 
 class MatteAce extends HTMLElement {
     constructor() {

@@ -521,3 +521,4 @@ export default class MatteAceEditor {
         return widget;
     }
 }
+

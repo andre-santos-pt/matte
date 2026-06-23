@@ -60,40 +60,6 @@ int factorial(int n) {
             div.append(table)
         })
     }
-
-    function callchain(editor) {
-        function stack(n) {
-            if(!n.parent)
-                return [];
-            else
-                return [...stack(n.parent), n.parent]
-        }
-        const div = document.createElement('div');
-        editor.container.after(div)
-        editor.afterRunListeners.push((r) => console.log(editor.trace))
-        editor.stepListeners.push((t, i) => {
-            let html = ""
-            const s = stack(t[i])
-            for(let j = 0; j < s.length; j++) {
-                for (let d = j; d !== 0; d--)
-                    html += "&nbsp;&nbsp;&nbsp;&nbsp;"
-                html += s[j].materialization
-
-                for(let r = i; r >= 0; r--)
-                    if(t[r].returnStatement && t[r].parent === s[j]) {
-                        html += " = " + t[r].materialization
-                        break
-                    }
-
-                html += "<br>"
-            }
-
-            div.replaceChildren()
-            div.innerHTML = html
-        })
-
-
-    }
 </script>
 
 </body>

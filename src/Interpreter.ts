@@ -380,7 +380,7 @@ export class Interpreter {
             let exp = undefined
             if(s.expression) {
                 //const tmp = this.execNoTrace(() => this.evaluate(s.expression!))
-                this.addTrace(s, false, undefined, this.materialize(s.expression))
+                this.addTraceRange(s.returnRange(), false, true, undefined, this.materialize(s.expression))
                 exp = this.evaluate(s.expression)
                 if(s.expression.isSimple())
                     this.addTrace(s.expression, false, exp.evaluation)
@@ -415,9 +415,9 @@ export class Interpreter {
 
             if (!variable && this.topScope().variables.get("this")) {
                 const fieldVal = this.topScope().variables.get("this")?.evaluation[(e as Variable).declaration.name]
-                return fieldVal.materialization
+                return fieldVal.evaluation
             } else
-                return variable?.materialization
+                return variable?.evaluation
         }
         else if(e instanceof BinaryExpression) {
             if(e.left.isSimple() && e.right.isSimple())
