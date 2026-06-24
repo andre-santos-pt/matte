@@ -19,7 +19,7 @@ while(i != 10) {
 <hr>
 <h1>Independent Function</h1>
 
-<matte-ace call="sum({15, 20, 25})">
+<matte-ace call="sum({15, 20, 25})" ext-callchain>
 int sum(int[] a) {
     int s = 0;
     int i = 0;
@@ -29,6 +29,11 @@ int sum(int[] a) {
     }
     return s;
 }
+
+double avg(int[] array) {
+    return sum(array) / (array.length * 1.0);
+}
+
 </matte-ace>
 
 <hr>

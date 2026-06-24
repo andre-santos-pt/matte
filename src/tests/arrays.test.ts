@@ -109,9 +109,15 @@ describe('Matte Interpreter Test Arrays', () => {
                     i++;
                 }
                 return s;
-            }`,
+            }
+            
+            double avg(int[] array) {
+                return sum(array) / (array.length * 1.0);
+            }
+            `,
                 ["sum({1,2,3})",6],
-                ["sum({})",0])
+                ["sum({})",0],
+                ["avg({1,2})", 1.5])
         })
         }
     )

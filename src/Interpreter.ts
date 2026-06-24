@@ -448,7 +448,7 @@ export class Interpreter {
             }
             return {
                 evaluation: variable?.evaluation,
-                materialization: variable?.materialization
+                materialization: e.type == PrimitiveType.DOUBLE && Number.isInteger(variable?.evaluation) ? variable?.materialization + ".0" : variable?.materialization
             }
         } else if (e instanceof IntLiteral)
             return {
@@ -511,6 +511,7 @@ export class Interpreter {
 
                 if (e.operator == '+' && (typeof leftVal.evaluation === "string" || typeof rightVal.evaluation === "string"))
                     evaluation = leftVal.evaluation.toString() + rightVal.evaluation.toString()
+
                 else if (ArithmeticExpression.validOperator(e.operator))
                     evaluation = this.handleArithmetic(
                         e.left, leftVal,
@@ -523,7 +524,12 @@ export class Interpreter {
                         e.right, rightVal,
                         e.operator);
 
-                materialization = leftVal.evaluation + " " + e.operator + " " + rightVal.evaluation;
+                if(e.type == PrimitiveType.DOUBLE && Number.isInteger(evaluation))
+                    evaluation += 0.0
+
+                const left = e.left.type == PrimitiveType.DOUBLE && Number.isInteger(leftVal.evaluation) ? leftVal.evaluation.toString() + ".0" : leftVal.evaluation
+                const right = e.right.type == PrimitiveType.DOUBLE && Number.isInteger(rightVal.evaluation) ? rightVal.evaluation.toString() + ".0" : rightVal.evaluation
+                materialization = left + " " + e.operator + " " + right;
             }
 
             if (evaluation === undefined)
@@ -692,7 +698,7 @@ export class Interpreter {
             case "*":
                 return left * right;
             case "/":
-                if(leftExp.type == PrimitiveType.INT || rightExp.type == PrimitiveType.INT) // TODO remove to translation? (java-specific)
+                if(leftExp.type == PrimitiveType.INT && rightExp.type == PrimitiveType.INT) // TODO remove to translation? (java-specific)
                     return (left / right) | 0
                 else
                     return left / right;

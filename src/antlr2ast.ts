@@ -9,7 +9,7 @@ import JavaGrammarParser, {
     BinaryOpMulContext,
     BinaryOpRelContext,
     BlockStmtContext,
-    BoolExprContext,
+    BoolExprContext, BracketsExprContext,
     BreakContext,
     CallContext,
     CallExprContext,
@@ -608,7 +608,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     expToAST(ctx: ExpContext):
         Expression {
-        if (ctx instanceof IdExprContext) {
+        if(ctx instanceof BracketsExprContext) {
+            return this.expToAST(ctx.exp())
+        }
+        else if (ctx instanceof IdExprContext) {
             const dec = this.varLookup(ctx.getText(), ctx.ID())
             return new Variable(this.rangeContext(ctx), dec)
         } else if (ctx instanceof IntExprContext)
@@ -717,7 +720,8 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
         else if (ctx instanceof InstanceCallExprContext) {
             return this.handleInstanceCall(ctx);
-        } else
+        }
+        else
             throw {
                 message: "Unsupported expression type: " + this.streamText(ctx),
                 compilation: StaticErrorType.Unsupported,
