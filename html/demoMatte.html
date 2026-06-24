@@ -9,7 +9,7 @@
 
 <h1>Script mode</h1>
 <i>no width/height</i>
-<matte-ace call="">
+<matte-ace call="" ext-callstack>
 int i = 0;
 while(i != 10) {
     i = i + 1;
@@ -19,24 +19,35 @@ while(i != 10) {
 <hr>
 <h1>Independent Function</h1>
 
-<matte-ace call="sum({15, 20, 25})" ext-callchain>
-int sum(int[] a) {
+<matte-ace call="sum({15, 20, 25})" ext-callstack>
+    int sum(int[] a) {
     int s = 0;
     int i = 0;
     while(i < a.length) {
-        s = s + a[i];
-        i++;
+    s = s + a[i];
+    i++;
     }
     return s;
-}
+    }
 
-double avg(int[] array) {
+    double avg(int[] array) {
     return sum(array) / (array.length * 1.0);
-}
+    }
 
 </matte-ace>
 
-<hr>
+
+<matte-ace call="nats(5)" ext-callstack>
+int[] nats(int n) {
+    int[] arr = new int[n];
+    int i = 0;
+    while(i < arr.length) {
+    arr[i] = i + 1;
+    i++;
+    }
+    return arr;
+}
+</matte-ace>
 
 <matte-ace call="abs(-123)">
     int abs(int n) {
@@ -47,7 +58,7 @@ double avg(int[] array) {
 </matte-ace>
 
 <h1>Dependent Function</h1>
-<matte-ace call="isNotDigit(123)">
+<matte-ace call="isNotDigit(123)" ext-callstack>
 boolean isDigit(int n) {
     return n >= 0 && n <= 9;
 }
@@ -60,7 +71,7 @@ boolean isNotDigit(int n) {
 <hr>
 
 <h1>Recursive Function</h1>
-<matte-ace width="500" height="300" call="factorial(5)">
+<matte-ace width="500" height="300" call="factorial(5)" ext-callstack>
 int factorial(int n) {
     if (n == 0) return 1;
     else return n * factorial(n - 1);

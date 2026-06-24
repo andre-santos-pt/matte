@@ -8,7 +8,8 @@
     "test": "jest",
     "antlr": "antlr4ts -visitor -o ./src/generated ./JavaGrammar.g4",
     "lib": "esbuild src/Interpreter.ts --bundle --outfile=dist/matte.js --format=esm --platform=browser --sourcemap --minify",
-    "ace": "npx esbuild matteWebAce.js --bundle --minify --outfile=dist/matte-web-ace.js"
+    "ace": "npx esbuild matteWebAce.js --bundle --minify --outfile=dist/matte-web-ace.js",
+    "build": "npm run lib && npm run ace"
   },
   "author": "",
   "license": "ISC",

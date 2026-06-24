@@ -9,14 +9,14 @@
 
 <h1>Stack frames</h1>
 <hr>
-<matte-ace call="factorial(4)" ext-table ext-callchain>
+<matte-ace call="factorial(4)" ext-table ext-callstack>
 int factorial(int n) {
     if (n == 0) return 1;
     else return n * factorial(n - 1);
 }
 </matte-ace>
 
-<matte-ace call="firstDigit(2026)" ext-table ext-callchain>
+<matte-ace call="firstDigit(2026)" ext-table ext-callstack>
     int firstDigit(int n) {
     if (n < 10) return n;
     else return firstDigit(n / 10);

@@ -36,7 +36,7 @@ function consoleExtension(editor) {
     });
 }
 
-window.callchain = (editor) => {
+window.callstack = (editor) => {
     function stack(n) {
         if(!n.parent)
             return [];
