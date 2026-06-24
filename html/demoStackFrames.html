@@ -16,10 +16,17 @@ int factorial(int n) {
 }
 </matte-ace>
 
-<matte-ace call="firstDigit(2026)" ext-table ext-callstack>
+<matte-ace call="firstDigit(2026)" ext-callstack>
     int firstDigit(int n) {
     if (n < 10) return n;
     else return firstDigit(n / 10);
+    }
+</matte-ace>
+
+<matte-ace call="fib(7)"  ext-callstack>
+    int fib(int n) {
+    if (n <= 1) return n;
+    else return fib(n-1) + fib(n-2);
     }
 </matte-ace>
 <hr>
@@ -27,7 +34,6 @@ int factorial(int n) {
 <script>
     function table(editor) {
         const div = document.createElement('div');
-        editor.container.after(div)
         editor.stepListeners.push((t, i) => {
             div.replaceChildren()
             for(let j = 0; j < i; j++)
@@ -48,6 +54,8 @@ int factorial(int n) {
                 }
             const table = document.createElement('table');
             const tbody = table.createTBody();
+            console.log(i)
+            console.log(t[i])
             for (const [key, value] of t[i].stack.variables) {
                 const row = tbody.insertRow();
                 const th = document.createElement('th');
@@ -59,6 +67,7 @@ int factorial(int n) {
             }
             div.append(table)
         })
+        return div
     }
 </script>
 

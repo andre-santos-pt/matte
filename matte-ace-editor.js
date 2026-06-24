@@ -389,7 +389,6 @@ export default class MatteAceEditor {
                 this.popup(t.range.start, prevText + this.prettyPrint(t.evaluation) + mat, t.isCall, true);
             }
             this.stepListeners.forEach(l => l(this.trace, index));
-            //console.log(index + "/" + this.result.trace.length);
             this.slider.focus();
         }
         else {

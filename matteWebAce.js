@@ -44,9 +44,6 @@ window.callstack = (editor) => {
             return [...stack(n.parent), n.parent]
     }
     const div = document.createElement('div');
-    div.style.border = "1px solid black";
-    div.style.padding = "5px";
-    editor.container.after(div)
     editor.afterRunListeners.push((r) => console.log(editor.trace))
     editor.stepListeners.push((t, i) => {
         let html = ""
@@ -65,10 +62,10 @@ window.callstack = (editor) => {
 
             html += "</span><br>"
         }
-
         div.replaceChildren()
         div.innerHTML = html
     })
+    return div
 }
 
 
@@ -92,8 +89,19 @@ class MatteAce extends HTMLElement {
 
         Array.from(this.attributes).filter(attr => attr.name.startsWith("ext-")).forEach(attr => {
             const extName = attr.name.substring(4);
-            if (window[extName])
-                window[extName].call(this, editor);
+            if (window[extName]) {
+                const extDiv = window[extName].call(this, editor);
+                if(!(extDiv instanceof HTMLDivElement))
+                     console.error("Extension '" + extName + "' did not return a DIV");
+
+                const div = document.createElement("div")
+                div.style.border = "1px solid gray";
+                div.style.padding = "5px";
+                div.style.background = "#ececec";
+                extDiv.style.background = div.style.background;
+                div.append(extDiv)
+                editor.container.after(div)
+            }
         });
         if (this.hasAttribute("callbar") || this.hasAttribute("call")) {
             const call = this.hasAttribute("call") ? this.getAttribute("call") : "";
