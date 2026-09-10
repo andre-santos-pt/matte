@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+<title>Demo SIGCSE Virtual paper</title>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+<script src="../dist/matte-web-ace.js" defer></script>
+
+
+<matte-ace call="sum({15, 20, 25})">
+int sum(int[] a) {
+    int s = 0;
+    int i = 0;
+    while(i <= a.length) {
+        s = s + a[i];
+        i++;
+    }
+    return s;
+}
+</matte-ace>
+
+
+</body>
+</html>

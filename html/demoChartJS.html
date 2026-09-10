@@ -11,7 +11,7 @@
 
 <hr>
 <h1>Bar Chart</h1>
-<matte-ace height="180" width="450" call="naturals(4)" ext-chart>
+<matte-ace  call="naturals(4)" ext-chart>
 int[] naturals(int n) {
     int[] a = new int[n];
     for(int i = 0; i < n; i++)
@@ -22,10 +22,9 @@ int[] naturals(int n) {
 <script>
 function chart(editor) {
     const wrapper = document.createElement('div');
-    wrapper.style.height = '180px';
+    wrapper.style.height = '100px';
     const canvas = document.createElement('canvas');
     wrapper.appendChild(canvas);
-    editor.container.after(wrapper);
     let chart = new Chart(canvas, {
         type: 'bar',
         data: {
@@ -33,7 +32,6 @@ function chart(editor) {
             datasets: [{label: 'value', data: []}]
         }
     });
-    editor.container.after(canvas);
     editor.afterRunListeners.push(r => {
         const ret = r.result.evaluation;
         if(Array.isArray(ret)) {
@@ -42,6 +40,7 @@ function chart(editor) {
             chart.update();
         }
     });
+    return wrapper;
 }
 </script>
 <hr>

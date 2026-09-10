@@ -63,6 +63,7 @@ export interface TraceEntry {
 interface RuntimeError {
     type: RuntimeErrorType;
     message: string;
+    range?: Range;
 }
 
 export enum RuntimeErrorType {
@@ -124,7 +125,8 @@ export class Interpreter {
                 if (value === this.maxLoopIterations)
                     this.addTraceRuntimeError(loop, {
                         type: RuntimeErrorType.MaxIterationsReached,
-                        message: "max loop iterations"
+                        message: "max loop iterations",
+                        range: loop.range
                     })
                 this.loopCount.set(loop, value + 1);
             } else
@@ -142,13 +144,13 @@ export class Interpreter {
     }
 
     private addTrace(node: ASTNode, call: boolean, isReturn: boolean, evaluation: any, materialization?: string) {
-        if(!this.traceOn)
+        if (!this.traceOn)
             return
 
         const t = this.addTraceRange(node.range, call, isReturn, evaluation, materialization)
-        if(node instanceof CallExpression && call) {
+        if (node instanceof CallExpression && call) {
             this.traceStack.push(t)
-            if(!this.trace) {
+            if (!this.trace) {
                 this.trace = t
                 t.range = node.procedure.nameRange
             }
@@ -156,18 +158,17 @@ export class Interpreter {
     }
 
     private addCallTraceEnd(call: CallExpression, evaluation: any, materialization: any) {
-        if(!this.traceOn)
+        if (!this.traceOn)
             return
 
-        if(this.traceStack.length > 1)
+        if (this.traceStack.length > 1)
             this.traceStack.pop()
 
         this.addTrace(call, false, false, evaluation, materialization)
     }
 
 
-
-    private addTraceRange(range: Range | undefined, call : boolean, returnStatement: boolean, evaluation: any, materialization?: string) {
+    private addTraceRange(range: Range | undefined, call: boolean, returnStatement: boolean, evaluation: any, materialization?: string) {
         const entry = {
             stack: structuredClone(last(this.scope)),
             range,
@@ -178,7 +179,7 @@ export class Interpreter {
             parent: last(this.traceStack),
             returnStatement
         }
-        if(range != undefined)
+        if (range != undefined)
             last(this.traceStack).children?.push(entry)
         return entry
     }
@@ -321,20 +322,49 @@ export class Interpreter {
             }
         } else if (s instanceof Assignment) {
             const exp = this.evaluate(s.expression);
-            this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization)
-            this.topScope().variables.set(s.variable.name, {
-                name: s.variable.name,
-                evaluation: exp.evaluation,
-                materialization: exp.materialization,
-                declaration: s.variable.range
-            })
+            //this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization)
+            const v = this.topScope().variables.get(s.variable.name)
+
+            function paren(mat: string | undefined): string | undefined {
+                if (mat == undefined)
+                    return ""
+                else if (mat.includes(" "))
+                    return "(" + mat + ")"
+                else
+                    return mat
+            }
+            if (s.expression instanceof BinaryExpression && s.expression.left instanceof Variable && s.expression.left.declaration == s.variable) {
+                this.topScope().variables.set(s.variable.name, {
+                    name: s.variable.name,
+                    evaluation: exp.evaluation,
+                    materialization: paren(v?.materialization) + " " + s.expression.operator + " " + this.evaluate(s.expression.right).evaluation,
+                    declaration: s.variable.range
+                })
+            }
+            else if (s.expression instanceof BinaryExpression && s.expression.right instanceof Variable && s.expression.right.declaration == s.variable) {
+                this.topScope().variables.set(s.variable.name, {
+                    name: s.variable.name,
+                    evaluation: exp.evaluation,
+                    materialization: this.evaluate(s.expression.left).evaluation + " " + s.expression.operator + " " + paren(v?.materialization),
+                    declaration: s.variable.range
+                })
+            }
+            else {
+                this.topScope().variables.set(s.variable.name, {
+                    name: s.variable.name,
+                    evaluation: exp.evaluation,
+                    materialization: exp.materialization,
+                    declaration: s.variable.range
+                })
+            }
         } else if (s instanceof ArrayAssignment) {
             const arrayVal = this.evaluate(s.target).evaluation
 
             if (arrayVal == null)
                 this.addTraceRuntimeError(s.target, {
                         type: RuntimeErrorType.NullPointer,
-                        message: "Reference is null"
+                        message: "Reference is null",
+                        range: s.target.range
                     }
                 )
 
@@ -342,7 +372,8 @@ export class Interpreter {
             if (index < 0 || index >= arrayVal.length)
                 this.addTraceRuntimeError(s.index, {
                         type: RuntimeErrorType.ArrayIndexOutOfBounds,
-                        message: "Array index out of bounds: " + index
+                        message: "Array index out of bounds: " + index,
+                        range: s.target.range
                     }
                 )
             arrayVal[index] = this.evaluate(s.expression).evaluation
@@ -379,7 +410,7 @@ export class Interpreter {
             }
         } else if (s instanceof ReturnStatement) {
             let exp = undefined
-            if(s.expression) {
+            if (s.expression) {
                 this.addTraceRange(s.returnRange(), false, true, undefined, this.materialize(s.expression))
                 exp = this.evaluate(s.expression, true)
                 //exp.materialization = exp.evaluation.toString()
@@ -388,8 +419,7 @@ export class Interpreter {
                 // else
                 this.addTraceRange(s.returnRange(), false, true, exp.evaluation, exp.evaluation.toString())
                 throw exp
-            }
-            else {
+            } else {
                 this.addTrace(s, false, true, undefined, undefined)
                 throw exp
             }
@@ -412,7 +442,7 @@ export class Interpreter {
             }
     }
 
-    materialize(e: Expression) : string | undefined {
+    materialize(e: Expression): string | undefined {
         if (e instanceof Variable) {
             let variable = this.topScope().variables.get((e as Variable).declaration.name);
 
@@ -421,8 +451,7 @@ export class Interpreter {
                 return fieldVal.evaluation
             } else
                 return variable?.evaluation
-        }
-        else if(e instanceof BinaryExpression) {
+        } else if (e instanceof BinaryExpression) {
             //if(e.left.isSimple() && e.right.isSimple())
             //    return this.execNoTrace(() => this.evaluate(e).evaluation)
 
@@ -431,11 +460,9 @@ export class Interpreter {
             //return left + " " + e.operator + " " + right
 
             return this.materialize(e.left) + " " + e.operator + " " + this.materialize(e.right)
-        }
-        else if(e instanceof CallExpression) {
-            return e.procedure.name + "(" + e.args.map(a=>this.materialize(a)).join() + ")"
-        }
-        else
+        } else if (e instanceof CallExpression) {
+            return e.procedure.name + "(" + e.args.map(a => this.materialize(a)).join() + ")"
+        } else
             return e.range?.text
     }
 
@@ -583,7 +610,8 @@ export class Interpreter {
                     e.target,
                     {
                         type: RuntimeErrorType.NullPointer,
-                        message: "Reference is null"
+                        message: "Reference is null",
+                        range: e.target.range
                     }
                 )
             return {
@@ -616,7 +644,8 @@ export class Interpreter {
             if (index < 0 || index >= arrayVal.length)
                 this.addTraceRuntimeError(e.index, {
                         type: RuntimeErrorType.ArrayIndexOutOfBounds,
-                        message: "Array index out of bounds: " + index
+                        message: "Array index out of bounds: " + index,
+                        range: e.index.range
                     }
                 )
 
@@ -700,7 +729,7 @@ export class Interpreter {
             case "*":
                 return left * right;
             case "/":
-                if(leftExp.type == PrimitiveType.INT && rightExp.type == PrimitiveType.INT) // TODO remove to translation? (java-specific)
+                if (leftExp.type == PrimitiveType.INT && rightExp.type == PrimitiveType.INT) // TODO remove to translation? (java-specific)
                     return (left / right) | 0
                 else
                     return left / right;
