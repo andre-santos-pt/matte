@@ -6,6 +6,7 @@ const {Range} = ace.require("ace/range");
 export default class MatteAceEditor {
     constructor(container, width, height) {
         this.container = container;
+        this.container.style.marginTop = "25px";
         this.container.style.border = "1px solid #d0d0d0";
         this.container.style.borderRadius = "6px";
         this.container.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)";
@@ -233,6 +234,7 @@ export default class MatteAceEditor {
             if (event.key === "Enter") {
                 event.preventDefault();
                 this.runParser();
+                this.resultLabel.style.visibility = "visible";
             }
         });
         this.runBtn.after(this.callBox)
@@ -241,6 +243,10 @@ export default class MatteAceEditor {
         this.resultLabel.title = "Result of the last evaluation";
         this.resultLabel.style = "font-family: monospace; font-weight: bold; margin-left: 10px;";
         this.callBox.after(this.resultLabel);
+        this.callBox.addEventListener('input', () => {
+            this.resultLabel.style.visibility = "hidden";
+            this.debugBtn.hidden = true;
+        });
         this.cumulativeMode = false;
         this.editor.container.addEventListener('keydown', (event) => {
             if (!this.editor.getReadOnly() || event.key.length !== 1 ||
