@@ -237,6 +237,8 @@ export default class MatteAceEditor {
         this.runBtn.after(this.callBox)
 
         this.resultLabel = document.createElement('span');
+        this.resultLabel.title = "Result of the last evaluation";
+        this.resultLabel.style = "font-family: monospace; font-weight: bold; margin-left: 10px;";
         this.callBox.after(this.resultLabel);
         this.cumulativeMode = false;
         this.editor.session.on('change', () => {
@@ -460,23 +462,25 @@ export default class MatteAceEditor {
 
             let prevText = "";
             if (cumulative) {
-                const prev = this.trace.filter((prev, i) => i < index && prev.range.start === t.range.start);
+                const prev = t.range
+                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === t.range.start)
+                    : [];
                 prevText = prev.map(p => {
-                    const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
-                    return this.prettyPrint(p.evaluation) + mat
+                    //const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
+                    return this.prettyPrint(p.evaluation)
                 }).join("\n")
                 if (prevText.length > 0)
                     prevText += "\n";
             }
 
 
-            if (t.evaluation != null) {
+            if (t.evaluation != null && t.range) {
                 const mat = t.materialization !== t.evaluation.toString() ? t.materialization ? " (" + this.pretty(t.materialization) + ")" : "" : "";
                 this.popup(t.range.start, prevText + this.prettyPrint(t.evaluation) + mat, t.isCall, true);
             }
             this.stepListeners.forEach(l => l(this.trace, index));
             this.slider.focus();
-            this.resultLabel.style.visibility = "hidden";
+            this.resultLabel.style.visibility = index === lastIndex ? "visible" : "hidden";
         } else {
             const lastRange = this.range2Ace(this.trace[lastIndex]);
             this.editor.gotoLine(lastRange.end.row + 1, 1);
