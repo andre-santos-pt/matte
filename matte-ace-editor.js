@@ -227,7 +227,7 @@ export default class MatteAceEditor {
         this.callBox = document.createElement('input');
         this.callBox.type = "text";
         this.callBox.title = "Write a call to a function or leave empty to run script";
-        this.callBox.style = "margin-left: 10px; font-family: 'Monaco', 'Menlo', monospace;";
+        this.callBox.style = "margin-left: 10px; font-family: 'Monaco', 'Menlo', monospace; background-color: #f0f0f0; border: 1px solid #d0d0d0; border-radius: 3px; padding: 2px 5px; width: 300px;";
         this.callBox.value = call == null ? "" : call;
         this.callBox.addEventListener("keydown", (event) => {
             if (event.key === "Enter") {
