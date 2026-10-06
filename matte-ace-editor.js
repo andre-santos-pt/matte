@@ -488,7 +488,7 @@ export default class MatteAceEditor {
             let prevText = "";
             if (cumulative) {
                 const prev = t.range
-                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === t.range.start && t.evaluation != null)
+                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === t.range.start && prev.evaluation != null)
                     : [];
                 prevText = prev.map(p => {
                     const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
