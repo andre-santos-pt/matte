@@ -6,6 +6,7 @@ const {Range} = ace.require("ace/range");
 export default class MatteAceEditor {
     constructor(container, width, height) {
         this.container = container;
+        this.originalBackgroundColor = this.container.style.backgroundColor;
         this.container.style.border = "1px solid #d0d0d0";
         this.container.style.borderRadius = "6px";
         this.container.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)";
@@ -211,16 +212,17 @@ export default class MatteAceEditor {
     addCallBox(call) {
         this.runBox = document.createElement('div');
         this.runBox.style = "display: flex; align-items: center; gap: 10px; margin-top: 5px; margin-bottom: 5px";
+
         this.container.after(this.runBox);
 
-        this.compileBtn = document.createElement('button');
-        this.compileBtn.innerHTML = "▶";
-        this.compileBtn.style = "cursor: pointer; border: solid 1px; padding: 2px 10px; border-radius: 3px; font-weight: bold;";
-        this.compileBtn.onclick = () => {
+        this.runBtn = document.createElement('button');
+        this.runBtn.innerHTML = "▶";
+        this.runBtn.style = "cursor: pointer; border: solid 1px; padding: 2px 10px; border-radius: 3px; font-weight: bold;";
+        this.runBtn.onclick = () => {
             this.runParser();
             this.resultLabel.style.visibility = "visible";
         }
-        this.runBox.append(this.compileBtn);
+        this.runBox.append(this.runBtn);
 
         this.callBox = document.createElement('input');
         this.callBox.type = "text";
@@ -231,23 +233,33 @@ export default class MatteAceEditor {
                 this.runParser();
             }
         });
-        this.compileBtn.after(this.callBox)
+        this.runBtn.after(this.callBox)
 
         this.resultLabel = document.createElement('span');
         this.callBox.after(this.resultLabel);
+        this.editor.session.on('change', () => {
+            this.resultLabel.textContent = '';
+            this.disableDebugMode();
+        });
 
-        this.stepBtn = document.createElement('button');
-        this.stepBtn.innerHTML = "Debug";
-        this.stepBtn.onclick = () => {
+        this.debugBtn = document.createElement('button');
+        this.debugBtn.innerHTML = "Debug";
+        this.debugBtn.onclick = () => {
             this.slider.hidden = false;
-            this.stepBtn.hidden = true;
+            this.slider.value = this.slider.min;
+            this.backBtn.hidden = false;
+            this.forwardBtn.hidden = false;
+            this.closeDebugBtn.hidden = false;
+            this.debugBtn.hidden = true;
             this.cumulative.hidden = true;
-            //this.editor.setReadOnly(true); // TODO check dirty
+            this.updateDebugNavigation();
+            this.editor.setReadOnly(true); // TODO check dirty
+            this.container.style.backgroundColor = "#f2f2f2";
             this.step(0, this.cumulative.checked);
             this.resultLabel.style.visibility = "hidden";
         }
-        this.stepBtn.hidden = true;
-        this.resultLabel.after(this.stepBtn);
+        this.debugBtn.hidden = true;
+        this.resultLabel.after(this.debugBtn);
 
         this.slider = document.createElement('input');
         this.slider.type = "range";
@@ -255,21 +267,78 @@ export default class MatteAceEditor {
         this.slider.value = "0";
         this.slider.hidden = true;
         this.slider.addEventListener('input', (e) => {
-            const index = e.target.value;
+            const index = Number(e.target.value);
             this.step(index, this.cumulative.checked);
+            this.updateDebugNavigation();
         });
-        this.slider.addEventListener('focusout', () => {
-            this.popups.forEach(p => p.hide());
-            this.slider.hidden = true;
-            this.stepBtn.hidden = false;
-            this.cumulative.hidden = false;
-        });
-        this.stepBtn.after(this.slider);
+        // this.slider.addEventListener('focusout', () => {
+        //     this.popups.forEach(p => p.hide());
+        //     this.slider.hidden = true;
+        //     this.debugBtn.hidden = false;
+        //     this.cumulative.hidden = false;
+        // });
+        this.debugBtn.after(this.slider);
+
+        this.backBtn = document.createElement('button');
+        this.backBtn.innerHTML = "←";
+        this.backBtn.title = "Back";
+        this.backBtn.setAttribute("aria-label", "Back");
+        this.backBtn.hidden = true;
+        this.backBtn.onclick = () => this.moveSlider(-1);
+        this.slider.after(this.backBtn);
+
+        this.forwardBtn = document.createElement('button');
+        this.forwardBtn.innerHTML = "→";
+        this.forwardBtn.title = "Forward";
+        this.forwardBtn.setAttribute("aria-label", "Forward");
+        this.forwardBtn.hidden = true;
+        this.forwardBtn.onclick = () => this.moveSlider(1);
+        this.backBtn.after(this.forwardBtn);
+
+        this.closeDebugBtn = document.createElement('button');
+        this.closeDebugBtn.innerHTML = "×";
+        this.closeDebugBtn.title = "Close";
+        this.closeDebugBtn.setAttribute("aria-label", "Close");
+        this.closeDebugBtn.hidden = true;
+        this.closeDebugBtn.onclick = () => {
+            this.disableDebugMode();
+            this.debugBtn.hidden = false;
+        };
+        this.forwardBtn.after(this.closeDebugBtn);
 
         this.cumulative = document.createElement('input');
         this.cumulative.type = 'checkbox';
         this.cumulative.hidden = true;
-        this.slider.after(this.cumulative);
+        this.closeDebugBtn.after(this.cumulative);
+    }
+
+    disableDebugMode() {
+        this.popups.forEach(p => p.hide());
+        this.slider.hidden = true;
+        this.backBtn.hidden = true;
+        this.forwardBtn.hidden = true;
+        this.closeDebugBtn.hidden = true;
+        this.debugBtn.hidden = true;
+        this.cumulative.hidden = true;
+        this.editor.setReadOnly(false);
+        this.container.style.backgroundColor = this.originalBackgroundColor;
+        this.resultLabel.style.visibility = "visible";
+    }
+
+    moveSlider(delta) {
+        const index = Math.max(
+            Number(this.slider.min),
+            Math.min(Number(this.slider.value) + delta, Number(this.slider.max))
+        );
+        this.slider.value = index.toString();
+        this.step(index, this.cumulative.checked);
+        this.updateDebugNavigation();
+    }
+
+    updateDebugNavigation() {
+        const index = Number(this.slider.value);
+        this.backBtn.disabled = index <= Number(this.slider.min);
+        this.forwardBtn.disabled = index >= Number(this.slider.max);
     }
 
     runParser() {
@@ -302,22 +371,29 @@ export default class MatteAceEditor {
                     "error-highlight",
                     "text"
                 );
-                this.slider.max = (this.trace.length).toString();
+                this.slider.max = Math.max(0, this.trace.length - 1).toString();
                 this.slider.value = this.slider.max;
-                this.stepBtn.hidden = true;
+                this.debugBtn.hidden = true;
                 this.slider.hidden = false;
+                this.backBtn.hidden = false;
+                this.forwardBtn.hidden = false;
+                this.closeDebugBtn.hidden = false;
                 this.cumulative.hidden = false;
+                this.updateDebugNavigation();
             } else {
                 this.resultLabel.innerHTML = '';
                 // TODO handle void
                 // TODO handle script (show var state)
                 if (this.result.result !== undefined)
                     this.resultLabel.innerHTML = ' = ' + JSON.stringify(this.result.result.evaluation);
-                this.slider.max = (this.trace.length).toString();
+                this.slider.max = Math.max(0, this.trace.length - 1).toString();
                 this.slider.value = "0";
-                this.stepBtn.hidden = false;
+                this.debugBtn.hidden = false;
                 this.cumulative.hidden = false;
                 this.slider.hidden = true;
+                this.backBtn.hidden = true;
+                this.forwardBtn.hidden = true;
+                this.closeDebugBtn.hidden = true;
             }
             this.afterRunListeners.forEach(l => l(this.result));
         }
@@ -359,7 +435,7 @@ export default class MatteAceEditor {
         return mat
             .replaceAll("&&", "∧")
             .replaceAll("||", "∨")
-            .replaceAll("!", "¬")
+            .replaceAll("!", "¬") // TODO problem with !=
             .replaceAll("<=", "≤")
             .replaceAll(">=", "≥")
     }
@@ -378,7 +454,6 @@ export default class MatteAceEditor {
             if (cumulative) {
                 const prev = this.trace.filter((prev, i) => i < index && prev.range.start === t.range.start);
                 prevText = prev.map(p => {
-                    console.log(p.materialization)
                     const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
                     return this.prettyPrint(p.evaluation) + mat
                 }).join("\n")
@@ -524,4 +599,3 @@ export default class MatteAceEditor {
         return widget;
     }
 }
-
