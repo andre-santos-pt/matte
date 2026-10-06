@@ -21,6 +21,7 @@ export default class MatteAceEditor {
         }
         this.container.style.display = "block"
         this.editor = ace.edit(this.container);
+        this.editorBackgroundColor = this.editor.container.querySelector('.ace_scroller').style.backgroundColor;
         this.editor.setTheme("ace/theme/textmate");
         this.editor.session.setMode("ace/mode/java");
         this.editor.setFontSize(20);
@@ -206,16 +207,6 @@ export default class MatteAceEditor {
         }
     }
 
-    // addInspector() {
-    //     const jlk = this;
-    //     this.editor.selection.on('changeSelection', ()=> {
-    //         var range = this.editor.getSelectionRange()
-    //         let log = this.result.trace.filter(t => t.range.line === range.start.row + 1).map(t => t.materialization);
-    //         if (log.length > 0) {
-    //             this.popup(0, log.join("\n"));
-    //         }
-    //     });
-    // }
 
     addCallBox(call) {
         this.runBox = document.createElement('div');
@@ -236,6 +227,7 @@ export default class MatteAceEditor {
         this.callBox = document.createElement('input');
         this.callBox.type = "text";
         this.callBox.title = "Write a call to a function or leave empty to run script";
+        this.callBox.style = "margin-left: 10px; font-family: 'Monaco', 'Menlo', monospace;";
         this.callBox.value = call == null ? "" : call;
         this.callBox.addEventListener("keydown", (event) => {
             if (event.key === "Enter") {
@@ -250,6 +242,15 @@ export default class MatteAceEditor {
         this.resultLabel.style = "font-family: monospace; font-weight: bold; margin-left: 10px;";
         this.callBox.after(this.resultLabel);
         this.cumulativeMode = false;
+        this.editor.container.addEventListener('keydown', (event) => {
+            if (!this.editor.getReadOnly() || event.key.length !== 1 ||
+                event.ctrlKey || event.metaKey || event.altKey || event.isComposing)
+                return;
+
+            this.popups.forEach(p => p.hide());
+            const cursorIndex = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
+            const tip = this.popup(cursorIndex, "Read-only. Close the debug mode to edit the code.", true);
+        }, true);
         this.editor.session.on('change', () => {
             this.resultLabel.textContent = '';
             this.resultLabel.style.visibility = "visible";
@@ -266,6 +267,7 @@ export default class MatteAceEditor {
             this.cumulative.hidden = false;
             this.updateDebugNavigation();
             this.editor.setReadOnly(true); // TODO check dirty
+            this.editor.container.querySelector('.ace_scroller').style.backgroundColor = 'lightgray';
             this.step(0, this.cumulativeMode);
             this.resultLabel.style.visibility = "hidden";
         }
@@ -311,17 +313,7 @@ export default class MatteAceEditor {
         this.closeDebugBtn.title = "Close debug mode";
         this.closeDebugBtn.setAttribute("aria-label", "Close");
         this.closeDebugBtn.hidden = true;
-        this.closeDebugBtn.onclick = () => {
-            this.popups.forEach(p => p.hide());
-            this.slider.hidden = true;
-            this.backBtn.hidden = true;
-            this.forwardBtn.hidden = true;
-            this.closeDebugBtn.hidden = true;
-            this.debugBtn.hidden = false;
-            this.cumulative.hidden = true;
-            this.editor.setReadOnly(false);
-            this.resultLabel.style.visibility = "visible";
-        };
+        this.closeDebugBtn.onclick = () => this.closeDebugMode();
         this.forwardBtn.after(this.closeDebugBtn);
 
         this.cumulative = document.createElement('button');
@@ -341,6 +333,19 @@ export default class MatteAceEditor {
         };
         this.cumulative.hidden = true;
         this.backBtn.before(this.cumulative);
+    }
+
+    closeDebugMode() {
+        this.popups.forEach(p => p.hide());
+        this.slider.hidden = true;
+        this.backBtn.hidden = true;
+        this.forwardBtn.hidden = true;
+        this.closeDebugBtn.hidden = true;
+        this.debugBtn.hidden = false;
+        this.cumulative.hidden = true;
+        this.editor.setReadOnly(false);
+        this.editor.container.querySelector('.ace_scroller').style.backgroundColor = this.editorBackgroundColor;
+        this.resultLabel.style.visibility = "visible";
     }
 
     moveSlider(delta) {
@@ -427,6 +432,7 @@ export default class MatteAceEditor {
         tip.setHtml(message);
         this.positionPopup(tip, offset, message, top);
         tip.show()
+        return tip;
     }
 
     positionPopup(tip, offset, message, top) {
