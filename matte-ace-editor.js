@@ -236,6 +236,7 @@ export default class MatteAceEditor {
 
         this.resultLabel = document.createElement('span');
         this.callBox.after(this.resultLabel);
+        this.cumulativeMode = false;
         this.editor.session.on('change', () => {
             this.resultLabel.textContent = '';
             this.resultLabel.style.visibility = "visible";
@@ -249,10 +250,10 @@ export default class MatteAceEditor {
             this.forwardBtn.hidden = false;
             this.closeDebugBtn.hidden = false;
             this.debugBtn.hidden = true;
-            this.cumulative.hidden = true;
+            this.cumulative.hidden = false;
             this.updateDebugNavigation();
             this.editor.setReadOnly(true); // TODO check dirty
-            this.step(0, this.cumulative.checked);
+            this.step(0, this.cumulativeMode);
             this.resultLabel.style.visibility = "hidden";
         }
         this.debugBtn.hidden = true;
@@ -265,7 +266,7 @@ export default class MatteAceEditor {
         this.slider.hidden = true;
         this.slider.addEventListener('input', (e) => {
             const index = Number(e.target.value);
-            this.step(index, this.cumulative.checked);
+            this.step(index, this.cumulativeMode);
             this.updateDebugNavigation();
         });
         // this.slider.addEventListener('focusout', () => {
@@ -304,16 +305,29 @@ export default class MatteAceEditor {
             this.forwardBtn.hidden = true;
             this.closeDebugBtn.hidden = true;
             this.debugBtn.hidden = false;
-            this.cumulative.hidden = false;
+            this.cumulative.hidden = true;
             this.editor.setReadOnly(false);
             this.resultLabel.style.visibility = "visible";
         };
         this.forwardBtn.after(this.closeDebugBtn);
 
-        this.cumulative = document.createElement('input');
-        this.cumulative.type = 'checkbox';
+        this.cumulative = document.createElement('button');
+        this.cumulative.type = 'button';
+        this.cumulative.textContent = '∑';
+        this.cumulative.title = 'Cumulative';
+        this.cumulative.setAttribute('aria-label', 'Cumulative view');
+        this.cumulative.setAttribute('aria-pressed', 'false');
+        this.cumulative.style.cursor = 'pointer';
+        this.cumulative.onclick = () => {
+            this.cumulativeMode = !this.cumulativeMode;
+            this.cumulative.setAttribute('aria-pressed', this.cumulativeMode.toString());
+            this.cumulative.title = `Cumulative view: ${this.cumulativeMode ? 'on' : 'off'}`;
+            this.cumulative.style.backgroundColor = this.cumulativeMode ? '#cfe8ff' : '';
+            this.cumulative.style.borderColor = this.cumulativeMode ? '#4586bd' : '';
+            this.step(Number(this.slider.value), this.cumulativeMode);
+        };
         this.cumulative.hidden = true;
-        this.closeDebugBtn.after(this.cumulative);
+        this.backBtn.before(this.cumulative);
     }
 
     moveSlider(delta) {
@@ -322,7 +336,7 @@ export default class MatteAceEditor {
             Math.min(Number(this.slider.value) + delta, Number(this.slider.max))
         );
         this.slider.value = index.toString();
-        this.step(index, this.cumulative.checked);
+        this.step(index, this.cumulativeMode);
         this.updateDebugNavigation();
     }
 
@@ -380,7 +394,7 @@ export default class MatteAceEditor {
                 this.slider.max = Math.max(0, this.trace.length - 1).toString();
                 this.slider.value = "0";
                 this.debugBtn.hidden = false;
-                this.cumulative.hidden = false;
+                this.cumulative.hidden = true;
                 this.slider.hidden = true;
                 this.backBtn.hidden = true;
                 this.forwardBtn.hidden = true;
