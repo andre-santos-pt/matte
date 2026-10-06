@@ -37,6 +37,15 @@ export default class MatteAceEditor {
         //this.addInspector();
         this.result = null;
         this.popups = [];
+        this.popupPositions = new WeakMap();
+        this.repositionPopups = () => {
+            this.popups.forEach(tip => {
+                const position = this.popupPositions.get(tip);
+                if (position)
+                    this.positionPopup(tip, position.offset, position.message, position.top);
+            });
+        };
+        window.addEventListener('scroll', this.repositionPopups, true);
         this.extensions = {};
         this.beforeRunListeners = [];
         this.afterRunListeners = [];
@@ -412,6 +421,15 @@ export default class MatteAceEditor {
         const Tooltip = ace.require("ace/tooltip").Tooltip;
         const tip = new Tooltip(this.editor.container);
         tip.getElement().classList.add(exp ? "ace_tooltip_exp" : "ace_tooltip");
+        this.popupPositions.set(tip, {offset, message, top});
+        this.popups.push(tip);
+        tip.setClassName("my-error-tooltip");
+        tip.setHtml(message);
+        this.positionPopup(tip, offset, message, top);
+        tip.show()
+    }
+
+    positionPopup(tip, offset, message, top) {
         const pos = this.editor.session.doc.indexToPosition(offset);
         const y = pos.row;
         const x = top ? pos.column - 1 : this.editor.session.getLine(pos.row).length; // end of line
@@ -420,12 +438,7 @@ export default class MatteAceEditor {
             canvasPos.pageY -= 25 * (1 + (message.split('\n').length - 1));
         else
             canvasPos.pageX += 10;
-        this.popups.push(tip);
-        tip.setClassName("my-error-tooltip");
-        tip.setHtml(message);
         tip.setPosition(canvasPos.pageX, canvasPos.pageY)
-        tip.show()
-        //tip.show(message, canvasPos.pageX, canvasPos.pageY);
     }
 
     range2Ace(range) {
@@ -441,7 +454,7 @@ export default class MatteAceEditor {
     }
 
     pretty(mat) {
-        return mat
+        return mat.toString()
             .replaceAll("&&", "∧")
             .replaceAll("||", "∨")
             .replaceAll("!=", "≠")
@@ -463,11 +476,11 @@ export default class MatteAceEditor {
             let prevText = "";
             if (cumulative) {
                 const prev = t.range
-                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === t.range.start)
+                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === t.range.start && t.evaluation != null)
                     : [];
                 prevText = prev.map(p => {
-                    //const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
-                    return this.prettyPrint(p.evaluation)
+                    const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
+                    return this.prettyPrint(p.evaluation) + mat
                 }).join("\n")
                 if (prevText.length > 0)
                     prevText += "\n";
