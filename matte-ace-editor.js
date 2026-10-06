@@ -216,6 +216,7 @@ export default class MatteAceEditor {
 
         this.runBtn = document.createElement('button');
         this.runBtn.innerHTML = "▶";
+        this.runBtn.title = "Evaluate call";
         this.runBtn.style = "cursor: pointer; border: solid 1px; padding: 2px 10px; border-radius: 3px; font-weight: bold;";
         this.runBtn.onclick = () => {
             this.runParser();
@@ -225,6 +226,7 @@ export default class MatteAceEditor {
 
         this.callBox = document.createElement('input');
         this.callBox.type = "text";
+        this.callBox.title = "Write a call to a function or leave empty to run script";
         this.callBox.value = call == null ? "" : call;
         this.callBox.addEventListener("keydown", (event) => {
             if (event.key === "Enter") {
@@ -279,7 +281,7 @@ export default class MatteAceEditor {
 
         this.backBtn = document.createElement('button');
         this.backBtn.innerHTML = "←";
-        this.backBtn.title = "Back";
+        this.backBtn.title = "Step back";
         this.backBtn.setAttribute("aria-label", "Back");
         this.backBtn.hidden = true;
         this.backBtn.onclick = () => this.moveSlider(-1);
@@ -287,7 +289,7 @@ export default class MatteAceEditor {
 
         this.forwardBtn = document.createElement('button');
         this.forwardBtn.innerHTML = "→";
-        this.forwardBtn.title = "Forward";
+        this.forwardBtn.title = "Step forward";
         this.forwardBtn.setAttribute("aria-label", "Forward");
         this.forwardBtn.hidden = true;
         this.forwardBtn.onclick = () => this.moveSlider(1);
@@ -295,7 +297,7 @@ export default class MatteAceEditor {
 
         this.closeDebugBtn = document.createElement('button');
         this.closeDebugBtn.innerHTML = "×";
-        this.closeDebugBtn.title = "Close";
+        this.closeDebugBtn.title = "Close debug mode";
         this.closeDebugBtn.setAttribute("aria-label", "Close");
         this.closeDebugBtn.hidden = true;
         this.closeDebugBtn.onclick = () => {
@@ -313,8 +315,8 @@ export default class MatteAceEditor {
 
         this.cumulative = document.createElement('button');
         this.cumulative.type = 'button';
-        this.cumulative.textContent = '∑';
-        this.cumulative.title = 'Cumulative';
+        this.cumulative.textContent = '☰';
+        this.cumulative.title = 'Show a cumulative trace of expressions';
         this.cumulative.setAttribute('aria-label', 'Cumulative view');
         this.cumulative.setAttribute('aria-pressed', 'false');
         this.cumulative.style.cursor = 'pointer';
