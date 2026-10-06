@@ -6,7 +6,6 @@ const {Range} = ace.require("ace/range");
 export default class MatteAceEditor {
     constructor(container, width, height) {
         this.container = container;
-        this.originalBackgroundColor = this.container.style.backgroundColor;
         this.container.style.border = "1px solid #d0d0d0";
         this.container.style.borderRadius = "6px";
         this.container.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)";
@@ -239,14 +238,13 @@ export default class MatteAceEditor {
         this.callBox.after(this.resultLabel);
         this.editor.session.on('change', () => {
             this.resultLabel.textContent = '';
-            this.disableDebugMode();
+            this.resultLabel.style.visibility = "visible";
         });
 
         this.debugBtn = document.createElement('button');
         this.debugBtn.innerHTML = "Debug";
         this.debugBtn.onclick = () => {
             this.slider.hidden = false;
-            this.slider.value = this.slider.min;
             this.backBtn.hidden = false;
             this.forwardBtn.hidden = false;
             this.closeDebugBtn.hidden = false;
@@ -254,7 +252,6 @@ export default class MatteAceEditor {
             this.cumulative.hidden = true;
             this.updateDebugNavigation();
             this.editor.setReadOnly(true); // TODO check dirty
-            this.container.style.backgroundColor = "#f2f2f2";
             this.step(0, this.cumulative.checked);
             this.resultLabel.style.visibility = "hidden";
         }
@@ -301,8 +298,15 @@ export default class MatteAceEditor {
         this.closeDebugBtn.setAttribute("aria-label", "Close");
         this.closeDebugBtn.hidden = true;
         this.closeDebugBtn.onclick = () => {
-            this.disableDebugMode();
+            this.popups.forEach(p => p.hide());
+            this.slider.hidden = true;
+            this.backBtn.hidden = true;
+            this.forwardBtn.hidden = true;
+            this.closeDebugBtn.hidden = true;
             this.debugBtn.hidden = false;
+            this.cumulative.hidden = false;
+            this.editor.setReadOnly(false);
+            this.resultLabel.style.visibility = "visible";
         };
         this.forwardBtn.after(this.closeDebugBtn);
 
@@ -310,19 +314,6 @@ export default class MatteAceEditor {
         this.cumulative.type = 'checkbox';
         this.cumulative.hidden = true;
         this.closeDebugBtn.after(this.cumulative);
-    }
-
-    disableDebugMode() {
-        this.popups.forEach(p => p.hide());
-        this.slider.hidden = true;
-        this.backBtn.hidden = true;
-        this.forwardBtn.hidden = true;
-        this.closeDebugBtn.hidden = true;
-        this.debugBtn.hidden = true;
-        this.cumulative.hidden = true;
-        this.editor.setReadOnly(false);
-        this.container.style.backgroundColor = this.originalBackgroundColor;
-        this.resultLabel.style.visibility = "visible";
     }
 
     moveSlider(delta) {
@@ -435,7 +426,8 @@ export default class MatteAceEditor {
         return mat
             .replaceAll("&&", "∧")
             .replaceAll("||", "∨")
-            .replaceAll("!", "¬") // TODO problem with !=
+            .replaceAll("!=", "≠")
+            .replaceAll("!", "¬")
             .replaceAll("<=", "≤")
             .replaceAll(">=", "≥")
     }
