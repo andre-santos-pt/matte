@@ -9,7 +9,8 @@ import JavaGrammarParser, {
     BinaryOpMulContext,
     BinaryOpRelContext,
     BlockStmtContext,
-    BoolExprContext, BracketsExprContext,
+    BoolExprContext,
+    BracketsExprContext,
     BreakContext,
     CallContext,
     CallExprContext,
@@ -56,7 +57,8 @@ import {
     FieldAccessExpression,
     ForeignType,
     IfStatement,
-    IntLiteral, isSameType,
+    IntLiteral,
+    isSameType,
     LogicalExpression,
     NewObjectExpression,
     NullLiteral,
@@ -255,6 +257,8 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return PrimitiveType.BOOLEAN
         else if (name == "String")
             return PrimitiveType.STRING
+        else if(name == "void")
+            return PrimitiveType.VOID
         else
             return this.types.find(t => t.name == name)
     }
@@ -597,7 +601,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     visitReturn = (ctx: ReturnContext) =>
         new ReturnStatement(
             this.rangeContext(ctx),
-            this.expToAST(ctx._expression)
+            ctx._expression ? this.expToAST(ctx._expression) : undefined
         )
 
     visitCall = (ctx: CallContext) =>

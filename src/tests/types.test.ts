@@ -1,7 +1,8 @@
 
-import {compilationError} from "./utils";
+import {cases, compilationError} from "./utils";
 import {compile} from "../antlr2ast";
-import {StaticErrorType, Program} from "../ast";
+import {StaticErrorType, Program, Procedure, PrimitiveType} from "../ast";
+import assert from "assert";
 
 describe('Matte Interpreter Types', () => {
     describe('Script', () => {
@@ -82,6 +83,38 @@ describe('Matte Interpreter Types', () => {
         `, StaticErrorType.TypeMismatch
             )
         });
+
+        it('void return', () => {
+            const p = compile(`
+                void f() {
+                   
+                }`) as Program
+            assert.equal(p.procedures[0].returnType, PrimitiveType.VOID)
+        })
+
+        it('void return mismatch', () => {
+            compilationError(`
+            void f() {
+                return 10;
+            }
+        `, StaticErrorType.TypeMismatch, "f()"
+            )
+        })
+
+        it('void return nothing', () => {
+
+            const src = `void f() {
+                int i = 0;
+                i++;
+                return;
+            }`
+
+            compile(src)
+
+            cases(src, ["f()", undefined])
+
+        })
+
 
     })
 })

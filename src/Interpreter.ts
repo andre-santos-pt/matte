@@ -421,7 +421,10 @@ export class Interpreter {
                 throw exp
             } else {
                 this.addTrace(s, false, true, undefined, undefined)
-                throw exp
+                throw {
+                    evaluation: undefined,
+                    materialization: undefined
+                }
             }
             // TODO return void
         } else
@@ -694,7 +697,7 @@ export class Interpreter {
         try {
             p.body?.statements?.forEach(s => this.execute(s));
         } catch (e: any) {
-            if (e.evaluation !== undefined) {
+            if ('evaluation' in e) {
                 //const resMat = p.name + "(" + argValues.map(a => a?.evaluation).join() + ")"
                 this.addCallTraceEnd(call, e.evaluation, e.materialization)
                 this.scope.pop()
@@ -702,7 +705,7 @@ export class Interpreter {
             } else
                 throw e
         }
-        if (call.procedure.returnType) {
+        if (call.procedure.returnType != PrimitiveType.VOID) {
             throw {
                 range: p.nameRange,
                 type: StaticErrorType.MissingReturn,

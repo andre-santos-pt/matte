@@ -69,7 +69,8 @@ export enum PrimitiveType {
     INT = "int",
     DOUBLE = "double",
     BOOLEAN = "boolean",
-    STRING = "String"
+    STRING = "String",
+    VOID = "void"
 }
 
 export function typeName(type: Type) {
