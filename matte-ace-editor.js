@@ -1,5 +1,5 @@
-import {TraceEntry} from "./src/Interpreter.ts";
-import {countTraceEntries, flatTrace, last, lastTrace} from "./src/utils.ts";
+import {flatTrace, last, lastTrace} from "./src/utils.ts";
+import {compile} from "./src/antlr2ast.ts";
 
 const {Range} = ace.require("ace/range");
 
@@ -91,6 +91,11 @@ export default class MatteAceEditor {
         this.init();
 
         this.result = null;
+        this.lastCompilationSource = null;
+        this.editor.session.on('change', () => {
+            this.lastCompilationSource = null;
+        });
+        this.compilationCheckInterval = window.setInterval(() => this.checkCompilation(), 3000);
         this.popups = [];
         this.popupPositions = new WeakMap();
         this.repositionPopups = () => {
@@ -120,9 +125,9 @@ export default class MatteAceEditor {
         this.editor.selection.on("changeCursor", () => {
             this.popups.forEach(p => p.hide())
             this.clearSecondaryMarkers()
-            if (this.result == null)
+            if (this.compilationError == null)
                 return;
-            const err = this.result.error ? this.result.error : lastTrace(this.result.trace).error;
+            const err = this.compilationError ? this.compilationError : lastTrace(this.result.trace).error;
             const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
             if (err && index >= err.range.start && index <= err.range.end) {
                 let message = err.message.replace(/'(.*?)'/g, '<i>$1</i>');
@@ -356,30 +361,42 @@ export default class MatteAceEditor {
         this.forwardBtn.disabled = index >= Number(this.slider.max);
     }
 
+    checkCompilation() {
+        const code = this.editor.getValue() + (this.include == null ? "" : "\n\n" + this.include);
+        if (code === this.lastCompilationSource)
+            return;
+
+        const compilation = compile(code);
+        this.lastCompilationSource = code;
+        this.clearErrorMarkers();
+        this.editor.session.clearAnnotations();
+
+        if ("type" in compilation) {
+            this.compilationError = compilation;
+            this.markCompilationError(compilation);
+            this.runBtn.disabled = true;
+        }
+        else {
+            this.compilationError = null;
+            this.runBtn.disabled = false;
+        }
+    }
+
     runParser() {
         this.resultLabel.textContent = '';
         this.resultLabel.style.visibility = "hidden";
         this.beforeRunListeners.forEach(l => l());
         const code = this.editor.getValue() + (this.include == null ? "" : "\n\n" + this.include)
+        this.lastCompilationSource = code;
         this.result = window.matte(code, this.callBox.value === "" ? null : this.callBox.value, this.extensions);
+        this.compilationError = this.result.error;
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();
         console.log(this.result)
 
         if (this.result.error) {
             this.debugBtn.hidden = true;
-            const e = this.result.error
-            this.editor.session.addMarker(
-                this.range2Ace(e.range),
-                "ace_error-squiggle",
-                "text"
-            );
-            this.editor.session.setAnnotations([{
-                row: e.range.line - 1, // 0-index
-                column: 0,
-                text: e.message,
-                type: "error" // Options: "error", "warning", or "info"
-            }]);
+            this.markCompilationError(this.result.error);
         } else {
             this.trace = flatTrace(this.result.trace)
             const lastEntry = last(this.trace)
@@ -407,7 +424,19 @@ export default class MatteAceEditor {
         }
     }
 
-
+    markCompilationError(e) {
+        this.editor.session.addMarker(
+            this.range2Ace(e.range),
+            "ace_error-squiggle",
+            "text"
+        );
+        this.editor.session.setAnnotations([{
+            row: e.range.line - 1, // 0-index
+            column: 0,
+            text: e.message,
+            type: "error" // Options: "error", "warning", or "info"
+        }]);
+    }
 
     popup(offset, message, top, exp) {
         const Tooltip = ace.require("ace/tooltip").Tooltip;
