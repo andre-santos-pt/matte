@@ -160,6 +160,18 @@ type ScopeEntry = {
     variables: Map<string, Declaration>;
 }
 
+function alwaysReturns(statement: Statement): boolean {
+    if (statement instanceof ReturnStatement)
+        return true;
+    if (statement instanceof BlockStatement)
+        return statement.statements.some(alwaysReturns);
+    if (statement instanceof IfStatement)
+        return statement.elseBranch != undefined &&
+            alwaysReturns(statement.thenBranch) &&
+            alwaysReturns(statement.elseBranch);
+    return false;
+}
+
 class TreeVisitor extends JavaGrammarVisitor<any> {
     varScope: ScopeEntry[] = [];
     procedures: Procedure[] = [];
@@ -337,6 +349,18 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     proc.body = this.visitMethod(ctx.getChild(i) as MethodContext)
                 }
             }
+
+            this.procedures.forEach(procedure => {
+                if (procedure.returnType !== PrimitiveType.VOID &&
+                    (!procedure.body || !alwaysReturns(procedure.body))) {
+                    throw {
+                        compilation: StaticErrorType.MissingReturn,
+                        range: procedure.nameRange,
+                        message: `Procedure ${procedure.name} does not return a value on every path`
+                    }
+                }
+            });
+
             return new Program(undefined, this.procedures, this.types)
         }
     }

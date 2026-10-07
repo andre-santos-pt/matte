@@ -92,6 +92,24 @@ describe('Matte Interpreter Types', () => {
             assert.equal(p.procedures[0].returnType, PrimitiveType.VOID)
         })
 
+        it('non-void function missing return', () => {
+            compilationError(`
+                int f(boolean condition) {
+                    if (condition) return 1;
+                }
+            `, StaticErrorType.MissingReturn)
+        })
+
+        it('non-void function returns on every branch', () => {
+            const p = compile(`
+                int f(boolean condition) {
+                    if (condition) return 1;
+                    else return 2;
+                }
+            `)
+            assert.ok(p instanceof Program)
+        })
+
         it('void return mismatch', () => {
             compilationError(`
             void f() {
