@@ -3,106 +3,8 @@ import {countTraceEntries, flatTrace, last, lastTrace} from "./src/utils.ts";
 
 const {Range} = ace.require("ace/range");
 
-export default class MatteAceEditor {
-    constructor(container, width, height) {
-        this.container = container;
-        this.container.style.marginTop = "25px";
-        this.container.style.border = "1px solid #d0d0d0";
-        this.container.style.borderRadius = "6px";
-        this.container.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)";
-        this.container.style.overflow = "hidden";
-        this.container.style.width = (width ? width + "px" : "100%");
-        // If height is null/undefined => enable auto height adapting to content lines
-        this.autoHeight = (height == null);
-        if (!this.autoHeight) {
-            this.container.style.height = (height) + "px";
-        } else {
-            // set a small minimum while we compute the real height
-            this.container.style.height = "50px";
-        }
-        this.container.style.display = "block"
-        this.editor = ace.edit(this.container);
-        this.editorBackgroundColor = this.editor.container.querySelector('.ace_scroller').style.backgroundColor;
-        this.editor.setTheme("ace/theme/textmate");
-        this.editor.session.setMode("ace/mode/java");
-        this.editor.setFontSize(20);
-        this.editor.renderer.setShowGutter(true);
-        this.editor.setOption('showLineNumbers', false); // TODO does not work
-        this.editor.session.setNewLineMode("unix");
-        this.editor.setOptions({
-            highlightSelectedWord: false
-        });
-        this.editor.setHighlightActiveLine(false);
-
-        this.init();
-
-        //this.addInspector();
-        this.result = null;
-        this.popups = [];
-        this.popupPositions = new WeakMap();
-        this.repositionPopups = () => {
-            this.popups.forEach(tip => {
-                const position = this.popupPositions.get(tip);
-                if (position)
-                    this.positionPopup(tip, position.offset, position.message, position.top);
-            });
-        };
-        window.addEventListener('scroll', this.repositionPopups, true);
-        this.extensions = {};
-        this.beforeRunListeners = [];
-        this.afterRunListeners = [];
-        this.stepListeners = [];
-    }
-
-    secondaryMarkers = [];
-
-    clearSecondaryMarkers() {
-        this.secondaryMarkers.forEach(m => {
-            this.editor.session.removeMarker(m);
-        })
-        this.secondaryMarkers = []
-    }
-
-    init() {
-        this.editor.selection.on("changeCursor", () => {
-            this.popups.forEach(p => p.hide())
-            this.clearSecondaryMarkers()
-            if (this.result == null)
-                return;
-            const err = this.result.error ? this.result.error : lastTrace(this.result.trace).error;
-            const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
-            if (err && index >= err.range.start && index <= err.range.end) {
-                let message = err.message.replace(/'(.*?)'/g, '<i>$1</i>');
-
-                if (err.detail) {
-                    if (err.detail.related) {
-                        err.detail.related.forEach(r => {
-                            this.secondaryMarkers.push(this.editor.session.addMarker(
-                                this.range2Ace(r),
-                                "error-secondary",
-                                "text"
-                            ))
-                        })
-                    }
-                    if (err.detail.hint)
-                        message += "\n<i>" + err.detail.hint + "</i>"
-
-                }
-                this.popup(err.range.start, message);
-            }
-
-            // else {
-            //     this.popups.forEach(p => p.hide())
-            //     if(this.secondaryMarker) {
-            //         this.editor.session.removeMarker(this.secondaryMarker);
-            //         this.secondaryMarker = undefined
-            //     }
-            // }
-
-        });
-
-        const styleCss =
-            `.ace_error-squiggle {
+const styleCss =
+    `.ace_error-squiggle {
                 position: absolute;
                 /* Increased height to 6px and stroke-width to 1.5 for better visibility */
                 background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6'%3E%3Cpath d='M0 5c1 0 2-3 4-3s3 3 4 3' fill='none' stroke='%23ff3333' stroke-width='1.5'/%3E%3C/svg%3E");
@@ -154,6 +56,93 @@ export default class MatteAceEditor {
                 color: #ffb86c; /* Make the italic part orange */
                 font-weight: bold;
             }`;
+
+export default class MatteAceEditor {
+    constructor(container, width, height) {
+        this.container = container;
+        this.container.style.marginTop = "25px";
+        this.container.style.border = "1px solid #d0d0d0";
+        this.container.style.borderRadius = "6px";
+        this.container.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)";
+        this.container.style.overflow = "hidden";
+        this.container.style.width = (width ? width + "px" : "100%");
+        // If height is null/undefined => enable auto height adapting to content lines
+        this.autoHeight = (height == null);
+        if (!this.autoHeight) {
+            this.container.style.height = (height) + "px";
+        } else {
+            // set a small minimum while we compute the real height
+            this.container.style.height = "50px";
+        }
+        this.container.style.display = "block"
+        this.editor = ace.edit(this.container);
+        this.editorBackgroundColor = this.editor.container.querySelector('.ace_scroller').style.backgroundColor;
+        this.editor.setTheme("ace/theme/textmate");
+        this.editor.session.setMode("ace/mode/java");
+        this.editor.setFontSize(20);
+        this.editor.renderer.setShowGutter(true);
+        this.editor.setOption('showLineNumbers', false); // TODO does not work
+        this.editor.session.setNewLineMode("unix");
+        this.editor.setOptions({
+            highlightSelectedWord: false
+        });
+        this.editor.setHighlightActiveLine(false);
+
+        this.init();
+
+        this.result = null;
+        this.popups = [];
+        this.popupPositions = new WeakMap();
+        this.repositionPopups = () => {
+            this.popups.forEach(tip => {
+                const position = this.popupPositions.get(tip);
+                if (position)
+                    this.positionPopup(tip, position.offset, position.message, position.top);
+            });
+        };
+        window.addEventListener('scroll', this.repositionPopups, true);
+        this.extensions = {};
+        this.beforeRunListeners = [];
+        this.afterRunListeners = [];
+        this.stepListeners = [];
+    }
+
+    secondaryMarkers = [];
+
+    clearSecondaryMarkers() {
+        this.secondaryMarkers.forEach(m => {
+            this.editor.session.removeMarker(m);
+        })
+        this.secondaryMarkers = []
+    }
+
+    init() {
+        this.editor.selection.on("changeCursor", () => {
+            this.popups.forEach(p => p.hide())
+            this.clearSecondaryMarkers()
+            if (this.result == null)
+                return;
+            const err = this.result.error ? this.result.error : lastTrace(this.result.trace).error;
+            const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
+            if (err && index >= err.range.start && index <= err.range.end) {
+                let message = err.message.replace(/'(.*?)'/g, '<i>$1</i>');
+                if (err.detail) {
+                    if (err.detail.related) {
+                        err.detail.related.forEach(r => {
+                            this.secondaryMarkers.push(this.editor.session.addMarker(
+                                this.range2Ace(r),
+                                "error-secondary",
+                                "text"
+                            ))
+                        })
+                    }
+                    if (err.detail.hint)
+                        message += "\n<i>" + err.detail.hint + "</i>"
+
+                }
+                this.popup(err.range.start, message);
+            }
+        });
 
 
         if (!Array.from(document.head.querySelectorAll('style')).some(style => style.id === 'matte-ace-editor-style')) {
@@ -238,6 +227,7 @@ export default class MatteAceEditor {
         this.resultLabel.style = "font-family: monospace; font-weight: bold; margin-left: 10px;";
         this.callBox.after(this.resultLabel);
         this.callBox.addEventListener('input', () => {
+            this.setDebugMode(false);
             this.resultLabel.style.visibility = "hidden";
             this.debugBtn.hidden = true;
         });
@@ -249,7 +239,7 @@ export default class MatteAceEditor {
 
             this.popups.forEach(p => p.hide());
             const cursorIndex = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
-            const tip = this.popup(cursorIndex, "Read-only. Close the debug mode to edit the code.", true);
+            this.popup(cursorIndex, "Read-only. Close the debug mode to edit the code.", true);
         }, true);
         this.editor.session.on('change', () => {
             this.resultLabel.textContent = '';
@@ -259,17 +249,7 @@ export default class MatteAceEditor {
         this.debugBtn = document.createElement('button');
         this.debugBtn.innerHTML = "Debug";
         this.debugBtn.onclick = () => {
-            this.slider.hidden = false;
-            this.backBtn.hidden = false;
-            this.forwardBtn.hidden = false;
-            this.closeDebugBtn.hidden = false;
-            this.debugBtn.hidden = true;
-            this.cumulative.hidden = false;
-            this.updateDebugNavigation();
-            this.editor.setReadOnly(true); // TODO check dirty
-            this.editor.container.querySelector('.ace_scroller').style.backgroundColor = 'lightgray';
-            this.step(0, this.cumulativeMode);
-            this.resultLabel.style.visibility = "hidden";
+            this.setDebugMode(true)
         }
         this.debugBtn.hidden = true;
         this.resultLabel.after(this.debugBtn);
@@ -284,12 +264,6 @@ export default class MatteAceEditor {
             this.step(index, this.cumulativeMode);
             this.updateDebugNavigation();
         });
-        // this.slider.addEventListener('focusout', () => {
-        //     this.popups.forEach(p => p.hide());
-        //     this.slider.hidden = true;
-        //     this.debugBtn.hidden = false;
-        //     this.cumulative.hidden = false;
-        // });
         this.debugBtn.after(this.slider);
 
         this.backBtn = document.createElement('button');
@@ -313,7 +287,7 @@ export default class MatteAceEditor {
         this.closeDebugBtn.title = "Close debug mode";
         this.closeDebugBtn.setAttribute("aria-label", "Close");
         this.closeDebugBtn.hidden = true;
-        this.closeDebugBtn.onclick = () => this.closeDebugMode();
+        this.closeDebugBtn.onclick = () => this.setDebugMode(false);
         this.forwardBtn.after(this.closeDebugBtn);
 
         this.cumulative = document.createElement('button');
@@ -335,17 +309,26 @@ export default class MatteAceEditor {
         this.backBtn.before(this.cumulative);
     }
 
-    closeDebugMode() {
-        this.popups.forEach(p => p.hide());
-        this.slider.hidden = true;
-        this.backBtn.hidden = true;
-        this.forwardBtn.hidden = true;
-        this.closeDebugBtn.hidden = true;
-        this.debugBtn.hidden = false;
-        this.cumulative.hidden = true;
-        this.editor.setReadOnly(false);
-        this.editor.container.querySelector('.ace_scroller').style.backgroundColor = this.editorBackgroundColor;
-        this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
+    setDebugMode(on) {
+        this.debugBtn.hidden = on;
+        this.editor.setReadOnly(on);
+
+        this.slider.hidden = !on;
+        this.backBtn.hidden = !on;
+        this.forwardBtn.hidden = !on;
+        this.closeDebugBtn.hidden = !on;
+        this.cumulative.hidden = !on;
+
+        if(on) {
+            this.editor.container.querySelector('.ace_scroller').style.backgroundColor = '#e8e8e8';
+            this.resultLabel.style.visibility = "hidden";
+            this.step(0, this.cumulativeMode);
+            this.updateDebugNavigation();
+        }
+        else {
+            this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
+            this.editor.container.querySelector('.ace_scroller').style.backgroundColor = this.editorBackgroundColor
+        }
     }
 
     moveSlider(delta) {
@@ -385,7 +368,7 @@ export default class MatteAceEditor {
             this.editor.session.setAnnotations([{
                 row: e.range.line - 1, // 0-index
                 column: 0,
-                text: e.error,
+                text: e.message,
                 type: "error" // Options: "error", "warning", or "info"
             }]);
         } else {
@@ -399,32 +382,22 @@ export default class MatteAceEditor {
                 );
                 this.slider.max = Math.max(0, this.trace.length - 1).toString();
                 this.slider.value = this.slider.max;
-                this.debugBtn.hidden = true;
-                this.slider.hidden = false;
-                this.backBtn.hidden = false;
-                this.forwardBtn.hidden = false;
-                this.closeDebugBtn.hidden = false;
-                this.cumulative.hidden = false;
-                this.updateDebugNavigation();
+                this.setDebugMode(true);
             } else {
                 this.resultLabel.innerHTML = '';
-                // TODO handle void
                 // TODO handle script (show var state)
                 if (this.result.result?.evaluation !== undefined)
                     this.resultLabel.innerHTML = ' = ' + JSON.stringify(this.result.result.evaluation);
                 this.resultLabel.style.visibility = this.result.result?.evaluation !== undefined ? "visible" : "hidden";
                 this.slider.max = Math.max(0, this.trace.length - 1).toString();
                 this.slider.value = "0";
-                this.debugBtn.hidden = false;
-                this.cumulative.hidden = true;
-                this.slider.hidden = true;
-                this.backBtn.hidden = true;
-                this.forwardBtn.hidden = true;
-                this.closeDebugBtn.hidden = true;
+                this.setDebugMode(false);
             }
             this.afterRunListeners.forEach(l => l(this.result));
         }
     }
+
+
 
     popup(offset, message, top, exp) {
         const Tooltip = ace.require("ace/tooltip").Tooltip;
@@ -455,12 +428,6 @@ export default class MatteAceEditor {
         const startPos = this.editor.session.doc.indexToPosition(range.start);
         const endPos = this.editor.session.doc.indexToPosition(range.end);
         return new Range(startPos.row, startPos.column, endPos.row, endPos.column);
-    }
-
-    oneStep() {
-        const current = parseInt(this.slider.value, 10);
-        this.step(current + 1);
-        this.slider.value = (current + 1).toString();
     }
 
     pretty(mat) {
@@ -523,70 +490,6 @@ export default class MatteAceEditor {
         }
     }
 
-    showStack(dataMap, containerId) {
-        const container = document.getElementById(containerId);
-        container.innerHTML = ""; // Clear existing table
-
-        const table = document.createElement('table');
-        const thead = table.createTHead();
-        const tbody = table.createTBody();
-        const headerRow = thead.insertRow();
-
-        // 1. Create Headers from Map Keys
-        const keys = Array.from(dataMap.keys());
-        keys.forEach(key => {
-            const th = document.createElement('th');
-            th.textContent = key;
-            headerRow.appendChild(th);
-        });
-
-        // 2. Find the maximum number of rows needed
-        const rowCount = Math.max(...keys.map(key => dataMap.get(key).length));
-
-        // 3. Create Rows (Row-major order)
-        for (let i = 0; i < rowCount; i++) {
-            const row = tbody.insertRow();
-            keys.forEach(key => {
-                const cell = row.insertCell();
-                const columnData = dataMap.get(key);
-                // Handle cases where some columns might be shorter than others
-                cell.textContent = columnData[i] !== undefined ? columnData[i] : "";
-            });
-        }
-
-        container.appendChild(table);
-    }
-
-    createVerticalTable(dataMap, container) {
-        //const container = document.getElementById(containerId);
-        // if(!container) {
-        //     console.error("no contained named '" + containerId + "' found for creating a table therein.")
-        //     return;
-        // }
-
-        container.innerHTML = ""; // Clear existing content
-
-        const table = document.createElement('table');
-        const tbody = table.createTBody();
-
-        // Iterate directly over the Map entries [key, value]
-        for (const [key, value] of dataMap) {
-            const row = tbody.insertRow();
-
-            // Create the Header Cell (Key)
-            const th = document.createElement('th');
-            th.textContent = key;
-            th.style.textAlign = "left"; // Keep labels aligned
-            row.appendChild(th);
-
-            // Create the Data Cell (Value)
-            const td = row.insertCell();
-            td.textContent = value.evaluation;
-        }
-
-        container.appendChild(table);
-    }
-
     createScopePopups(dataMap) {
         if (dataMap === undefined)
             return
@@ -601,36 +504,8 @@ export default class MatteAceEditor {
         if (value === null || value === undefined)
             return "";
         else if (Array.isArray(value))
-            return "[" + value.join(", ") + "]";
+            return "[" + value.join(",&nbsp;") + "]";
         else
             return value.toString();
-    }
-
-    addArrayWidget(row, dataArray) {
-        let LineWidgets = ace.require("ace/line_widgets").LineWidgets;
-        // 2. Create the HTML element
-        var container = document.createElement("div");
-        container.className = "ace-inline-array-widget";
-
-        // Create the visual list
-        var listHtml = dataArray.map(item => `<span>${item}</span>`).join('');
-        container.innerHTML = `<div class="widget-label">Live Array:</div><div class="widget-items">${listHtml}</div>`;
-
-        // 3. Define the widget object
-        var widget = {
-            row: row,             // The line number to attach to
-            fixedWidth: true,     // Keeps it from jumping horizontally
-            el: container,        // The DOM element
-            type: "arrayWidget"
-        };
-
-        // 4. Initialize the widget manager if it doesn't exist
-        if (!this.editor.session.widgetManager) {
-            this.editor.session.widgetManager = new LineWidgets(this.editor.session);
-        }
-
-        // 5. Add the widget
-        this.editor.session.widgetManager.addLineWidget(widget);
-        return widget;
     }
 }
