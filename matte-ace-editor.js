@@ -88,7 +88,6 @@ export default class MatteAceEditor {
                         message += "\n<i>" + err.detail.hint + "</i>"
 
                 }
-                // this.popups.forEach(p => p.hide())
                 this.popup(err.range.start, message);
             }
 
@@ -101,71 +100,68 @@ export default class MatteAceEditor {
             // }
 
         });
-        // TODO bug creates several when there are multiple editors
-        const styles = [
-            `
-            .ace_error-squiggle {
-    position: absolute;
-    /* Increased height to 6px and stroke-width to 1.5 for better visibility */
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6'%3E%3Cpath d='M0 5c1 0 2-3 4-3s3 3 4 3' fill='none' stroke='%23ff3333' stroke-width='1.5'/%3E%3C/svg%3E");
-    background-repeat: repeat-x;
-    background-position: bottom;
-    z-index: 20;
-    /* Optional: add a slight vertical offset if it's too close to the text */
-    margin-bottom: 1px;
-}`,
-            `.error-highlight {
-            position: absolute;
-            background-color: rgba(255, 0, 0, 0.3);
-            border-bottom: 2px wavy red;
-            z-index: 20;
-        }`,
-            `.error-secondary {
-            position: absolute;
-            background-color: rgba(255, 255, 0, 1.0);
-            border-bottom: 2px wavy red;
-            z-index: 20;
-        }`,
-            `.ace_tooltip {
-            background:  rgba(235, 235, 235, 1);
-            color: rgba(128, 128, 128, 1);
-            border: 1px solid #111111;
-            border-radius: 4px;
-            padding: 3px;
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 10pt !important;
-            ///box-shadow: 1px 1px 5px rgba(0,0,0,0.5);
-            white-space: pre-wrap;
-        }`
-            ,
-            `.ace_tooltip_exp {
-            background:  rgba(181, 213, 255, 1);
-            color: rgba(128, 128, 128, 1);
-            border: 1px solid #111111;
-            border-radius: 0px;
-            padding: 3px;
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 10pt !important;
-            ///box-shadow: 1px 1px 5px rgba(0,0,0,0.5);
-            white-space: pre-wrap;
-        }`,
-            `
 
-        .my-error-tooltip b {
-            color: #ff5555; /* Make the bold part bright red */
-            font-weight: bold;
-        }
-        .my-error-tooltip i {
-            color: #ffb86c; /* Make the italic part orange */
-            font-weight: bold;
-        }`
-        ];
+        const styleCss =
+            `.ace_error-squiggle {
+                position: absolute;
+                /* Increased height to 6px and stroke-width to 1.5 for better visibility */
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6'%3E%3Cpath d='M0 5c1 0 2-3 4-3s3 3 4 3' fill='none' stroke='%23ff3333' stroke-width='1.5'/%3E%3C/svg%3E");
+                background-repeat: repeat-x;
+                background-position: bottom;
+                z-index: 20;
+                /* Optional: add a slight vertical offset if it's too close to the text */
+                margin-bottom: 1px;
+            }
+            .error-highlight {
+                position: absolute;
+                background-color: rgba(255, 0, 0, 0.3);
+                border-bottom: 2px wavy red;
+                z-index: 20;
+            }
+            .error-secondary {
+                position: absolute;
+                background-color: rgba(255, 255, 0, 1.0);
+                border-bottom: 2px wavy red;
+                z-index: 20;
+            }
+            .ace_tooltip {
+                background:  rgba(235, 235, 235, 1);
+                color: rgba(128, 128, 128, 1);
+                border: 1px solid #111111;
+                border-radius: 4px;
+                padding: 3px;
+                font-family: 'Monaco', 'Menlo', monospace;
+                font-size: 10pt !important;
+                ///box-shadow: 1px 1px 5px rgba(0,0,0,0.5);
+                white-space: pre-wrap;
+            }
+            .ace_tooltip_exp {
+                background:  rgba(181, 213, 255, 1);
+                color: rgba(128, 128, 128, 1);
+                border: 1px solid #111111;
+                border-radius: 0px;
+                padding: 3px;
+                font-family: 'Monaco', 'Menlo', monospace;
+                font-size: 10pt !important;
+                ///box-shadow: 1px 1px 5px rgba(0,0,0,0.5);
+                white-space: pre-wrap;
+            }
+            .my-error-tooltip b {
+                color: #ff5555; /* Make the bold part bright red */
+                font-weight: bold;
+            }
+            .my-error-tooltip i {
+                color: #ffb86c; /* Make the italic part orange */
+                font-weight: bold;
+            }`;
 
-        styles.forEach(s => {
+
+        if (!Array.from(document.head.querySelectorAll('style')).some(style => style.id === 'matte-ace-editor-style')) {
             const style = document.createElement('style');
-            style.textContent = s;
+            style.textContent = styleCss;
+            style.id = 'matte-ace-editor-style';
             document.head.appendChild(style);
-        })
+        }
 
         // If autoHeight is enabled, watch for content changes and adjust height
         if (this.autoHeight) {
