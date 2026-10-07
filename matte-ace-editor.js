@@ -221,7 +221,6 @@ export default class MatteAceEditor {
         this.runBtn.style = "cursor: pointer; border: solid 1px; padding: 2px 10px; border-radius: 3px; font-weight: bold;";
         this.runBtn.onclick = () => {
             this.runParser();
-            this.resultLabel.style.visibility = "visible";
         }
         this.runBox.append(this.runBtn);
 
@@ -234,7 +233,6 @@ export default class MatteAceEditor {
             if (event.key === "Enter") {
                 event.preventDefault();
                 this.runParser();
-                this.resultLabel.style.visibility = "visible";
             }
         });
         this.runBtn.after(this.callBox)
@@ -259,7 +257,7 @@ export default class MatteAceEditor {
         }, true);
         this.editor.session.on('change', () => {
             this.resultLabel.textContent = '';
-            this.resultLabel.style.visibility = "visible";
+            this.resultLabel.style.visibility = "hidden";
         });
 
         this.debugBtn = document.createElement('button');
@@ -351,7 +349,7 @@ export default class MatteAceEditor {
         this.cumulative.hidden = true;
         this.editor.setReadOnly(false);
         this.editor.container.querySelector('.ace_scroller').style.backgroundColor = this.editorBackgroundColor;
-        this.resultLabel.style.visibility = "visible";
+        this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
     }
 
     moveSlider(delta) {
@@ -371,6 +369,8 @@ export default class MatteAceEditor {
     }
 
     runParser() {
+        this.resultLabel.textContent = '';
+        this.resultLabel.style.visibility = "hidden";
         this.beforeRunListeners.forEach(l => l());
         const code = this.editor.getValue() + (this.include == null ? "" : "\n\n" + this.include)
         this.result = window.matte(code, this.callBox.value === "" ? null : this.callBox.value, this.extensions);
@@ -379,6 +379,7 @@ export default class MatteAceEditor {
         console.log(this.result)
 
         if (this.result.error) {
+            this.debugBtn.hidden = true;
             const e = this.result.error
             this.editor.session.addMarker(
                 this.range2Ace(e.range),
@@ -413,8 +414,9 @@ export default class MatteAceEditor {
                 this.resultLabel.innerHTML = '';
                 // TODO handle void
                 // TODO handle script (show var state)
-                if (this.result.result !== undefined)
+                if (this.result.result?.evaluation !== undefined)
                     this.resultLabel.innerHTML = ' = ' + JSON.stringify(this.result.result.evaluation);
+                this.resultLabel.style.visibility = this.result.result?.evaluation !== undefined ? "visible" : "hidden";
                 this.slider.max = Math.max(0, this.trace.length - 1).toString();
                 this.slider.value = "0";
                 this.debugBtn.hidden = false;
@@ -505,12 +507,12 @@ export default class MatteAceEditor {
             }
             this.stepListeners.forEach(l => l(this.trace, index));
             this.slider.focus();
-            this.resultLabel.style.visibility = index === lastIndex ? "visible" : "hidden";
+            this.resultLabel.style.visibility = index === lastIndex && this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
         } else {
             const lastRange = this.range2Ace(this.trace[lastIndex]);
             this.editor.gotoLine(lastRange.end.row + 1, 1);
             this.stepListeners.forEach(l => l(this.trace, lastIndex));
-            this.resultLabel.style.visibility = "visible";
+            this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
         }
     }
 
