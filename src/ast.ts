@@ -173,7 +173,7 @@ export class Declaration extends Statement {
             && !(initializer.type instanceof ArrayType && !initializer.type.componentType)
             && !isSameType(initializer.type, type))
             throw {
-                message: "Cannot assign a " + initializer.type + " to a variable of type " + typeName(type),
+                message: "Expected an expression of type " + typeName(type) + " (not " + initializer.type + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: initializer.range,
                 detail: {
@@ -197,7 +197,7 @@ export class Assignment extends Statement {
     constructor(range: Range, variable: Declaration, expression: Expression) {
         if (!isSameType(variable.type, expression.type))
             throw {
-                message: "This type of this expression is " + expression.type + ", but the variable has type " + variable.type,
+                message: "Expected expression of type " + variable.type + " (not " + expression.type + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: expression.range,
                 detail: {
@@ -254,7 +254,7 @@ export class BlockStatement extends Statement {
 function checkGuardType(condition: Expression) {
     if (!isSameType(condition.type, PrimitiveType.BOOLEAN))
         throw {
-            message: "This expression has type " + condition.type + " (boolean is expected)",
+            message: "Expected boolean expression (not " + condition.type + ")",
             compilation: StaticErrorType.TypeMismatch,
             range: condition.range
         }

@@ -89,7 +89,7 @@ export default class MatteAceEditor {
 
                 }
                 // this.popups.forEach(p => p.hide())
-                this.popup(err.range.start, message, true);
+                this.popup(err.range.start, message);
             }
 
             // else {
