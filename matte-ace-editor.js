@@ -244,15 +244,24 @@ export default class MatteAceEditor {
         this.editor.session.on('change', () => {
             this.resultLabel.textContent = '';
             this.resultLabel.style.visibility = "hidden";
+            this.debugBtn.style.visibility = "hidden";
         });
+        this.createDebugBox();
+    }
+
+    createDebugBox() {
+        this.debugBox = document.createElement('div');
+        this.debugBox.style = "display: flex; align-items: center; gap: 10px; margin-top: 5px; margin-bottom: 5px";
+        this.runBox.after(this.debugBox);
 
         this.debugBtn = document.createElement('button');
-        this.debugBtn.innerHTML = "Debug";
+        this.debugBtn.innerHTML = "&#128269;";
         this.debugBtn.onclick = () => {
             this.setDebugMode(true)
         }
         this.debugBtn.hidden = true;
-        this.resultLabel.after(this.debugBtn);
+        this.debugBtn.title = "Debug the last call";
+        this.debugBox.append(this.debugBtn);
 
         this.slider = document.createElement('input');
         this.slider.type = "range";
@@ -391,6 +400,7 @@ export default class MatteAceEditor {
                 this.resultLabel.style.visibility = this.result.result?.evaluation !== undefined ? "visible" : "hidden";
                 this.slider.max = Math.max(0, this.trace.length - 1).toString();
                 this.slider.value = "0";
+                this.debugBtn.style.visibility = "visible";
                 this.setDebugMode(false);
             }
             this.afterRunListeners.forEach(l => l(this.result));
