@@ -172,6 +172,57 @@ function alwaysReturns(statement: Statement): boolean {
     return false;
 }
 
+function checkReturns(procedure: Procedure): void {
+    function checkReturnsAux(statement: Statement, procedure: Procedure): void {
+        if (statement instanceof ReturnStatement) {
+            if(statement.expression == undefined) {
+                if(procedure.returnType != PrimitiveType.VOID)
+                    throw {
+                        compilation: StaticErrorType.TypeMismatch,
+                        range: statement.range,
+                        message: `Function must return a value of type ${procedure.returnType}`,
+                        detail: {
+                            related: [procedure.returnTypeRange]
+                        }
+                    }
+
+            }
+            else {
+                if(procedure.returnType == PrimitiveType.VOID)
+                    throw {
+                        compilation: StaticErrorType.TypeMismatch,
+                        range: statement.expression.range,
+                        message: `Function cannot return any value`,
+                        detail: {
+                            related: [procedure.returnTypeRange]
+                        }
+                    }
+                if (!isSameType(statement.expression?.type, procedure.returnType)) {
+                    throw {
+                        compilation: StaticErrorType.TypeMismatch,
+                        range: statement.expression.range,
+                        message: `Expected value of type ${procedure.returnType} (not ${statement.expression?.type})`,
+                        detail: {
+                            related: [procedure.returnTypeRange]
+                        }
+                    }
+                }
+            }
+        } else if (statement instanceof BlockStatement) {
+            statement.statements.forEach(s => checkReturnsAux(s, procedure));
+        } else if (statement instanceof IfStatement) {
+            checkReturnsAux(statement.thenBranch, procedure);
+            if (statement.elseBranch)
+                checkReturnsAux(statement.elseBranch, procedure);
+        }
+    }
+
+    if(procedure.body && procedure.returnType)
+        checkReturnsAux(procedure.body, procedure);
+}
+
+
+
 class TreeVisitor extends JavaGrammarVisitor<any> {
     varScope: ScopeEntry[] = [];
     procedures: Procedure[] = [];
@@ -317,6 +368,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                         false,
                         params,
                         type ? type : new ForeignType(mctx.type_().getText()),
+                        this.rangeContext(mctx.type_()),
                         undefined
                     ))
                 }
@@ -356,9 +408,13 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     throw {
                         compilation: StaticErrorType.MissingReturn,
                         range: procedure.nameRange,
-                        message: `Procedure ${procedure.name} does not return a value on every path`
+                        message: `Missing return statement with value of type ${procedure.returnType}`,
+                        detail: {
+                            related: [procedure.returnTypeRange]
+                        }
                     }
                 }
+                checkReturns(procedure)
             });
 
             return new Program(undefined, this.procedures, this.types)
@@ -405,6 +461,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 true,
                 [new Declaration(this.rangeToken(ctx._id), "this", undefined, true, typedec, undefined)].concat(params),
                 type ? type : new ForeignType(mctx.type_().getText()),
+                this.rangeContext(mctx.type_()),
                 undefined
             ))
         })
@@ -428,6 +485,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 true,
                 [new Declaration(this.rangeToken(ctx._id), "this", undefined, true, typedec, undefined)],
                 type ? type : new ForeignType(p.type_().getText()),
+                this.rangeContext(p.type_()),
                 new BlockStatement(undefined, [
                     new ReturnStatement(undefined, new Variable(undefined, dec))
                 ])

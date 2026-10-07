@@ -48,9 +48,10 @@ export class Procedure extends ASTNode {
     parameters: Declaration[];
     instance: boolean;
     returnType?: Type;
+    returnTypeRange?: Range;
     body?: BlockStatement;
 
-    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, instance: boolean, parameters: Declaration[], returnType?: Type, body?: BlockStatement) {
+    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, instance: boolean, parameters: Declaration[], returnType?: Type, returnTypeRange?: Range, body?: BlockStatement) {
         super(range);
         if (instance && parameters.length == 0)
             throw new Error("Instance procedures must have at least one parameter (the instance)");
@@ -59,6 +60,7 @@ export class Procedure extends ASTNode {
         this.parameters = parameters;
         this.instance = instance;
         this.returnType = returnType;
+        this.returnTypeRange = returnTypeRange;
         this.body = body;
     }
 }
@@ -123,6 +125,10 @@ export class TypeDeclaration {
         this.isRecord = isRecord;
         this.fields = fields;
     }
+
+    toString(): string {
+        return this.name;
+    }
 }
 
 export class ArrayType {
@@ -131,6 +137,11 @@ export class ArrayType {
     constructor(componentType?: Type) {
         this.componentType = componentType
     }
+
+    toString(): string {
+        const t = this.componentType ? typeName(this.componentType) : "?"
+        return t + "[]"
+    }
 }
 
 export class ForeignType {
@@ -138,6 +149,10 @@ export class ForeignType {
 
     constructor(name: string) {
         this.name = name
+    }
+
+    toString(): string {
+        return this.name
     }
 }
 

@@ -84,6 +84,23 @@ describe('Matte Interpreter Types', () => {
             )
         });
 
+        it('return type mismatch', () => {
+            compilationError(`
+                int f() {
+                    return true;
+                }
+            `, StaticErrorType.TypeMismatch, "f()"
+            )
+        })
+        it('return type void mismatch', () => {
+            compilationError(`
+                void f() {
+                    return 10;
+                }
+            `, StaticErrorType.TypeMismatch, "f()"
+            )
+        })
+
         it('void return', () => {
             const p = compile(`
                 void f() {
@@ -132,6 +149,8 @@ describe('Matte Interpreter Types', () => {
             cases(src, ["f()", undefined])
 
         })
+
+
 
 
     })
