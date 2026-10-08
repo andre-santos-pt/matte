@@ -82,7 +82,14 @@ export function simplifyExpression(code: string): string {
 }
 
 
-
+export function variableMaterialization(value: { evaluation?: any, materialization?: string }): string | undefined {
+    if(!value.materialization || Array.isArray(value.evaluation) || typeof value.evaluation === 'object')
+        return undefined
+    else if(value.evaluation.toString() === value.materialization)
+        return undefined
+    else
+        return simplifyExpression(value.materialization);
+}
 
 
 

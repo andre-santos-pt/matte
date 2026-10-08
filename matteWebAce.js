@@ -51,8 +51,8 @@ window.callstack = (editor) => {
         for(let j = 0; j < s.length; j++) {
             html += "<span style='font-family: monospace'>"
             for (let d = j; d !== 0; d--)
-                html += "&nbsp;&nbsp;&nbsp;&nbsp;&#8627;"
-            html += s[j].materialization
+                html += "&nbsp;&nbsp;&nbsp;&nbsp;"
+            html += "&#8627;&nbsp;" + s[j].materialization
 
             for(let r = i; r >= 0; r--)
                 if(t[r].returnStatement && t[r].parent === s[j]) {

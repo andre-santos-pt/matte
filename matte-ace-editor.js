@@ -1,6 +1,9 @@
 import {flatTrace, last, lastTrace} from "./src/utils.ts";
 import {compile} from "./src/antlr2ast.ts";
-import {simplifyExpression} from "./src/expSimplification.ts";
+import {
+    simplifyExpression,
+    variableMaterialization
+} from "./src/expSimplification.ts";
 
 const {Range} = ace.require("ace/range");
 
@@ -535,8 +538,9 @@ export default class MatteAceEditor {
             return
 
         for (const [key, value] of dataMap) {
-            const mat = value.materialization === value.evaluation.toString() ? "" : value.materialization ? " (" + simplifyExpression(value.materialization) + ")" : "";
-            this.popup(value.declaration.end, this.prettyPrint(value.evaluation) + mat, value.isParameter, false);
+            const mat =  variableMaterialization(value)
+            const matText = mat ? " (" + mat + ")" : "";
+            this.popup(value.declaration.end, this.prettyPrint(value.evaluation) + matText, value.isParameter, false);
         }
     }
 
