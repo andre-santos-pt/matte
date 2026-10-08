@@ -7,10 +7,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
 <script src="../dist/matte-web-ace.js" defer></script>
 
-
 <hr>
 <h1>Tracing</h1>
-<matte-ace height="160" width="400" call="" ext-trace var="i">
+<matte-ace height="160" width="400" call="" ext-trace>
 int i;
 i = 1;
 int j = i;
@@ -18,51 +17,83 @@ i = j * 2;
 i = i * 3;
 </matte-ace>
 
-<script>
-function trace(editor) {
-    let div;
-    editor.beforeRunListeners.push(() => {
-        if(div) div.remove();
-    });
-    editor.afterRunListeners.push((r) => {
-        console.log(r)
-        const varName = this.getAttribute("var");
-        div = document.createElement("div");
-        editor.container.after(div);
-        const span = document.createElement("span");
-        span.textContent = "Tracing variable " + varName + ": ";
-        div.appendChild(span);
-        const trace = [];
-        r.trace.children.map(t => t.stack.variables.get(varName)).forEach(t => {
-            if(t !== undefined && t.evaluation !== trace[trace.length - 1]) {
-                trace.push(t.evaluation);
-                const text = document.createElement("input");
-                text.type = "text";
-                text.style.cssText ="margin: 5px; padding: 3px; width: 20px;";
-                const correct = t.evaluation;
-                text.addEventListener( "change", () => {
-                    if(text.value === correct.toString()) {
-                        text.style.backgroundColor = "lightgreen";
-                    } else {
-                        text.style.backgroundColor = "salmon";
-                    }
-                });
-                div.append(text);
-            }
-        });
-    });
-    editor.stepListeners.push((t) => {
-        const varName = this.getAttribute("var");
-        const value = editor.interpreter.get(varName);
-        if(value !== undefined) {
-            const text = document.createElement("input");
-            text.type = "text";
-            text.style.cssText ="margin: 5px; padding: 3px; width: 20px;";
-            text.value = value;
-            div.append(text);
-        }
-    });
+<matte-ace call="" ext-trace vars="i,j">
+for(int i = 0; i < 5; i++) {
+    for(int j = 0; j < 3; j++) {
+
+    }
 }
+</matte-ace>
+
+<script>
+
+
+    function collectDistinctSequenceOfValues(trace, varName) {
+        const values = [];
+        trace.map(t => t.stack.variables.get(varName)).forEach(t => {
+            if (t !== undefined && t.evaluation !== values[values.length - 1])
+                values.push(t.evaluation);
+        });
+        return values;
+    }
+
+    function trace(editor) {
+        let div = document.createElement("div");
+        let att = this.getAttribute("vars");
+        let varNames;
+        let textBoxes = {};
+
+        editor.beforeRunListeners.push(() => {
+            div.replaceChildren();
+            textBoxes = {};
+        });
+        editor.afterRunListeners.push((r) => {
+            if (att === null || att === undefined || att.trim() === "")
+                varNames = Array.from(new Set(r.trace.children.map(t => t.stack.variables.keys().toArray()).flat()));
+            else
+                varNames = this.getAttribute("vars").split(",").map(v => v.trim());
+
+            varNames.forEach((v, index) => {
+                if (index > 0) div.appendChild(document.createElement("hr"));
+                const span = document.createElement("span");
+                span.innerHTML = "Write the sequence of values of variable <b>" + v + "</b>.";
+                div.appendChild(span);
+                const trace = collectDistinctSequenceOfValues(r.trace.children, v);
+                trace.forEach(t => {
+                    const text = document.createElement("input");
+                    text.type = "text";
+                    text.style.cssText = "margin: 5px; padding: 3px; width: 20px;";
+                    const correct = t;
+                    text.addEventListener("change", () => {
+                        if (text.value === correct.toString()) {
+                            text.style.backgroundColor = "lightgreen";
+                        } else {
+                            text.style.backgroundColor = "salmon";
+                        }
+                    });
+                    div.append(text);
+                    if (textBoxes[v] === undefined)
+                        textBoxes[v] = [text]
+                    else
+                        textBoxes[v].push(text);
+                });
+            })
+        });
+        // TODO complete tracing
+        // editor.stepListeners.push((t, index) => {
+        //     varNames.forEach((v) => {
+        //         const value = t[index].stack.variables.get(v);
+        //         console.log(value)
+        //         if (value !== undefined) {
+        //             let trace = collectDistinctSequenceOfValues(t.slice(0, index), v);
+        //             console.log(trace)
+        //             let i = trace.indexOf(value.evaluation);
+        //             textBoxes[v][i].value = value.evaluation;
+        //         }
+        //     })
+        // });
+        return div;
+    }
 </script>
 <hr>
 
