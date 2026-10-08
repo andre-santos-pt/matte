@@ -455,13 +455,6 @@ export class Interpreter {
             } else
                 return variable?.evaluation
         } else if (e instanceof BinaryExpression) {
-            //if(e.left.isSimple() && e.right.isSimple())
-            //    return this.execNoTrace(() => this.evaluate(e).evaluation)
-
-            //const left = e.left.isSimple() ? this.execNoTrace(() => this.evaluate(e.left).evaluation) : this.materialize(e.left)
-            //const right = e.right.isSimple() ? this.execNoTrace(() => this.evaluate(e.right).evaluation) : this.materialize(e.right)
-            //return left + " " + e.operator + " " + right
-
             return this.materialize(e.left) + " " + e.operator + " " + this.materialize(e.right)
         } else if (e instanceof CallExpression) {
             return e.procedure.name + "(" + e.args.map(a => this.materialize(a)).join() + ")"
@@ -625,7 +618,7 @@ export class Interpreter {
             const array = e.elements.map(el => this.evaluate(el).evaluation)
             return {
                 evaluation: array,
-                materialization: array.toString()
+                materialization: "[" + array.join() + "]"
             }
         } else if (e instanceof ArrayAllocationExpression) {
             const length = this.evaluate(e.dimensions[0]).evaluation // TODO multidim
@@ -636,7 +629,7 @@ export class Interpreter {
             // TODO other defaults
             return {
                 evaluation: array,
-                materialization: array.toString()
+                materialization: "[" + array.join() + "]"
             }
         } else if (e instanceof ArrayElementExpression) {
             const arrayVal = this.evaluate(e.target).evaluation as Array<any>
@@ -688,7 +681,7 @@ export class Interpreter {
             })
             return eVal
         })
-        const mat = p.name + "(" + argValues.map(a => a?.evaluation).join() + ")" // TODO mat
+        const mat = p.name + "(" + argValues.map(a => a?.materialization).join() + ")" // TODO mat
         this.scope.push({
             variables
         })
