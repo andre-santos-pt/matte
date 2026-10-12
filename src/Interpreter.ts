@@ -89,6 +89,7 @@ interface TraceVariable {
 interface ExpressionEval {
     evaluation?: any;
     materialization?: string;
+    extension?: any;
 }
 
 
@@ -144,11 +145,11 @@ export class Interpreter {
         return this.scope[this.scope.length - 1];
     }
 
-    private addTrace(node: ASTNode, call: boolean, isReturn: boolean, evaluation: any, materialization?: string) {
+    private addTrace(node: ASTNode, call: boolean, isReturn: boolean, evaluation: any, materialization?: string, extension?: any) {
         if (!this.traceOn)
             return
 
-        const t = this.addTraceRange(node.range, call, isReturn, evaluation, materialization)
+        const t = this.addTraceRange(node.range, call, isReturn, evaluation, materialization, extension)
         if (node instanceof CallExpression && call) {
             this.traceStack.push(t)
             if (!this.trace) {
@@ -169,7 +170,7 @@ export class Interpreter {
     }
 
 
-    private addTraceRange(range: Range | undefined, call: boolean, returnStatement: boolean, evaluation: any, materialization?: string) {
+    private addTraceRange(range: Range | undefined, call: boolean, returnStatement: boolean, evaluation: any, materialization?: string, extension?: any) {
         const entry = {
             stack: structuredClone(last(this.scope)),
             range,
@@ -178,7 +179,8 @@ export class Interpreter {
             call,
             children: call ? [] : undefined,
             parent: last(this.traceStack),
-            returnStatement
+            returnStatement,
+            extension
         }
         if (range != undefined)
             last(this.traceStack).children?.push(entry)
@@ -214,7 +216,7 @@ export class Interpreter {
         } catch (e: any) {
             if(e.program?.block && call)
                 return {
-                    callError: "No call should be provided when executing scripts",
+                    callError: "No call should be provided when executing scripts.",
                     result: undefined,
                     trace: undefined,
                     error: undefined
@@ -246,17 +248,10 @@ export class Interpreter {
                 }
         }
         const [program, expCall] = progAndCall
-        if (program?.block && expCall)
-            return {
-                callError: "Cannot have both a block and a call in the program",
-                error: undefined,
-                result: undefined,
-                trace: undefined
-            }
 
         if(program?.procedures && program.procedures.length > 0 && !expCall) {
             return {
-                callError: "No call provided for execution",
+                callError: "No call provided for execution.",
                 error: undefined,
                 result: undefined,
                 trace: undefined
@@ -316,7 +311,7 @@ export class Interpreter {
                     error: {
                         range: e.range,
                         type: e.compilation,
-                        message: e.value,
+                        message: e.message,
                         detail: e.detail
                     },
                     result: undefined,
@@ -464,13 +459,16 @@ export class Interpreter {
         const ext = this.extensions.get(exp.procedureName)
         if (ext) {
             const args = exp.args.map(a => this.evaluate(a).evaluation)
-            return ext.call(null, args)
-        } else
+            const res = ext(args)
+            this.addTrace(exp, false, true, res.evaluation, res.materialization, res.extension)
+            return {evaluation: res.evaluation, materialization: res.materialization}
+        } else {
             throw {
                 compilation: StaticErrorType.MethodNotFound,
                 range: exp.range,
                 message: `No method named '${exp.procedureName}' found`,
             }
+        }
     }
 
     materialize(e: Expression): string | undefined {

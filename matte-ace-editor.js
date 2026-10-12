@@ -4,6 +4,7 @@ import {
     simplifyExpression,
     variableMaterialization
 } from "./src/expSimplification.ts";
+import {Interpreter} from "./src/Interpreter.ts";
 
 const {Range} = ace.require("ace/range");
 
@@ -110,7 +111,7 @@ export default class MatteAceEditor {
             });
         };
         window.addEventListener('scroll', this.repositionPopups, true);
-        this.extensions = {};
+        this.extensions = new Map();
         this.beforeRunListeners = [];
         this.afterRunListeners = [];
         this.stepListeners = [];
@@ -125,6 +126,10 @@ export default class MatteAceEditor {
         this.secondaryMarkers = []
     }
 
+    addExtensionProcedure(name, func) {
+        this.extensions.set(name, func);
+    }
+
     init() {
         this.editor.selection.on("changeCursor", () => {
             this.popups.forEach(p => p.hide())
@@ -134,7 +139,7 @@ export default class MatteAceEditor {
             const err = this.compilationError ? this.compilationError : lastTrace(this.result.trace).error;
             const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
             if (err && index >= err.range.start && index <= err.range.end) {
-                let message = err.message.replace(/'(.*?)'/g, '<i>$1</i>');
+                let message = err.message?.replace(/'(.*?)'/g, '<i>$1</i>') ?? "";
                 if (err.detail) {
                     if (err.detail.related) {
                         err.detail.related.forEach(r => {
@@ -370,6 +375,7 @@ export default class MatteAceEditor {
             return;
 
         const compilation = compile(code);
+        console.log(compilation);
         this.lastCompilationSource = code;
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();
@@ -390,7 +396,13 @@ export default class MatteAceEditor {
         this.beforeRunListeners.forEach(l => l());
         const code = this.editor.getValue() + (this.include == null ? "" : "\n\n" + this.include)
         this.lastCompilationSource = code;
-        this.result = window.matte(code, this.callBox.value === "" ? null : this.callBox.value, this.extensions);
+
+        const interpreter = new Interpreter();
+        this.extensions.keys().forEach(key => {
+            interpreter.addExtensionProcedure(key, this.extensions.get(key));
+        });
+        this.result = interpreter.parseAndRun(code, this.callBox.value === "" ? null : this.callBox.value);
+
         this.compilationError = this.result.error;
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();

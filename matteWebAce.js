@@ -1,39 +1,60 @@
 import MatteAceEditor from "./matte-ace-editor.js";
-import {Interpreter} from './dist/matte.js';
 
 
-window.createMatteAceEditor = (container, width, height) => {
-    return new MatteAceEditor(container, width, height);
-}
 
-window.matte = (input, call) => {
-    const interpreter = new Interpreter();
-    return interpreter.parseAndRun(input, call);
-}
+window.sysout = (editor) => {
+    function prettyPrint(obj) {
+        if (obj === null || obj === undefined) return "null";
+        if (typeof obj === "number" || typeof obj === "boolean") return obj.toString();
+        if (Array.isArray(obj)) {
+            return "[" + obj.map(prettyPrint).join(",&nbsp;") + "]";
+        }
+        if (typeof obj === "object") {
+            let entries = Object.entries(obj).map(([key, value]) => `${key}: ${prettyPrint(value)}`);
+            return "{" + entries.join(",&nbsp;") + "}";
+        }
+        return obj.toString();
+    }
 
-function consoleExtension(editor) {
+    let consoleText = [];
     const consoleDiv = document.createElement("div");
-    consoleDiv.style.cssText = 'border: 3px solid #000; min-height: 100px; max-height: 300px; width: 400px; padding: 5px; font-size: 20px; font-family: monospace; background: lightgray; box-sizing: border-box; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; overflow: auto;';
+    consoleDiv.style.cssText = 'padding: 5px; font-size: 20px; font-family: monospace; background: lightgray; box-sizing: border-box; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; overflow: auto;';
 
-    editor.extensions["print"] = (o) => this.consoleText.push(o.toString())
-    editor.extensions["println"] = (o) => this.consoleText.push(o.toString() + '<br>')
-    editor.extensions["clear"] = () => this.consoleText = [];
-    editor.container.after(consoleDiv);
+    editor.addExtensionProcedure("println", args => {
+        const argsText = prettyPrint(args[0])
+        consoleText.push(argsText + "<br>");
+        return {
+            evaluation: undefined,
+            materialization: `println(${argsText})`,
+            extension: "sysout"
+        }
+    });
+
+    editor.addExtensionProcedure("print", args => {
+        const argsText = prettyPrint(args[0])
+        consoleText.push(argsText);
+        return {
+            evaluation: undefined,
+            materialization: `print(${argsText})`,
+            extension: "sysout"
+        }
+    });
+
     editor.beforeRunListeners.push(() => {
-        this.consoleText = [];
+        consoleText = [];
     })
     editor.afterRunListeners.push(() => {
-        consoleDiv.innerHTML = this.consoleText.join("");
+        consoleDiv.innerHTML = consoleText.join("");
     })
 
-    // TODO last step
     editor.stepListeners.push((trace, index) => {
         let c = 0;
         for (let i = 0; i < index; i++)
-            if (trace[i].call === 'print' || trace[i].call === 'println')
+            if (trace[i].extension === "sysout")
                 c++;
-        consoleDiv.innerHTML = this.consoleText.slice(0, c).join("")
+        consoleDiv.innerHTML = consoleText.slice(0, c).join("")
     });
+    return consoleDiv;
 }
 
 window.callstack = (editor) => {
@@ -68,11 +89,9 @@ window.callstack = (editor) => {
     return div
 }
 
-
 class MatteAce extends HTMLElement {
     constructor() {
         super();
-        this.consoleText = [];
     }
 
     connectedCallback() {
@@ -82,17 +101,14 @@ class MatteAce extends HTMLElement {
         div.innerHTML = this.innerHTML.startsWith("\n") ? this.innerHTML.substring(1) : this.innerHTML;
         this.innerHTML = '';
         this.append(div);
-        const editor = window.createMatteAceEditor(div, this.getAttribute("width"), this.getAttribute("height"));
-
-        if (this.hasAttribute("console"))
-            consoleExtension.call(this, editor);
+        const editor = new MatteAceEditor(div, this.getAttribute("width"), this.getAttribute("height"));
 
         Array.from(this.attributes).filter(attr => attr.name.startsWith("ext-")).forEach(attr => {
             const extName = attr.name.substring(4);
             if (window[extName]) {
                 const extDiv = window[extName].call(this, editor);
                 if(!(extDiv instanceof HTMLDivElement))
-                     console.error("Extension '" + extName + "' did not return a DIV");
+                    console.error("Extension '" + extName + "' did not return a DIV");
 
                 const div = document.createElement("div")
                 div.style.border = "1px solid gray";
@@ -110,11 +126,12 @@ class MatteAce extends HTMLElement {
     }
 }
 
-// TODO: frame view
-
 try {
     customElements.define('matte-ace', MatteAce);
 } catch
     (e) {
     console.error('matte-ace definition failed:', e);
 }
+
+
+
