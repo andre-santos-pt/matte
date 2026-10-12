@@ -219,7 +219,7 @@ function checkReturns(procedure: Procedure): void {
                             related: [procedure.returnTypeRange]
                         }
                     }
-                if (!isSameType(statement.expression?.type, procedure.returnType)) {
+                if (statement.expression?.type && !isSameType(statement.expression?.type, procedure.returnType)) {
                     throw {
                         compilation: StaticErrorType.TypeMismatch,
                         range: statement.expression.range,
@@ -928,7 +928,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             throw {
                 message: "Method '" + proc.name + "' expects " + proc.parameters.length + " arguments (not " + args.length + ")",
                 compilation: StaticErrorType.NumberArgumentsMismatch,
-                range: this.rangeContext(ctx.expList()),
+                range: ctx.expList() ? this.rangeContext(ctx.expList()) : this.rangeToken(ctx._id),
                 detail: {
                     related: [... proc.parameters.map(p => p.typeRange)]
                 }
