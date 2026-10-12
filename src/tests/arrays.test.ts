@@ -63,6 +63,20 @@ describe('Matte Interpreter Test Arrays', () => {
         `, StaticErrorType.TypeMismatch)
         });
 
+        it('index type', () => {
+            compilationError(`
+        int[] array = new int[2];
+        array[2.1] = 10;
+        `, StaticErrorType.TypeMismatch)
+        });
+
+        it('assign type', () => {
+            compilationError(`
+        int[] array = new int[2];
+        array[0] = 10.3;
+        `, StaticErrorType.TypeMismatch)
+        });
+
         it('array write invalid index', () => {
             runtimeError(`
         int[] array = new int[5];

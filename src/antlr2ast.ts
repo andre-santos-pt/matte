@@ -928,7 +928,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             throw {
                 message: "Method '" + proc.name + "' expects " + proc.parameters.length + " arguments (not " + args.length + ")",
                 compilation: StaticErrorType.NumberArgumentsMismatch,
-                range: ctx.expList() ? this.rangeContext(ctx.expList()) : this.rangeToken(ctx._id),
+                range: this.rangeContext(ctx.expList() ?? ctx),
                 detail: {
                     related: [... proc.parameters.map(p => p.typeRange)]
                 }

@@ -216,29 +216,37 @@ export class ArrayAssignment extends Statement {
     expression: Expression;
 
     constructor(range: Range, target: Expression, index: Expression, expression: Expression) {
-        // if(target.type != expression.type) // TODO component type
-        //     throw {
-        //         message: "Cannot assign a " + expression.type + " to a variable of type " + target.type,
-        //         compilation: CompilationErrorType.TypeMismatch,
-        //         range: expression.range,
-        //         detail: {
-        //             related: target.range,
-        //         }
-        //     }
-        // TODO target type
-
+        if(!(target.type instanceof ArrayType)) {
+            throw {
+                message: "The variable must be an array reference (not " + target.type + ")",
+                compilation: StaticErrorType.TypeMismatch,
+                range: target.range,
+                detail: target instanceof Variable ? {
+                    related : [target.declaration.typeRange]
+                } : undefined
+            }
+        }
         if(index.type != PrimitiveType.INT)
             throw {
-                message: "Expected an expression of type integer",
+                message: "The index must be given by an integer (not " + index.type + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: index.range
             }
+
+        if(!isSameType((target.type as ArrayType).componentType, expression.type))
+            throw {
+                message: "Cannot assign a value of type " + expression.type + " to an array holding " + (target.type as ArrayType).componentType + " values",
+                compilation: StaticErrorType.TypeMismatch,
+                range: expression.range,
+                detail: target instanceof Variable ? {
+                    related : [target.declaration.typeRange]
+                } : undefined
+            }
+
         super(range);
         this.target = target;
         this.index = index;
         this.expression = expression;
-
-
     }
 }
 
@@ -509,17 +517,23 @@ export class ArrayElementExpression extends Expression {
     constructor(range: Range, target: Expression, index: Expression) {
         if (!isArrayType(target.type))
             throw {
-                message: "Not an array",
+                message: "The variable must be an array reference (not " + target.type + ")",
                 compilation: StaticErrorType.TypeMismatch,
-                range: target.range
-            }
+                range: target.range,
+                detail: target instanceof Variable ? {
+                    related : [target.declaration.typeRange]
+                } : undefined
+        }
 
+        if(index.type != PrimitiveType.INT)
+            throw {
+                message: "The index must be given by an integer (not " + index.type + ")",
+                compilation: StaticErrorType.TypeMismatch,
+                range: index.range
+            }
         super(range, (target.type as ArrayType).componentType);
         this.target = target;
         this.index = index;
-
-        // TODO target type
-        // TODO index validation
     }
 
     getChildren() : Expression[] {
