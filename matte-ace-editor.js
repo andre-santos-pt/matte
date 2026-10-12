@@ -397,7 +397,7 @@ export default class MatteAceEditor {
         console.log(this.result)
 
         if(this.result.callError) {
-            this.resultLabel.innerHTML = "<span style='color: red;'>" + this.result.callError + "</span>";
+            this.resultLabel.innerHTML = "<span style='color: #a19f9f; font-style: italic'>" + this.result.callError + "</span>";
             this.resultLabel.style.visibility = "visible";
         }
         else if (this.result.error) {
@@ -424,6 +424,9 @@ export default class MatteAceEditor {
                 this.slider.value = "0";
                 this.debugBtn.style.visibility = "visible";
                 this.setDebugMode(false);
+                if(this.result.program.block) {
+                    this.createScopePopups(last(this.result.trace.children).stack.variables);
+                }
             }
             this.afterRunListeners.forEach(l => l(this.result));
         }

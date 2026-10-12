@@ -272,7 +272,7 @@ export class Interpreter {
                 variables: new Map()
             })
             this.trace = {
-                stack: last(this.scope),
+                stack: structuredClone(last(this.scope)),
                 children: [],
             }
             this.traceStack.push(this.trace)
