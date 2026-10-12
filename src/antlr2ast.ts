@@ -150,9 +150,31 @@ export function buildASTandCall(source: string, call: string): [Program, Express
     const program = visitor.visitUnit(unitCtx)
 
     visitor.tokenStream = tokens2
-    const exp = visitor.expToAST(callCtx)
-    exp.setLoose()
-    return [program, exp]
+    try {
+        const exp = visitor.expToAST(callCtx)
+        if(exp instanceof UnboundCallExpression)
+            throw {
+                callError: `'${exp.procedureName}' not found`,
+                program: program,
+            }
+        if(!(exp instanceof CallExpression))
+            throw {
+                callError: "Not a valid call",
+                program: program,
+            }
+        exp.setLoose()
+        return [program, exp]
+    }
+    catch (e: any) {
+        if(e.callError)
+            throw e
+        e.program = program
+        if(e.compilation == StaticErrorType.UndeclaredVariable)
+            e.callError =  "Not a valid call"
+        else if(e.compilation)
+            e.callError = e.message
+        throw e
+    }
 }
 
 type ScopeEntry = {

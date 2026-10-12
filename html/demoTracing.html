@@ -17,14 +17,6 @@ i = j * 2;
 i = i * 3;
 </matte-ace>
 
-<matte-ace call="" ext-trace vars="i,j">
-for(int i = 0; i < 5; i++) {
-    for(int j = 0; j < 3; j++) {
-
-    }
-}
-</matte-ace>
-
 <script>
 
 
@@ -48,6 +40,7 @@ for(int i = 0; i < 5; i++) {
             textBoxes = {};
         });
         editor.afterRunListeners.push((r) => {
+            console.log(r);
             if (att === null || att === undefined || att.trim() === "")
                 varNames = Array.from(new Set(r.trace.children.map(t => t.stack.variables.keys().toArray()).flat()));
             else

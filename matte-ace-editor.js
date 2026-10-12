@@ -337,13 +337,12 @@ export default class MatteAceEditor {
         this.closeDebugBtn.hidden = !on;
         this.cumulative.hidden = !on;
 
-        if(on) {
+        if (on) {
             this.editor.container.querySelector('.ace_scroller').style.backgroundColor = '#e8e8e8';
             this.resultLabel.style.visibility = "hidden";
             this.step(0, this.cumulativeMode);
             this.updateDebugNavigation();
-        }
-        else {
+        } else {
             this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
             this.editor.container.querySelector('.ace_scroller').style.backgroundColor = this.editorBackgroundColor
         }
@@ -379,8 +378,7 @@ export default class MatteAceEditor {
             this.compilationError = compilation;
             this.markCompilationError(compilation);
             this.runBtn.disabled = true;
-        }
-        else {
+        } else {
             this.compilationError = null;
             this.runBtn.disabled = false;
         }
@@ -398,7 +396,11 @@ export default class MatteAceEditor {
         this.editor.session.clearAnnotations();
         console.log(this.result)
 
-        if (this.result.error) {
+        if(this.result.callError) {
+            this.resultLabel.innerHTML = "<span style='color: red;'>" + this.result.callError + "</span>";
+            this.resultLabel.style.visibility = "visible";
+        }
+        else if (this.result.error) {
             this.debugBtn.hidden = true;
             this.markCompilationError(this.result.error);
         } else {
@@ -415,7 +417,6 @@ export default class MatteAceEditor {
                 this.setDebugMode(true);
             } else {
                 this.resultLabel.innerHTML = '';
-                // TODO handle script (show var state)
                 if (this.result.result?.evaluation !== undefined)
                     this.resultLabel.innerHTML = ' = ' + JSON.stringify(this.result.result.evaluation);
                 this.resultLabel.style.visibility = this.result.result?.evaluation !== undefined ? "visible" : "hidden";
@@ -538,7 +539,7 @@ export default class MatteAceEditor {
             return
 
         for (const [key, value] of dataMap) {
-            const mat =  variableMaterialization(value)
+            const mat = variableMaterialization(value)
             const matText = mat ? " (" + mat + ")" : "";
             this.popup(value.declaration.end, this.prettyPrint(value.evaluation) + matText, value.isParameter, false);
         }

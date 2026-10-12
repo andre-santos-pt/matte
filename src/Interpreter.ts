@@ -41,7 +41,8 @@ import {last} from "./utils";
 
 
 interface InterpreterResult {
-    error?: StaticError;
+    callError: string | undefined;
+    error: StaticError | undefined;
     result: any;
     trace?: TraceEntry;
     program?: Program;
@@ -211,8 +212,16 @@ export class Interpreter {
             else
                 progAndCall = [buildAST(source), undefined]
         } catch (e: any) {
-            if (e.compilation)
+            if(e.program?.block && call)
                 return {
+                    callError: "No call should be provided when executing scripts",
+                    result: undefined,
+                    trace: undefined,
+                    error: undefined
+                }
+            if(e.callError) {
+                return {
+                    callError: e.callError,
                     result: undefined,
                     trace: undefined,
                     error: {
@@ -222,29 +231,42 @@ export class Interpreter {
                         detail: e.detail
                     }
                 }
-            else
-                console.log(e.stack)
+            }
+            else if (e.compilation)
+                return {
+                    callError: undefined,
+                    result: undefined,
+                    trace: undefined,
+                    error: {
+                        range: e.range,
+                        type: e.compilation,
+                        message: e.message,
+                        detail: e.detail
+                    }
+                }
         }
-        const [ast, exp] = progAndCall
-        return this.runProgram(ast as Program, exp);
+        const [program, expCall] = progAndCall
+        if (program?.block && expCall)
+            return {
+                callError: "Cannot have both a block and a call in the program",
+                error: undefined,
+                result: undefined,
+                trace: undefined
+            }
+
+        if(program?.procedures && program.procedures.length > 0 && !expCall) {
+            return {
+                callError: "No call provided for execution",
+                error: undefined,
+                result: undefined,
+                trace: undefined
+            }
+        }
+
+        return this.runProgram(program as Program, expCall);
     }
 
     runProgram(program: Program, call?: Expression): InterpreterResult {
-        if (!program.block && !call)
-            throw {
-                range: undefined,
-                type: StaticErrorType.SyntaxError,
-                message: "No block or call provided in the program"
-            }
-
-        if (call && program.block) {
-            throw {
-                range: call.range,
-                type: StaticErrorType.SyntaxError,
-                message: "Cannot have both a block and a call in the program"
-            }
-        }
-
         if (program.block) {
             this.scope.push({
                 variables: new Map()
@@ -255,11 +277,13 @@ export class Interpreter {
             }
             this.traceStack.push(this.trace)
             return this.tryRun(() => {
+                // script execution
                 (program.block as BlockStatement).statements.forEach(i => this.execute(i));
                 this.addTrace((program.block as BlockStatement), false, false, undefined, undefined)
                 this.scope.pop()
                 return {
-                    errors: [],
+                    callError: undefined,
+                    error: undefined,
                     result: undefined,
                     trace: structuredClone(this.trace),
                     program,
@@ -269,7 +293,8 @@ export class Interpreter {
         } else {
             return this.tryRun(() => {
                 return {
-                    errors: [],
+                    callError: undefined,
+                    error: undefined,
                     result: this.evaluate(call as Expression),
                     trace: structuredClone(this.trace),
                     program,
@@ -287,6 +312,7 @@ export class Interpreter {
         } catch (e: any) {
             if (e.compilation)
                 return {
+                    callError: undefined,
                     error: {
                         range: e.range,
                         type: e.compilation,
@@ -298,6 +324,7 @@ export class Interpreter {
                 }
             else if (e.runtimeError) {
                 return {
+                    callError: undefined,
                     error: undefined,
                     result: undefined,
                     trace: structuredClone(this.trace)
@@ -322,7 +349,7 @@ export class Interpreter {
             }
         } else if (s instanceof Assignment) {
             const exp = this.evaluate(s.expression);
-            //this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization)
+
             const v = this.topScope().variables.get(s.variable.name)
 
             function paren(mat: string | undefined): string | undefined {
@@ -350,6 +377,7 @@ export class Interpreter {
                 })
             }
             else {
+                this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization)
                 this.topScope().variables.set(s.variable.name, {
                     name: s.variable.name,
                     evaluation: exp.evaluation,
