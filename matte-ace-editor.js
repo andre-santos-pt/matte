@@ -54,11 +54,11 @@ const styleCss =
                 white-space: pre-wrap;
             }
             .my-error-tooltip b {
-                color: #ff5555; /* Make the bold part bright red */
+                color: black; /* Make the bold part bright red */
                 font-weight: bold;
             }
             .my-error-tooltip i {
-                color: #ffb86c; /* Make the italic part orange */
+                color: #bbbbbb; /* Make the italic part orange */
                 font-weight: bold;
             }`;
 
@@ -139,7 +139,7 @@ export default class MatteAceEditor {
             const err = this.compilationError ? this.compilationError : lastTrace(this.result.trace).error;
             const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
             if (err && index >= err.range.start && index <= err.range.end) {
-                let message = err.message?.replace(/'(.*?)'/g, '<i>$1</i>') ?? "";
+                let message = err.message?.replace(/'(.*?)'/g, '<b>$1</b>') ?? "";
                 if (err.detail) {
                     if (err.detail.related) {
                         err.detail.related.forEach(r => {
@@ -247,10 +247,9 @@ export default class MatteAceEditor {
         });
         this.cumulativeMode = false;
         this.editor.container.addEventListener('keydown', (event) => {
-            if (!this.editor.getReadOnly() || event.key.length !== 1 ||
-                event.ctrlKey || event.metaKey || event.altKey || event.isComposing)
+            if (event.key !== 'Enter' && event.key !== 'Backspace' && event.key !== 'Delete' && (!this.editor.getReadOnly() || event.key.length !== 1 ||
+                event.ctrlKey || event.metaKey || event.altKey || event.isComposing))
                 return;
-
             this.popups.forEach(p => p.hide());
             const cursorIndex = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
             this.popup(cursorIndex, "Read-only. Close the debug mode to edit the code.", true);
@@ -350,6 +349,7 @@ export default class MatteAceEditor {
         } else {
             this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
             this.editor.container.querySelector('.ace_scroller').style.backgroundColor = this.editorBackgroundColor
+            this.popups.forEach(p => p.hide());
         }
     }
 
@@ -387,6 +387,8 @@ export default class MatteAceEditor {
         } else {
             this.compilationError = null;
             this.runBtn.disabled = false;
+            this.popups.forEach(p => p.hide());
+            this.clearSecondaryMarkers()
         }
     }
 

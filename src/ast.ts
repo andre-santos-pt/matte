@@ -1,4 +1,5 @@
 import Range from "./Range";
+import {mark, markType} from "./antlr2ast";
 
 export interface StaticError {
     range: Range;
@@ -75,13 +76,17 @@ export enum PrimitiveType {
     VOID = "void"
 }
 
-export function typeName(type: Type) {
+export function typeName(type?: Type): string | undefined {
+    if(!type)
+        return undefined;
     if(isPrimitiveType(type))
         return type.toString()
     else if(type instanceof TypeDeclaration)
         return type.name
     else if(type instanceof ForeignType)
         return type.name
+    else if(type instanceof ArrayType)
+        return typeName(type.componentType as Type) + "[]"
     else
         return undefined
 }
@@ -173,7 +178,7 @@ export class Declaration extends Statement {
             && !(initializer.type instanceof ArrayType && !initializer.type.componentType)
             && !isSameType(initializer.type, type))
             throw {
-                message: "Expected an expression of type " + typeName(type) + " (not " + initializer.type + ")",
+                message: "Expected an expression of type " + markType(type) + " (not " + markType(initializer.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: initializer.range,
                 detail: {
@@ -197,7 +202,7 @@ export class Assignment extends Statement {
     constructor(range: Range, variable: Declaration, expression: Expression) {
         if (!isSameType(variable.type, expression.type))
             throw {
-                message: "Expected expression of type " + variable.type + " (not " + expression.type + ")",
+                message: "Expected expression of type " + markType(variable.type) + " (not " +  markType(expression.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: expression.range,
                 detail: {
@@ -218,7 +223,7 @@ export class ArrayAssignment extends Statement {
     constructor(range: Range, target: Expression, index: Expression, expression: Expression) {
         if(!(target.type instanceof ArrayType)) {
             throw {
-                message: "The variable must be an array reference (not " + target.type + ")",
+                message: "The variable must be an array reference (not " +  markType(target.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: target.range,
                 detail: target instanceof Variable ? {
@@ -228,14 +233,14 @@ export class ArrayAssignment extends Statement {
         }
         if(index.type != PrimitiveType.INT)
             throw {
-                message: "The index must be given by an integer (not " + index.type + ")",
+                message: "The index must be given by an integer (not " + markType(index.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: index.range
             }
 
         if(!isSameType((target.type as ArrayType).componentType, expression.type))
             throw {
-                message: "Cannot assign a value of type " + expression.type + " to an array holding " + (target.type as ArrayType).componentType + " values",
+                message: "Cannot assign a value of type " + markType(expression.type) + " to an array holding " + markType((target.type as ArrayType).componentType) + " values",
                 compilation: StaticErrorType.TypeMismatch,
                 range: expression.range,
                 detail: target instanceof Variable ? {
@@ -262,7 +267,7 @@ export class BlockStatement extends Statement {
 function checkGuardType(condition: Expression) {
     if (!isSameType(condition.type, PrimitiveType.BOOLEAN))
         throw {
-            message: "Expected boolean expression (not " + condition.type + ")",
+            message: "Expected boolean expression (not " + markType(condition.type) + ")",
             compilation: StaticErrorType.TypeMismatch,
             range: condition.range
         }
@@ -295,7 +300,7 @@ export class WhileStatement extends Statement {
 }
 
 export class BreakStatement extends Statement {
-    // TODO break location
+    // TODO break location check
 }
 
 export class ReturnStatement extends Statement {
@@ -312,8 +317,6 @@ export class ReturnStatement extends Statement {
         else
             return this.range
     }
-
-    // TODO return type check
 }
 
 export class CallStatement extends Statement {
@@ -428,7 +431,7 @@ export class UnaryExpression extends Expression {
                 message: "Unary operator - can only be applied to numeric expressions",
                 compilation: StaticErrorType.TypeMismatch,
                 range: expression.range,
-                detail: "The expression '" + expression.range?.text + "' is of type " + expression.type
+                detail: "The expression " + mark(expression.range?.text ?? "") + " is of type " + markType(expression.type)
             }
 
         if (operator == "!" && !isSameType(expression.type, PrimitiveType.BOOLEAN))
@@ -436,7 +439,7 @@ export class UnaryExpression extends Expression {
                 message: "Unary operator - can only be applied to boolean expressions",
                 compilation: StaticErrorType.TypeMismatch,
                 range: expression.range,
-                detail: "The expression '" + expression.range?.text + "' is of type " + expression.type
+                detail: "The expression " + mark(expression.range?.text ?? "") + " is of type " + markType(expression.type)
             }
 
         super(range, expression.type);
@@ -517,7 +520,7 @@ export class ArrayElementExpression extends Expression {
     constructor(range: Range, target: Expression, index: Expression) {
         if (!isArrayType(target.type))
             throw {
-                message: "The variable must be an array reference (not " + target.type + ")",
+                message: "The variable must be an array reference (not " + markType(target.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: target.range,
                 detail: target instanceof Variable ? {
@@ -527,7 +530,7 @@ export class ArrayElementExpression extends Expression {
 
         if(index.type != PrimitiveType.INT)
             throw {
-                message: "The index must be given by an integer (not " + index.type + ")",
+                message: "The index must be given by an integer (not " + markType(index.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: index.range
             }
@@ -547,21 +550,21 @@ export class ArithmeticExpression extends BinaryExpression {
     constructor(range: Range, operator: string, left: Expression, right: Expression) {
         if (!ArithmeticExpression.validOperator(operator))
             throw {
-                message: "Invalid arithmetic operator",
+                message: "Invalid arithmetic operator " + mark(operator),
                 compilation: StaticErrorType.SyntaxError,
                 range: range
             }
 
         if (!isNumberType(left.type))
             throw {
-                message: "Number is expected to perform the operation '" + operator + "'",
+                message: "Number is expected to perform the operation " + mark(operator),
                 compilation: StaticErrorType.TypeMismatch,
                 range: left.range
             }
 
         if (!isNumberType(right.type))
             throw {
-                message: "Number is expected to perform the operation '" + operator + "'",
+                message: "Number is expected to perform the operation " + mark(operator),
                 compilation: StaticErrorType.TypeMismatch,
                 range: right.range
             }
@@ -587,7 +590,7 @@ export class RelationalExpression extends BinaryExpression {
 
         if ((operator == "==" || operator == "!=") && left.type != right.type) // TODO case int / double
             throw {
-                message: "Operands have incompatible compatible types; " + left.range?.text + " is " + left.type + " and " + right.range?.text + " is " + right.type,
+                message: "Operands have incompatible compatible types; " + left.range?.text + " is " + markType(left.type) + " and " + right.range?.text + " is " + markType(right.type),
                 compilation: StaticErrorType.TypeMismatch,
                 range: range
             }
@@ -595,14 +598,14 @@ export class RelationalExpression extends BinaryExpression {
         if (operator == '<' || operator == '<=' || operator == '>' || operator == '>=') {
             if (!isNumberType(left.type))
                 throw {
-                    message: "Number is expected to perform the comparison '" + operator + "'",
+                    message: "Number is expected to perform the comparison " + mark(operator),
                     compilation: StaticErrorType.TypeMismatch,
                     range: left.range
                 }
 
             if (!isNumberType(right.type))
                 throw {
-                    message: "Number is expected to perform the comparison '" + operator + "'",
+                    message: "Number is expected to perform the comparison " + mark(operator),
                     compilation: StaticErrorType.TypeMismatch,
                     range: right.range
                 }
@@ -619,21 +622,21 @@ export class LogicalExpression extends BinaryExpression {
     constructor(range: Range, operator: string, left: Expression, right: Expression) {
         if (!LogicalExpression.validOperator(operator))
             throw {
-                message: "Invalid relational operator",
+                message: "Invalid relational operator " + mark(operator),
                 compilation: StaticErrorType.SyntaxError,
                 range: range
             }
 
         if (!isBooleanType(left.type))
             throw {
-                message: "Boolean expression expected",
+                message: "Boolean expression expected (not " + markType(left.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: left.range
             }
 
         if (!isBooleanType(right.type))
             throw {
-                message: "Boolean expression expected",
+                message: "Boolean expression expected (not " + markType(right.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: right.range
             }
@@ -688,7 +691,8 @@ export class NewObjectExpression extends Expression {
         if(!(type instanceof TypeDeclaration))
             throw {
                 message: "Not an object type",
-                compilation: StaticErrorType.TypeMismatch
+                compilation: StaticErrorType.TypeMismatch,
+                range
             }
         // TODO arg types
         super(range, type);
@@ -744,7 +748,7 @@ export class FieldAccessExpression extends Expression {
                 type = PrimitiveType.INT
             else
                 throw {
-                    message: "Invalid field '" + fieldName + "' for arrays",
+                    message: "Invalid field " + mark(fieldName) + " for arrays",
                     compilation: StaticErrorType.FieldNotFound,
                     range: fieldNameRange
                 }
@@ -755,7 +759,7 @@ export class FieldAccessExpression extends Expression {
             type = (dec as TypeDeclaration).fields.find(f => f.name == fieldName)?.type
             if (!type)
                 throw {
-                    message: "Field '" + fieldName + "' is not declared in type '" + dec.name + "'",
+                    message: "Field " + mark(fieldName) + " is not declared in type " + markType(dec),
                     compilation: StaticErrorType.FieldNotFound,
                     range: fieldNameRange
                 }

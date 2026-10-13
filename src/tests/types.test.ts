@@ -1,7 +1,6 @@
-
 import {cases, compilationError} from "./utils";
 import {compile} from "../antlr2ast";
-import {StaticErrorType, Program, Procedure, PrimitiveType} from "../ast";
+import {ArrayType, PrimitiveType, Program, StaticErrorType} from "../ast";
 import assert from "assert";
 
 describe('Matte Interpreter Types', () => {
@@ -107,6 +106,14 @@ describe('Matte Interpreter Types', () => {
                    
                 }`) as Program
             assert.equal(p.procedures[0].returnType, PrimitiveType.VOID)
+        })
+
+        it('array return', () => {
+            const p = compile(`
+                int[] f() {
+                   return null;
+                }`) as Program
+            assert.equal(p.procedures[0].returnType, new ArrayType(PrimitiveType.INT))
         })
 
         it('non-void function missing return', () => {

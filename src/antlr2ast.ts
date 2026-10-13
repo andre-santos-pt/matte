@@ -72,7 +72,7 @@ import {
     StaticErrorType,
     StringLiteral,
     Type,
-    TypeDeclaration,
+    TypeDeclaration, typeName,
     UnaryExpression,
     UnboundCallExpression,
     UnboundNewObjectExpression,
@@ -202,7 +202,7 @@ function checkReturns(procedure: Procedure): void {
                     throw {
                         compilation: StaticErrorType.TypeMismatch,
                         range: statement.range,
-                        message: `Function must return a value of type ${procedure.returnType}`,
+                        message: `Function must return a value of type ${markType(procedure.returnType)}`,
                         detail: {
                             related: [procedure.returnTypeRange]
                         }
@@ -214,7 +214,7 @@ function checkReturns(procedure: Procedure): void {
                     throw {
                         compilation: StaticErrorType.TypeMismatch,
                         range: statement.expression.range,
-                        message: `Function cannot return any value`,
+                        message: `Procedure cannot return any value`,
                         detail: {
                             related: [procedure.returnTypeRange]
                         }
@@ -223,7 +223,7 @@ function checkReturns(procedure: Procedure): void {
                     throw {
                         compilation: StaticErrorType.TypeMismatch,
                         range: statement.expression.range,
-                        message: `Expected value of type ${procedure.returnType} (not ${statement.expression?.type})`,
+                        message: `Expected value of type ${markType(procedure.returnType)} (not ${markType(statement.expression?.type)})`,
                         detail: {
                             related: [procedure.returnTypeRange]
                         }
@@ -244,6 +244,14 @@ function checkReturns(procedure: Procedure): void {
 }
 
 
+
+export function  mark(text: string): string {
+    return "'" + (text ?? "") + "'";
+}
+
+export function  markType(type: Type | undefined): string {
+    return "'" + (typeName(type) ?? "") + "'";
+}
 
 class TreeVisitor extends JavaGrammarVisitor<any> {
     varScope: ScopeEntry[] = [];
@@ -324,10 +332,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         throw {
             compilation: StaticErrorType.UndeclaredVariable,
             range: this.rangeTerminal(idCtx),
-            message: `Variable ${name} not found`,
+            message: `Variable ${mark(name)} not found`,
             detail: {
                 related: [...varsInScope.map(v => v.nameRange)],
-                hint: varsInScope.length == 0 && exp ? "If the intention is to have a new variable, write its type on the left (" + exp.type + ")"  :
+                hint: exp ? "If the intention is to have a new variable, write its type on the left (" + exp.type + ")"  :
                     varsInScope.length > 0 ? "Variables in scope are: " + varsInScope.map(v => v.name).join() :  undefined
             }
         }
@@ -415,7 +423,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                         throw {
                             compilation: StaticErrorType.MethodNotFound,
                             range: this.rangeToken(c._id),
-                            message: `No method named '${c._id.text}' found`,
+                            message: `No method named ${mark(c._id.text)} found`,
                             detail: {
                                 related: [this.procedures.map(p => p.nameRange)]
                             }
@@ -430,7 +438,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     throw {
                         compilation: StaticErrorType.MissingReturn,
                         range: procedure.nameRange,
-                        message: `Missing return statement with value of type ${procedure.returnType}`,
+                        message: `Missing return statement with value of type ${markType(procedure.returnType)}`,
                         detail: {
                             related: [procedure.returnTypeRange]
                         }
@@ -557,9 +565,9 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             throw {
                 compilation: StaticErrorType.DuplicateVariable,
                 range: this.rangeToken(ctx._id),
-                message: `Duplicate variable '${ctx._id}'`,
+                message: `Another variable named ${mark(ctx._id.text)} was declared previously`,
                 detail: {
-                    related: [last(this.varScope).variables.get(ctx._id.text)?.range]
+                    related: [last(this.varScope).variables.get(ctx._id.text)?.nameRange]
                 }
             }
         let type: Type | undefined = this.findType(ctx.type_())
@@ -583,7 +591,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             throw {
                 compilation: StaticErrorType.ImmutableVariable,
                 range: this.rangeContext(ctx),
-                message: `Variable '${dec.name}' is immutable and cannot be assigned to`,
+                message: `Variable ${mark(dec.name)} is immutable, it cannot be reassigned`,
                 detail: {
                     related: [dec.range]
                 }
@@ -926,7 +934,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     private checkArgs(ctx: CallContext, args: Expression[], proc: Procedure) {
         if (proc.parameters.length != args.length)
             throw {
-                message: "Method '" + proc.name + "' expects " + proc.parameters.length + " arguments (not " + args.length + ")",
+                message: "Method " + mark(proc.name) + " expects " + proc.parameters.length + " arguments (not " + args.length + ")",
                 compilation: StaticErrorType.NumberArgumentsMismatch,
                 range: this.rangeContext(ctx.expList() ?? ctx),
                 detail: {
@@ -937,7 +945,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         proc.parameters.forEach((p, index) => {
             if (!isSameType(p.type, args[index].type))
                 throw {
-                    message: "The " + this.toWordOrder(index) + " parameter of method '" + proc.name + "' is of type '" + proc.parameters[index].type + "' (not '" + args[index].type + "')",
+                    message: "The " + this.toWordOrder(index) + " parameter of method " + mark(proc.name) + " is of type " + markType(proc.parameters[index].type) + " (not " + markType(args[index].type) + ")",
                     compilation: StaticErrorType.ArgumentTypesMismatch,
                     range: this.rangeContext(ctx._args ? ctx._args.exp(proc.instance ? index - 1 : index) : ctx),
                     detail: {
