@@ -53,12 +53,11 @@ import {
     CallStatement,
     Declaration,
     DoubleLiteral,
-    Expression, expressionCompatibleWith,
+    Expression,
     FieldAccessExpression,
     ForeignType,
     IfStatement,
     IntLiteral,
-    isSameType,
     LogicalExpression,
     NewObjectExpression,
     NullLiteral,
@@ -71,8 +70,10 @@ import {
     StaticError,
     StaticErrorType,
     StringLiteral,
-    Type, typeCompatibleWith,
-    TypeDeclaration, typeName,
+    Type,
+    typeCompatibleWith,
+    TypeDeclaration,
+    typeName,
     UnaryExpression,
     UnboundCallExpression,
     UnboundNewObjectExpression,
@@ -82,6 +83,7 @@ import {
 import Range from "./Range";
 import JavaGrammarVisitor from "./generated/JavaGrammarVisitor";
 import {
+    BailErrorStrategy,
     CharStreams,
     CommonTokenStream,
     Interval,
@@ -121,7 +123,11 @@ function getTokenStreamAndParser(input: string): [CommonTokenStream, MatteErrorL
     const tokens = new CommonTokenStream(lexer);
     const bracketErrors = checkBracketMatching(tokens)
     const parser = new JavaGrammarParser(tokens);
-   // parser._errHandler = new BailErrorStrategy()
+    // if (bracketErrors) {
+    //     // A bracket mismatch suggests missing/inserted tokens; fail fast instead of
+    //     // letting the parser recover and silently fabricate a broken tree.
+    //     parser._errHandler = new BailErrorStrategy()
+    // }
     parser.removeErrorListeners()
     parser.addErrorListener(errorListener)
     return [tokens,errorListener,parser];
@@ -335,7 +341,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             message: `Variable ${mark(name)} not found`,
             detail: {
                 related: [...varsInScope.map(v => v.nameRange)],
-                hint: exp ? "If the intention is to have a new variable, write its type on the left (" + exp.type + ")"  :
+                hint: exp ? "If the intention is to have a new variable, write its type " + (exp.type == PrimitiveType.NULL ? "" : "(" + exp.type + ") ") + "before the name" :
                     varsInScope.length > 0 ? "Variables in scope are: " + varsInScope.map(v => v.name).join() :  undefined
             }
         }

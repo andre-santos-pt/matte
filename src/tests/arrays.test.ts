@@ -3,7 +3,7 @@ import {RuntimeErrorType} from '../Interpreter';
 import {cases, compilationError, runtimeError, script} from "./utils";
 import {
     ArrayType,
-    Declaration, isSameType,
+    Declaration,
     PrimitiveType,
     Program,
     StaticErrorType
@@ -49,7 +49,9 @@ describe('Matte Interpreter Test Arrays', () => {
                 .set("a", [])
             ) as Program
             const dec = p.block?.statements[0] as Declaration
-            assert.ok(isSameType(dec.initializer?.type, new ArrayType(PrimitiveType.INT)))
+            assert.ok(dec.initializer?.type instanceof ArrayType)
+            assert.equal((dec.initializer?.type as ArrayType).componentType, PrimitiveType.INT)
+
         });
 
         it('array write', () => {
@@ -147,6 +149,24 @@ describe('Matte Interpreter Test Arrays', () => {
                 ["sum({1,2,3})",6],
                 ["sum({})",0],
                 ["avg({1,2})", 1.5])
+        })
+
+        it('sum double', () =>{
+            cases(`double sum(double[] a) {
+                double s = 0;
+                int i = 0;
+                while(i < a.length) {
+                    s = s + a[i];
+                    i++;
+                }
+                return s;
+            }
+            `,
+                ["sum({1,2.2,3})",6.2],
+                ["sum({1,2,3})",6],
+                ["sum({1.2,2.1,3.3})",6.6],
+                ["sum({})",0.0]
+            )
         })
 
         it('null return', () =>{

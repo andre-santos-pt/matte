@@ -110,18 +110,18 @@ export function isReferenceType(type?: Type) {
     return type instanceof ArrayType || type instanceof TypeDeclaration || type instanceof ForeignType
 }
 
-export function isSameType(a: Type | undefined, b: Type | undefined): boolean {
-    if (isPrimitiveType(a) || a instanceof TypeDeclaration)
-        return a == b
-    else if (a instanceof ArrayType)
-        return b instanceof ArrayType && (isSameType(a.componentType, b.componentType) || a.componentType == undefined || b.componentType == undefined)
-    else if (a instanceof ForeignType)
-        return b instanceof ForeignType && a.name == b.name
-    else
-        return false
-}
-
 export function typeCompatibleWith(a: Type | undefined, b: Type | undefined): boolean {
+    function isSameType(a: Type | undefined, b: Type | undefined): boolean {
+        if (isPrimitiveType(a) || a instanceof TypeDeclaration)
+            return a == b
+        else if (a instanceof ArrayType)
+            return b instanceof ArrayType && (isSameType(a.componentType, b.componentType) || a.componentType == undefined || b.componentType == undefined)
+        else if (a instanceof ForeignType)
+            return b instanceof ForeignType && a.name == b.name
+        else
+            return false
+    }
+
     if(a == PrimitiveType.INT && b == PrimitiveType.DOUBLE)
         return true
     else if(isPrimitiveType(a) && isPrimitiveType(b))
@@ -192,10 +192,10 @@ export class Declaration extends Statement {
     initializer?: Expression;
 
     constructor(range: Range | undefined, name: string, nameRange: Range | undefined, immutable: boolean, type: Type, typeRange: Range | undefined, initializer?: Expression) {
-        if (initializer
-            && !(isReferenceType(type) && initializer instanceof NullLiteral)
-            && !(initializer.type instanceof ArrayType && !initializer.type.componentType)
-            && !isSameType(initializer.type, type))
+        if(initializer instanceof ArrayLiteralExpression && initializer.elements.length == 0)
+            (initializer as ArrayLiteralExpression).type = type
+
+        if (initializer && !typeCompatibleWith(initializer.type, type))
             throw {
                 message: "Expected an expression of type " + markType(type) + " (not " + markType(initializer.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
@@ -211,8 +211,6 @@ export class Declaration extends Statement {
         this.type = type;
         this.typeRange = typeRange;
         this.initializer = initializer;
-        if(initializer instanceof ArrayLiteralExpression && initializer.elements.length == 0)
-            (this.initializer as ArrayLiteralExpression).type = this.type
     }
 }
 
@@ -221,7 +219,7 @@ export class Assignment extends Statement {
     expression: Expression;
 
     constructor(range: Range, variable: Declaration, expression: Expression) {
-        if (!isSameType(variable.type, expression.type))
+        if (!typeCompatibleWith(expression.type, variable.type))
             throw {
                 message: "Expected expression of type " + markType(variable.type) + " (not " + markType(expression.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
@@ -259,7 +257,7 @@ export class ArrayAssignment extends Statement {
                 range: index.range
             }
 
-        if (!isSameType((target.type as ArrayType).componentType, expression.type))
+        if (!typeCompatibleWith( expression.type, (target.type as ArrayType).componentType))
             throw {
                 message: "Cannot assign a value of type " + markType(expression.type) + " to an array holding " + markType((target.type as ArrayType).componentType) + " values",
                 compilation: StaticErrorType.TypeMismatch,
@@ -286,7 +284,7 @@ export class BlockStatement extends Statement {
 }
 
 function checkGuardType(condition: Expression) {
-    if (!isSameType(condition.type, PrimitiveType.BOOLEAN))
+    if (condition.type !== PrimitiveType.BOOLEAN)
         throw {
             message: "Expected boolean expression (not " + markType(condition.type) + ")",
             compilation: StaticErrorType.TypeMismatch,
@@ -454,7 +452,7 @@ export class UnaryExpression extends Expression {
                 detail: "The expression " + mark(expression.range?.text ?? "") + " is of type " + markType(expression.type)
             }
 
-        if (operator == "!" && !isSameType(expression.type, PrimitiveType.BOOLEAN))
+        if (operator == "!" && expression.type !== PrimitiveType.BOOLEAN)
             throw {
                 message: "Unary operator - can only be applied to boolean expressions",
                 compilation: StaticErrorType.TypeMismatch,
@@ -491,20 +489,27 @@ export abstract class BinaryExpression extends Expression {
     }
 }
 
+
 export class ArrayLiteralExpression extends Expression {
     elements: Expression[];
 
+
     constructor(range: Range, elements: Expression[]) {
-        const types = new Set(elements.map(e => e.type))
-        if (types.size > 1)
+        const types = [...new Set(elements.map(e => e.type))]
+        const commontype = types.find(t => types.filter(x => typeCompatibleWith(x, t)).length == types.length)
+
+        if (elements.length != 0 && !commontype)
             throw {
-                message: "Multiple expression types",
+                message: "Expressions do not have a common compatible type",
                 compilation: StaticErrorType.TypeMismatch,
                 range: range
             }
 
-        super(range, new ArrayType(types.size == 0 ? undefined : types.values().next().value));
-        this.elements = elements;
+        super(range, new ArrayType(commontype));
+        if(commontype == PrimitiveType.DOUBLE)
+            this.elements = elements.map(e => e instanceof IntLiteral ? new DoubleLiteral(e.range, e.value) : e);
+        else
+            this.elements = elements;
     }
 
     getChildren(): Expression[] {

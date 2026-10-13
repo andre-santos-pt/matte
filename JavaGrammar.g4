@@ -1,8 +1,8 @@
 grammar JavaGrammar;
 
-unit: (class | record | method)+ | script EOF ;
+unit: ((class | record | method)+ | script) EOF ;
 
-script: statement+ EOF ;
+script: statement+ ;
 
 class: CLASS id=ID LCURLY member* RCURLY;
 
@@ -111,7 +111,7 @@ PLUS | MINUS;
 
 bopRel:
 EQ | NEQ
-|GT  | GTE | LT | LTE |
+|GT  | GTE | LT | LTE
 |GTE_MIS | LTE_MIS;
 
 bopLog:
@@ -203,4 +203,3 @@ STRING: '"'~([\n"])*'"';
 LINE_COMMENT: '//'~('\n'|'\r')*('\n'|'\r\n') -> channel(HIDDEN);
 
 WS: [ \t\r\n]+ -> channel(HIDDEN) ;
-

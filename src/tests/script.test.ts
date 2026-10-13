@@ -41,6 +41,10 @@ describe('Matte Interpreter Test Script', () => {
         `, StaticErrorType.SyntaxError)
         });
 
+        it('rejects a number immediately followed by an identifier', () => {
+            compilationError('int i = 0a;', StaticErrorType.SyntaxError)
+        });
+
         it('EOF', () => {
             compilationError(`
         int i = 0;
