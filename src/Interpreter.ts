@@ -436,11 +436,7 @@ export class Interpreter {
             if (s.expression) {
                 this.addTraceRange(s.returnRange(), false, true, undefined, this.materialize(s.expression))
                 exp = this.evaluate(s.expression, true)
-                //exp.materialization = exp.evaluation.toString()
-                // if(s.expression instanceof BinaryExpression || s.expression instanceof UnaryExpression)
-                //     this.addTraceRange(s.returnRange(), false, true, exp.evaluation, exp.materialization)
-                // else
-                this.addTraceRange(s.returnRange(), false, true, exp.evaluation, exp.evaluation.toString())
+                this.addTraceRange(s.returnRange(), false, true, exp.evaluation, exp.evaluation?.toString() ?? null)
                 throw exp
             } else {
                 this.addTrace(s, false, true, undefined, undefined)

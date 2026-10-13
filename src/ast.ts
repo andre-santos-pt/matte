@@ -73,19 +73,22 @@ export enum PrimitiveType {
     DOUBLE = "double",
     BOOLEAN = "boolean",
     STRING = "String",
-    VOID = "void"
+    VOID = "void",
+    NULL = "null"
 }
 
 export function typeName(type?: Type): string | undefined {
-    if(!type)
+    if (!type)
         return undefined;
-    if(isPrimitiveType(type))
+    if (isPrimitiveType(type))
         return type.toString()
-    else if(type instanceof TypeDeclaration)
+    else if(type == PrimitiveType.NULL)
+        return "null"
+    else if (type instanceof TypeDeclaration)
         return type.name
-    else if(type instanceof ForeignType)
+    else if (type instanceof ForeignType)
         return type.name
-    else if(type instanceof ArrayType)
+    else if (type instanceof ArrayType)
         return typeName(type.componentType as Type) + "[]"
     else
         return undefined
@@ -117,6 +120,22 @@ export function isSameType(a: Type | undefined, b: Type | undefined): boolean {
     else
         return false
 }
+
+export function typeCompatibleWith(a: Type | undefined, b: Type | undefined): boolean {
+    if(a == PrimitiveType.INT && b == PrimitiveType.DOUBLE)
+        return true
+    else if(isPrimitiveType(a) && isPrimitiveType(b))
+        return a == b
+    else if (b instanceof ArrayType)
+        return a == PrimitiveType.NULL || a instanceof ArrayType && (isSameType(a.componentType, b.componentType))
+    else if (b instanceof TypeDeclaration)
+        return a == PrimitiveType.NULL || a instanceof TypeDeclaration && (a.name == b.name)
+    else if (a instanceof ForeignType)
+        return b instanceof ForeignType && a.name == b.name
+    else
+        return false
+}
+
 
 export class TypeDeclaration {
     name: string;
@@ -192,6 +211,8 @@ export class Declaration extends Statement {
         this.type = type;
         this.typeRange = typeRange;
         this.initializer = initializer;
+        if(initializer instanceof ArrayLiteralExpression && initializer.elements.length == 0)
+            (this.initializer as ArrayLiteralExpression).type = this.type
     }
 }
 
@@ -202,7 +223,7 @@ export class Assignment extends Statement {
     constructor(range: Range, variable: Declaration, expression: Expression) {
         if (!isSameType(variable.type, expression.type))
             throw {
-                message: "Expected expression of type " + markType(variable.type) + " (not " +  markType(expression.type) + ")",
+                message: "Expected expression of type " + markType(variable.type) + " (not " + markType(expression.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: expression.range,
                 detail: {
@@ -221,30 +242,30 @@ export class ArrayAssignment extends Statement {
     expression: Expression;
 
     constructor(range: Range, target: Expression, index: Expression, expression: Expression) {
-        if(!(target.type instanceof ArrayType)) {
+        if (!(target.type instanceof ArrayType)) {
             throw {
-                message: "The variable must be an array reference (not " +  markType(target.type) + ")",
+                message: "The variable must be an array reference (not " + markType(target.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: target.range,
                 detail: target instanceof Variable ? {
-                    related : [target.declaration.typeRange]
+                    related: [target.declaration.typeRange]
                 } : undefined
             }
         }
-        if(index.type != PrimitiveType.INT)
+        if (index.type != PrimitiveType.INT)
             throw {
                 message: "The index must be given by an integer (not " + markType(index.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: index.range
             }
 
-        if(!isSameType((target.type as ArrayType).componentType, expression.type))
+        if (!isSameType((target.type as ArrayType).componentType, expression.type))
             throw {
                 message: "Cannot assign a value of type " + markType(expression.type) + " to an array holding " + markType((target.type as ArrayType).componentType) + " values",
                 compilation: StaticErrorType.TypeMismatch,
                 range: expression.range,
                 detail: target instanceof Variable ? {
-                    related : [target.declaration.typeRange]
+                    related: [target.declaration.typeRange]
                 } : undefined
             }
 
@@ -311,8 +332,8 @@ export class ReturnStatement extends Statement {
         this.expression = expression;
     }
 
-    returnRange() : Range | undefined {
-        if(this.range)
+    returnRange(): Range | undefined {
+        if (this.range)
             return new Range(this.range?.start, this.range?.start + 6, this.range?.line, this.range?.column, "return")
         else
             return this.range
@@ -331,7 +352,6 @@ export class CallStatement extends Statement {
 // TODO : CharLiteral
 
 
-
 export abstract class Expression extends ASTNode {
     type?: Type
 
@@ -340,7 +360,7 @@ export abstract class Expression extends ASTNode {
         this.type = type;
     }
 
-    getChildren() : Expression[] {
+    getChildren(): Expression[] {
         return []
     }
 
@@ -403,7 +423,7 @@ export class NullLiteral extends Literal<undefined> {
     value: undefined
 
     constructor(range: Range) {
-        super(range);
+        super(range, PrimitiveType.NULL);
     }
 }
 
@@ -487,7 +507,7 @@ export class ArrayLiteralExpression extends Expression {
         this.elements = elements;
     }
 
-    getChildren() : Expression[] {
+    getChildren(): Expression[] {
         return this.elements
     }
 }
@@ -503,7 +523,7 @@ export class ArrayAllocationExpression extends Expression {
         // TODO dimensions > 1  positive int
     }
 
-    getChildren() : Expression[] {
+    getChildren(): Expression[] {
         return this.dimensions
     }
 }
@@ -524,11 +544,11 @@ export class ArrayElementExpression extends Expression {
                 compilation: StaticErrorType.TypeMismatch,
                 range: target.range,
                 detail: target instanceof Variable ? {
-                    related : [target.declaration.typeRange]
+                    related: [target.declaration.typeRange]
                 } : undefined
-        }
+            }
 
-        if(index.type != PrimitiveType.INT)
+        if (index.type != PrimitiveType.INT)
             throw {
                 message: "The index must be given by an integer (not " + markType(index.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
@@ -539,7 +559,7 @@ export class ArrayElementExpression extends Expression {
         this.index = index;
     }
 
-    getChildren() : Expression[] {
+    getChildren(): Expression[] {
         return [this.target, this.index]
     }
 
@@ -588,13 +608,32 @@ export class RelationalExpression extends BinaryExpression {
                 range: range
             }
 
-        if ((operator == "==" || operator == "!=") && left.type != right.type) // TODO case int / double
-            throw {
-                message: "Operands have incompatible compatible types; " + left.range?.text + " is " + markType(left.type) + " and " + right.range?.text + " is " + markType(right.type),
-                compilation: StaticErrorType.TypeMismatch,
-                range: range
-            }
+        if (operator == "==" || operator == "!=") {
 
+            if (left instanceof NullLiteral || right instanceof NullLiteral) {
+                if (left instanceof NullLiteral && !isReferenceType(right.type))
+                    throw {
+                        message: right.range?.text + " does not have a reference type",
+                        compilation: StaticErrorType.TypeMismatch,
+                        range: range
+                    }
+
+                if (right instanceof NullLiteral && !isReferenceType(left.type))
+                    throw {
+                        message: left.range?.text + " does not have a reference type",
+                        compilation: StaticErrorType.TypeMismatch,
+                        range: range
+                    }
+
+            } else if (left.type != right.type) // TODO case int / double
+                throw {
+                    message: "Operands have incompatible compatible types; " + left.range?.text + " is " + markType(left.type) + " and " + right.range?.text + " is " + markType(right.type),
+                    compilation: StaticErrorType.TypeMismatch,
+                    range: range
+                }
+
+
+        }
         if (operator == '<' || operator == '<=' || operator == '>' || operator == '>=') {
             if (!isNumberType(left.type))
                 throw {
@@ -663,7 +702,7 @@ export class CallExpression extends Expression {
         this.instanceCall = instanceCall;
     }
 
-    getChildren() : Expression[] {
+    getChildren(): Expression[] {
         return this.args
     }
 }
@@ -678,7 +717,7 @@ export class UnboundCallExpression extends Expression {
         this.args = args;
     }
 
-    getChildren() : Expression[] {
+    getChildren(): Expression[] {
         return this.args
     }
 }
@@ -688,7 +727,7 @@ export class NewObjectExpression extends Expression {
     args: Expression[];
 
     constructor(range: Range, type: Type, args: Expression[]) {
-        if(!(type instanceof TypeDeclaration))
+        if (!(type instanceof TypeDeclaration))
             throw {
                 message: "Not an object type",
                 compilation: StaticErrorType.TypeMismatch,
@@ -700,7 +739,7 @@ export class NewObjectExpression extends Expression {
         this.args = args;
     }
 
-    getChildren() : Expression[] {
+    getChildren(): Expression[] {
         return this.args
     }
 }
@@ -715,7 +754,7 @@ export class UnboundNewObjectExpression extends Expression {
         this.args = args;
     }
 
-    getChildren() : Expression[] {
+    getChildren(): Expression[] {
         return this.args
     }
 }
@@ -735,7 +774,7 @@ export class FieldAccessExpression extends Expression {
     }
 
     constructor(range: Range, target: Expression, fieldName: string, fieldNameRange: Range) {
-        if(!FieldAccessExpression.isFieldTarget(target))
+        if (!FieldAccessExpression.isFieldTarget(target))
             throw {
                 message: "Invalid expression for field access",
                 compilation: StaticErrorType.TypeMismatch,
@@ -744,7 +783,7 @@ export class FieldAccessExpression extends Expression {
 
         let type: Type | undefined
         if (isArrayType(target.type)) {
-            if(fieldName == "length")// TODO remove to avoid Java-specific?
+            if (fieldName == "length")// TODO remove to avoid Java-specific?
                 type = PrimitiveType.INT
             else
                 throw {
@@ -752,9 +791,7 @@ export class FieldAccessExpression extends Expression {
                     compilation: StaticErrorType.FieldNotFound,
                     range: fieldNameRange
                 }
-        }
-
-        else if (target.type instanceof TypeDeclaration) {
+        } else if (target.type instanceof TypeDeclaration) {
             const dec = (target as Variable).type as TypeDeclaration
             type = (dec as TypeDeclaration).fields.find(f => f.name == fieldName)?.type
             if (!type)
@@ -763,8 +800,7 @@ export class FieldAccessExpression extends Expression {
                     compilation: StaticErrorType.FieldNotFound,
                     range: fieldNameRange
                 }
-        }
-        else throw {
+        } else throw {
             message: "Not a valid target",
             compilation: StaticErrorType.Unsupported,
             range: target.range

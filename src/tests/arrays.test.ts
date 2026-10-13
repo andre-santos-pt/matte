@@ -1,9 +1,14 @@
-import {
-    RuntimeErrorType
-} from '../Interpreter';
+import {RuntimeErrorType} from '../Interpreter';
 
 import {cases, compilationError, runtimeError, script} from "./utils";
-import {StaticErrorType} from "../ast";
+import {
+    ArrayType,
+    Declaration, isSameType,
+    PrimitiveType,
+    Program,
+    StaticErrorType
+} from "../ast";
+import assert from "assert";
 
 describe('Matte Interpreter Test Arrays', () => {
     describe('Script', () => {
@@ -35,6 +40,16 @@ describe('Matte Interpreter Test Arrays', () => {
                 .set("a", [5, 6, 7])
                 .set("b", [])
             )
+        });
+
+        it('empty array type', () => {
+            const p = script(`
+        int[] a = {};
+        `, new Map()
+                .set("a", [])
+            ) as Program
+            const dec = p.block?.statements[0] as Declaration
+            assert.ok(isSameType(dec.initializer?.type, new ArrayType(PrimitiveType.INT)))
         });
 
         it('array write', () => {
@@ -132,6 +147,19 @@ describe('Matte Interpreter Test Arrays', () => {
                 ["sum({1,2,3})",6],
                 ["sum({})",0],
                 ["avg({1,2})", 1.5])
+        })
+
+        it('null return', () =>{
+            cases(`int[] test(int[] a) {
+                if(a == null)
+                    return null;
+                else
+                    return new int[a.length];
+            }
+            `,
+                ["test(null)",null],
+                ["test({})",[]],
+                ["test({1,2,3})", [0,0,0]])
         })
         }
     )

@@ -4,7 +4,7 @@ import {
 } from "../Interpreter";
 import assert from "assert";
 import {last, lastTrace} from "../utils";
-import {StaticErrorType} from "../ast";
+import {Program, StaticErrorType} from "../ast";
 
 export function compilationError(code: string, expected: StaticErrorType, call?: string) {
     const interpreter = new Interpreter();
@@ -39,7 +39,7 @@ export function cases(code: string, ...tests: [string, any][]) {
     })
 }
 
-export function script(code: string, cases: Map<string, any>) {
+export function script(code: string, cases: Map<string, any>): Program | undefined {
     const interpreter = new Interpreter();
     let result = interpreter.parseAndRun(code);
     if(result.error != undefined) {
@@ -67,4 +67,5 @@ export function script(code: string, cases: Map<string, any>) {
             throw returnObj
         }
     }
+    return result.program
 }

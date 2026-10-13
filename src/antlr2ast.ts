@@ -53,7 +53,7 @@ import {
     CallStatement,
     Declaration,
     DoubleLiteral,
-    Expression,
+    Expression, expressionCompatibleWith,
     FieldAccessExpression,
     ForeignType,
     IfStatement,
@@ -71,7 +71,7 @@ import {
     StaticError,
     StaticErrorType,
     StringLiteral,
-    Type,
+    Type, typeCompatibleWith,
     TypeDeclaration, typeName,
     UnaryExpression,
     UnboundCallExpression,
@@ -219,7 +219,7 @@ function checkReturns(procedure: Procedure): void {
                             related: [procedure.returnTypeRange]
                         }
                     }
-                if (statement.expression?.type && !isSameType(statement.expression?.type, procedure.returnType)) {
+                if (!typeCompatibleWith((statement.expression as Expression).type, procedure.returnType)) {
                     throw {
                         compilation: StaticErrorType.TypeMismatch,
                         range: statement.expression.range,
@@ -943,7 +943,10 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             }
 
         proc.parameters.forEach((p, index) => {
-            if (!isSameType(p.type, args[index].type))
+            if(p.type instanceof ArrayType && args[index] instanceof ArrayLiteralExpression && (args[index] as ArrayLiteralExpression).getChildren().length == 0)
+                (args[index] as ArrayLiteralExpression).type = p.type
+
+            if (!typeCompatibleWith(args[index].type, p.type))
                 throw {
                     message: "The " + this.toWordOrder(index) + " parameter of method " + mark(proc.name) + " is of type " + markType(proc.parameters[index].type) + " (not " + markType(args[index].type) + ")",
                     compilation: StaticErrorType.ArgumentTypesMismatch,
