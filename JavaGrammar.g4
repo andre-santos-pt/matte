@@ -34,7 +34,6 @@ LCURLY statement* RCURLY  #BlockStmt
 ;
 
 
-
 if: IF ((LPAREN expression=exp? RPAREN)|expression=exp) ifcase=statement (ELSE elsecase=statement)?;
 
 while: WHILE ((LPAREN expression=exp? RPAREN)|expression=exp) statement ;
@@ -43,7 +42,7 @@ for: FOR LPAREN declaration? TERM expression=exp? TERM forProgress? RPAREN body=
 
 forProgress: assignment|inc|dec;
 
-declaration: type id=ID (ASSIGN expression=exp)?;
+declaration: type id=ID (ASSIGN (expression=exp | arrayInitializer=arrayLiteral))?;
 
 assignment: id=compId ASSIGN expression=exp; // TODO field set (classes)
 
@@ -65,6 +64,8 @@ nop: TERM; // TODO
 
 expList: exp (COMMA exp)*;
 
+arrayLiteral: LCURLY elements=expList? RCURLY;
+
 exp:
     LPAREN exp RPAREN                           # bracketsExpr
     | newCall                                   # objectAllocExpr
@@ -79,7 +80,6 @@ exp:
     | condition=exp QUESTION trueCase=exp COLON falseCase=exp #conditionalExpr
     | left=exp AND right=exp                    # andExpr
     | left=exp OR right=exp                     # orExpr
-    | LCURLY elements=expList? RCURLY           # arrayLitExpr
     | NEW typeName=ID dimensions                # arrayAllocExpr
     | exp DOT call                              # instanceCallExpr
     | ID                                        # idExpr
@@ -116,6 +116,16 @@ EQ | NEQ
 
 bopLog:
 AND | OR;
+
+
+matteCall: id=ID LPAREN args=expListMatte? RPAREN;
+
+expListMatte: expMatte (COMMA expMatte)*;
+
+expMatte: exp | arrayLiteralBrackets | matteCall;
+
+arrayLiteralBrackets: LBRACK elements=expListMatte? RBRACK;
+
 
 PLUS: '+' ;
 MINUS: '-' ;

@@ -146,9 +146,24 @@ describe('Matte Interpreter Test Arrays', () => {
                 return sum(array) / (array.length * 1.0);
             }
             `,
-                ["sum({1,2,3})",6],
-                ["sum({})",0],
-                ["avg({1,2})", 1.5])
+                ["sum([1,2,3])",6],
+                ["sum([])",0],
+                ["avg([1,2])", 1.5])
+        })
+
+        it('sum out of bounds', () =>{
+            runtimeError(`int sum(int[] a) {
+                int s = 0;
+                int i = 0;
+                while(i <= a.length) {
+                    s = s + a[i];
+                    i++;
+                }
+                return s;
+            }
+            `,
+                RuntimeErrorType.ArrayIndexOutOfBounds,
+                "sum([1,2,3])")
         })
 
         it('sum double', () =>{
@@ -162,10 +177,10 @@ describe('Matte Interpreter Test Arrays', () => {
                 return s;
             }
             `,
-                ["sum({1,2.2,3})",6.2],
-                ["sum({1,2,3})",6],
-                ["sum({1.2,2.1,3.3})",6.6],
-                ["sum({})",0.0]
+                ["sum([1,2.2,3])",6.2],
+                ["sum([1,2,3])",6], // TODO to double
+                ["sum([1.2,2.1,3.3])",6.6],
+                ["sum([])",0.0]
             )
         })
 
@@ -178,8 +193,8 @@ describe('Matte Interpreter Test Arrays', () => {
             }
             `,
                 ["test(null)",null],
-                ["test({})",[]],
-                ["test({1,2,3})", [0,0,0]])
+                ["test([])",[]],
+                ["test([1,2,3])", [0,0,0]])
         })
         }
     )
