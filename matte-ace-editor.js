@@ -34,12 +34,12 @@ const styleCss =
             
             .popup {
                 background:  rgba(235, 235, 235, 1);
-                color: rgba(128, 128, 128, 1);
-                border: 1px solid #111111;
-                border-radius: 4px;
-                padding: 3px;
+                color: rgba(148, 148, 148, 1);
+                border: 0px solid #111111;
+                border-radius: 2px;
+                padding: 1px;
                 font-family: 'Monaco', 'Menlo', monospace;
-                font-size: 10pt !important;
+                //font-size: 10pt !important;
                 white-space: pre-wrap;
             }
            
@@ -48,7 +48,7 @@ const styleCss =
              }
              
              .materialization-popup {
-             background-color: rgba(70, 150, 244, 0.3);
+             background-color: rgb(218, 234, 255, 1)
              }
              
             .popup b {
