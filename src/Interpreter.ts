@@ -43,6 +43,7 @@ import {last} from "./utils";
 interface InterpreterResult {
     callError: string | undefined;
     error: StaticError | undefined;
+    runtimeError: RuntimeError | undefined;
     result: any;
     trace?: TraceEntry;
     program?: Program;
@@ -194,7 +195,7 @@ export class Interpreter {
             error
         });
         throw {
-            runtimeError: true
+            runtimeError: error
         }
     }
 
@@ -219,7 +220,8 @@ export class Interpreter {
                     callError: "No call should be provided when executing scripts.",
                     result: undefined,
                     trace: undefined,
-                    error: undefined
+                    error: undefined,
+                    runtimeError: undefined
                 }
             if(e.callError) {
                 return {
@@ -231,7 +233,8 @@ export class Interpreter {
                         type: e.compilation,
                         message: e.message,
                         detail: e.detail
-                    }
+                    },
+                    runtimeError: undefined
                 }
             }
             else if (e.compilation)
@@ -244,7 +247,8 @@ export class Interpreter {
                         type: e.compilation,
                         message: e.message,
                         detail: e.detail
-                    }
+                    },
+                    runtimeError: undefined
                 }
         }
         const [program, expCall] = progAndCall
@@ -253,6 +257,7 @@ export class Interpreter {
             return {
                 callError: "No call provided for execution.",
                 error: undefined,
+                runtimeError: undefined,
                 result: undefined,
                 trace: undefined
             }
@@ -279,6 +284,7 @@ export class Interpreter {
                 return {
                     callError: undefined,
                     error: undefined,
+                    runtimeError: undefined,
                     result: undefined,
                     trace: structuredClone(this.trace),
                     program,
@@ -290,6 +296,7 @@ export class Interpreter {
                 return {
                     callError: undefined,
                     error: undefined,
+                    runtimeError: undefined,
                     result: this.evaluate(call as Expression),
                     trace: structuredClone(this.trace),
                     program,
@@ -314,6 +321,7 @@ export class Interpreter {
                         message: e.message,
                         detail: e.detail
                     },
+                    runtimeError: undefined,
                     result: undefined,
                     trace: structuredClone(this.trace)
                 }
@@ -321,6 +329,7 @@ export class Interpreter {
                 return {
                     callError: undefined,
                     error: undefined,
+                    runtimeError: e.runtimeError,
                     result: undefined,
                     trace: structuredClone(this.trace)
                 }

@@ -165,7 +165,7 @@ describe('Matte Interpreter Test Procedure', () => {
                     return t(n+1);
             }
             `,
-                ["t(0)", 50]
+                ["t(1)", 50]
             )
         })
     })

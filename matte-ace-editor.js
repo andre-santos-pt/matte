@@ -63,6 +63,8 @@ const styleCss =
             }`;
 
 export default class MatteAceEditor {
+
+
     constructor(container, width, height) {
         this.container = container;
         this.container.style.marginTop = "25px";
@@ -119,13 +121,6 @@ export default class MatteAceEditor {
 
     secondaryMarkers = [];
 
-    clearSecondaryMarkers() {
-        this.secondaryMarkers.forEach(m => {
-            this.editor.session.removeMarker(m);
-        })
-        this.secondaryMarkers = []
-    }
-
     addExtensionProcedure(name, func) {
         this.extensions.set(name, func);
     }
@@ -134,11 +129,10 @@ export default class MatteAceEditor {
         this.editor.selection.on("changeCursor", () => {
             this.popups.forEach(p => p.hide())
             this.clearSecondaryMarkers()
-            if (this.compilationError == null)
-                return;
-            const err = this.compilationError ? this.compilationError : lastTrace(this.result.trace).error;
+            const err = this.compilationError ?? this.result?.error ?? this.result?.runtimeError;
             const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
             if (err && index >= err.range.start && index <= err.range.end) {
+
                 let message = err.message?.replace(/'(.*?)'/g, '<b>$1</b>') ?? "";
                 if (err.detail) {
                     if (err.detail.related) {
@@ -252,7 +246,7 @@ export default class MatteAceEditor {
                 return;
             this.popups.forEach(p => p.hide());
             const cursorIndex = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
-            this.popup(cursorIndex, "Read-only. Close the debug mode to edit the code.", true);
+            this.popup(cursorIndex, "Read-only. Close the debug mode to edit the code.", true); // TODO bug?
         }, true);
         this.editor.session.on('change', () => {
             this.resultLabel.textContent = '';
@@ -341,15 +335,21 @@ export default class MatteAceEditor {
         this.closeDebugBtn.hidden = !on;
         this.cumulative.hidden = !on;
 
+        this.slider.max = Math.max(0, this.trace.length - 1).toString();
+        this.slider.value = "0";
+
         if (on) {
             this.editor.container.querySelector('.ace_scroller').style.backgroundColor = '#e8e8e8';
             this.resultLabel.style.visibility = "hidden";
             this.step(0, this.cumulativeMode);
             this.updateDebugNavigation();
+            this.clearErrorMarkers();
+            this.editor.session.clearAnnotations();
         } else {
             this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
-            this.editor.container.querySelector('.ace_scroller').style.backgroundColor = this.editorBackgroundColor
-            this.popups.forEach(p => p.hide());
+            this.editor.container.querySelector('.ace_scroller').style.backgroundColor = this.editorBackgroundColor;
+            this.clearPopups()
+            this.editor.clearSelection();
         }
     }
 
@@ -392,78 +392,93 @@ export default class MatteAceEditor {
         }
     }
 
-    runParser() {
-        this.resultLabel.textContent = '';
-        this.resultLabel.style.visibility = "hidden";
-        this.beforeRunListeners.forEach(l => l());
-        const code = this.editor.getValue() + (this.include == null ? "" : "\n\n" + this.include)
-        this.lastCompilationSource = code;
-
+    createInterpreter() {
         const interpreter = new Interpreter();
         this.extensions.keys().forEach(key => {
             interpreter.addExtensionProcedure(key, this.extensions.get(key));
         });
-        this.result = interpreter.parseAndRun(code, this.callBox.value === "" ? null : this.callBox.value);
+        return interpreter;
+    }
 
-        this.compilationError = this.result.error;
+    runParser() {
+        this.beforeRunListeners.forEach(l => l());
+        const code = this.editor.getValue() + (this.include == null ? "" : "\n\n" + this.include)
+        this.lastCompilationSource = code;
+
+        this.result = this.createInterpreter().parseAndRun(code, this.callBox.value === "" ? null : this.callBox.value);
+        console.log(this.result);
+
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();
-        console.log(this.result)
+
+        this.resultLabel.style.visibility = this.result.callError || this.result.result?.evaluation !== undefined ? "visible" : "hidden";
 
         if(this.result.callError) {
             this.resultLabel.innerHTML = "<span style='color: #a19f9f; font-style: italic'>" + this.result.callError + "</span>";
-            this.resultLabel.style.visibility = "visible";
         }
         else if (this.result.error) {
             this.debugBtn.hidden = true;
             this.markCompilationError(this.result.error);
         } else {
             this.trace = flatTrace(this.result.trace)
-            const lastEntry = last(this.trace)
-            if (lastEntry.error) { // run-time error
-                this.editor.session.addMarker(
-                    this.range2Ace(lastEntry.range),
-                    "error-highlight",
-                    "text"
-                );
-                this.slider.max = Math.max(0, this.trace.length - 1).toString();
-                this.slider.value = this.slider.max;
-                this.setDebugMode(true);
+            this.debugBtn.style.visibility = "visible"
+            this.setDebugMode(false);
+            if (this.result.runtimeError) {
+               this.markRuntimeError(this.result.runtimeError);
+                this.debugBtn.style.visibility = "visible"
+                this.setDebugMode(false);
             } else {
                 this.resultLabel.innerHTML = '';
                 if (this.result.result?.evaluation !== undefined)
                     this.resultLabel.innerHTML = ' = ' + JSON.stringify(this.result.result.evaluation);
-                this.resultLabel.style.visibility = this.result.result?.evaluation !== undefined ? "visible" : "hidden";
-                this.slider.max = Math.max(0, this.trace.length - 1).toString();
-                this.slider.value = "0";
-                this.debugBtn.style.visibility = "visible";
-                this.setDebugMode(false);
-                if(this.result.program.block) {
+                if(this.result.program.block)
                     this.createScopePopups(last(this.result.trace.children).stack.variables);
-                }
             }
             this.afterRunListeners.forEach(l => l(this.result));
         }
     }
 
-    markCompilationError(e) {
-        this.editor.session.addMarker(
-            this.range2Ace(e.range),
-            "ace_error-squiggle",
-            "text"
-        );
-        this.editor.session.setAnnotations([{
-            row: e.range.line - 1, // 0-index
-            column: 0,
-            text: e.message,
-            type: "error" // Options: "error", "warning", or "info"
-        }]);
+    step(index, cumulative = false) {
+        const lastIndex = this.trace.length - 1;
+        if (index >= 0 && index <= lastIndex) {
+            const t = this.trace[index];
+            if (t.range)
+                this.editor.revealRange(this.range2Ace(t.range));
+            this.clearPopups();
+            if (t.stack.variables)
+                this.createScopePopups(t.stack.variables);
+
+            if(t.error)
+                this.popup(t.error.range.start, t.error.message, false);
+
+            let prevText = "";
+            if (cumulative) {
+                const prev = t.range
+                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === t.range.start && prev.evaluation != null)
+                    : [];
+                prevText = prev.map(p => {
+                    const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
+                    return this.prettyPrint(p.evaluation) + mat
+                }).join("\n")
+                if (prevText.length > 0)
+                    prevText += "\n";
+            }
+
+            if (t.evaluation != null && t.range) {
+                const mat = t.materialization !== t.evaluation.toString() ? t.materialization ? " (" + this.pretty(t.materialization) + ")" : "" : "";
+                this.popup(t.range.start, prevText + this.prettyPrint(t.evaluation) + mat, t.isCall, true);
+            }
+            this.stepListeners.forEach(l => l(this.trace, index));
+            this.slider.focus();
+            this.resultLabel.style.visibility = index === lastIndex && this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
+        }
     }
 
-    popup(offset, message, top, exp) {
+
+    popup(offset, message, top) {
         const Tooltip = ace.require("ace/tooltip").Tooltip;
         const tip = new Tooltip(this.editor.container);
-        tip.getElement().classList.add(exp ? "ace_tooltip_exp" : "ace_tooltip");
+        //tip.getElement().classList.add(exp ? "ace_tooltip_exp" : "ace_tooltip");
         this.popupPositions.set(tip, {offset, message, top});
         this.popups.push(tip);
         tip.setClassName("my-error-tooltip");
@@ -501,43 +516,38 @@ export default class MatteAceEditor {
             .replaceAll(">=", "≥")
     }
 
-    step(index, cumulative = false) {
-        const lastIndex = this.trace.length - 1;
-        if (index >= 0 && index <= lastIndex) {
-            const t = this.trace[index];
-            if (t.range)
-                this.editor.revealRange(this.range2Ace(t.range));
-            this.popups.forEach(p => p.hide());
-            if (t.stack.variables)
-                this.createScopePopups(t.stack.variables);
-
-            let prevText = "";
-            if (cumulative) {
-                const prev = t.range
-                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === t.range.start && prev.evaluation != null)
-                    : [];
-                prevText = prev.map(p => {
-                    const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
-                    return this.prettyPrint(p.evaluation) + mat
-                }).join("\n")
-                if (prevText.length > 0)
-                    prevText += "\n";
-            }
 
 
-            if (t.evaluation != null && t.range) {
-                const mat = t.materialization !== t.evaluation.toString() ? t.materialization ? " (" + this.pretty(t.materialization) + ")" : "" : "";
-                this.popup(t.range.start, prevText + this.prettyPrint(t.evaluation) + mat, t.isCall, true);
-            }
-            this.stepListeners.forEach(l => l(this.trace, index));
-            this.slider.focus();
-            this.resultLabel.style.visibility = index === lastIndex && this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
-        } else {
-            const lastRange = this.range2Ace(this.trace[lastIndex]);
-            this.editor.gotoLine(lastRange.end.row + 1, 1);
-            this.stepListeners.forEach(l => l(this.trace, lastIndex));
-            this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
-        }
+    markCompilationError(e) {
+        this.editor.session.addMarker(
+            this.range2Ace(e.range),
+            "ace_error-squiggle",
+            "text"
+        );
+        this.editor.session.setAnnotations([{
+            row: e.range.line - 1, // 0-index
+            column: 0,
+            text: e.message,
+            type: "error" // Options: "error", "warning", or "info"
+        }]);
+    }
+
+    markRuntimeError(e) {
+        this.editor.session.addMarker(
+            this.range2Ace(this.result.runtimeError.range),
+            "error-highlight",
+            "text"
+        );
+        this.editor.session.setAnnotations([{
+            row: e.range.line - 1, // 0-index
+            column: 0,
+            text: e.message,
+            type: "warning" // Options: "error", "warning", or "info"
+        }]);
+    }
+
+    clearPopups() {
+        this.popups.forEach(p => p.hide());
     }
 
     clearErrorMarkers() {
@@ -549,6 +559,13 @@ export default class MatteAceEditor {
                 session.removeMarker(id);
             }
         }
+    }
+
+    clearSecondaryMarkers() {
+        this.secondaryMarkers.forEach(m => {
+            this.editor.session.removeMarker(m);
+        })
+        this.secondaryMarkers = []
     }
 
     createScopePopups(dataMap) {

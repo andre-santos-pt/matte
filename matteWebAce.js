@@ -1,7 +1,5 @@
 import MatteAceEditor from "./matte-ace-editor.js";
 
-
-
 window.sysout = (editor) => {
     function prettyPrint(obj) {
         if (obj === null || obj === undefined) return "null";

@@ -36,6 +36,9 @@ export function cases(code: string, ...tests: [string, any][]) {
             console.table(result.error)
             assert.fail(`Compilation error: ${result.error.message}`)
         }
+        if(result.runtimeError) {
+            assert.fail(`Runtime error ${result.runtimeError.message}`)
+        }
         assert.deepStrictEqual(result.result.evaluation, t[1]);
     })
 }
