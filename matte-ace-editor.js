@@ -9,7 +9,7 @@ import {Interpreter} from "./src/Interpreter.ts";
 const {Range} = ace.require("ace/range");
 
 const styleCss =
-    `.ace_error-squiggle {
+    `.compilation-error {
                 position: absolute;
                 /* Increased height to 6px and stroke-width to 1.5 for better visibility */
                 background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6'%3E%3Cpath d='M0 5c1 0 2-3 4-3s3 3 4 3' fill='none' stroke='%23ff3333' stroke-width='1.5'/%3E%3C/svg%3E");
@@ -19,19 +19,20 @@ const styleCss =
                 /* Optional: add a slight vertical offset if it's too close to the text */
                 margin-bottom: 1px;
             }
-            .error-highlight {
+            .runtime-error {
                 position: absolute;
                 background-color: rgba(255, 0, 0, 0.3);
                 border-bottom: 2px wavy red;
                 z-index: 20;
             }
-            .error-secondary {
+            .secondary-mark {
                 position: absolute;
-                background-color: rgba(255, 255, 0, 1.0);
+                background-color: rgba(255, 255, 150, 1.0);
                 border-bottom: 2px wavy red;
                 z-index: 20;
             }
-            .ace_tooltip {
+            
+            .popup {
                 background:  rgba(235, 235, 235, 1);
                 color: rgba(128, 128, 128, 1);
                 border: 1px solid #111111;
@@ -39,28 +40,22 @@ const styleCss =
                 padding: 3px;
                 font-family: 'Monaco', 'Menlo', monospace;
                 font-size: 10pt !important;
-                ///box-shadow: 1px 1px 5px rgba(0,0,0,0.5);
                 white-space: pre-wrap;
             }
-            .ace_tooltip_exp {
-                background:  rgba(181, 213, 255, 1);
-                color: rgba(128, 128, 128, 1);
-                border: 1px solid #111111;
-                border-radius: 0px;
-                padding: 3px;
-                font-family: 'Monaco', 'Menlo', monospace;
-                font-size: 10pt !important;
-                ///box-shadow: 1px 1px 5px rgba(0,0,0,0.5);
-                white-space: pre-wrap;
-            }
-            .my-error-tooltip b {
-                color: black; /* Make the bold part bright red */
+           
+           .error-popup {
+             background-color: rgba(255, 0, 0, 0.2);
+             }
+             
+             .materialization-popup {
+             background-color: rgba(70, 150, 244, 0.3);
+             }
+             
+            .popup b {
+                color: black;
                 font-weight: bold;
             }
-            .my-error-tooltip i {
-                color: #bbbbbb; /* Make the italic part orange */
-                font-weight: bold;
-            }`;
+           `;
 
 export default class MatteAceEditor {
 
@@ -88,7 +83,7 @@ export default class MatteAceEditor {
         this.editor.session.setMode("ace/mode/java");
         this.editor.setFontSize(20);
         this.editor.renderer.setShowGutter(true);
-        this.editor.setOption('showLineNumbers', false); // TODO does not work
+        this.editor.setOption('showLineNumbers', false);
         this.editor.session.setNewLineMode("unix");
         this.editor.setOptions({
             highlightSelectedWord: false
@@ -102,9 +97,10 @@ export default class MatteAceEditor {
         this.editor.session.on('change', () => {
             this.lastCompilationSource = null;
         });
-        this.compilationCheckInterval = window.setInterval(() => this.checkCompilation(), 3000);
+        this.compilationCheckInterval = window.setInterval(() => this.checkCompilation(), 2000);
         this.popups = [];
         this.popupPositions = new WeakMap();
+        this.secondaryMarkers = [];
         this.repositionPopups = () => {
             this.popups.forEach(tip => {
                 const position = this.popupPositions.get(tip);
@@ -119,8 +115,6 @@ export default class MatteAceEditor {
         this.stepListeners = [];
     }
 
-    secondaryMarkers = [];
-
     addExtensionProcedure(name, func) {
         this.extensions.set(name, func);
     }
@@ -133,25 +127,18 @@ export default class MatteAceEditor {
             const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
             if (err && index >= err.range.start && index <= err.range.end) {
 
-                let message = err.message?.replace(/'(.*?)'/g, '<b>$1</b>') ?? "";
+                let message = err.message;
                 if (err.detail) {
                     if (err.detail.related) {
-                        err.detail.related.forEach(r => {
-                            this.secondaryMarkers.push(this.editor.session.addMarker(
-                                this.range2Ace(r),
-                                "error-secondary",
-                                "text"
-                            ))
-                        })
+                        err.detail.related.forEach(r => this.markSecondaryHighlights(r))
                     }
                     if (err.detail.hint)
-                        message += "\n<i>" + err.detail.hint + "</i>"
+                        message += "<hr><small>" + err.detail.hint + "</small>"
 
                 }
                 this.popup(err.range.start, message);
             }
         });
-
 
         if (!Array.from(document.head.querySelectorAll('style')).some(style => style.id === 'matte-ace-editor-style')) {
             const style = document.createElement('style');
@@ -179,7 +166,9 @@ export default class MatteAceEditor {
         }
     }
 
-    // Adjust container height based on the number of visible (screen) lines
+
+
+// Adjust container height based on the number of visible (screen) lines
     adjustHeight() {
         if (!this.autoHeight) return;
         try {
@@ -244,7 +233,7 @@ export default class MatteAceEditor {
             if (event.key !== 'Enter' && event.key !== 'Backspace' && event.key !== 'Delete' && (!this.editor.getReadOnly() || event.key.length !== 1 ||
                 event.ctrlKey || event.metaKey || event.altKey || event.isComposing))
                 return;
-            this.popups.forEach(p => p.hide());
+            this.clearPopups();
             const cursorIndex = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
             this.popup(cursorIndex, "Read-only. Close the debug mode to edit the code.", true); // TODO bug?
         }, true);
@@ -387,7 +376,7 @@ export default class MatteAceEditor {
         } else {
             this.compilationError = null;
             this.runBtn.disabled = false;
-            this.popups.forEach(p => p.hide());
+            this.clearPopups();
             this.clearSecondaryMarkers()
         }
     }
@@ -449,7 +438,7 @@ export default class MatteAceEditor {
                 this.createScopePopups(t.stack.variables);
 
             if(t.error)
-                this.popup(t.error.range.start, t.error.message, false);
+                this.popup(t.error.range.start, t.error.message, false, "error-popup");
 
             let prevText = "";
             if (cumulative) {
@@ -458,15 +447,15 @@ export default class MatteAceEditor {
                     : [];
                 prevText = prev.map(p => {
                     const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
-                    return this.prettyPrint(p.evaluation) + mat
+                    return "<small>" + this.prettyPrint(p.evaluation) + mat + "</small>";
                 }).join("\n")
                 if (prevText.length > 0)
                     prevText += "\n";
             }
 
             if (t.evaluation != null && t.range) {
-                const mat = t.materialization !== t.evaluation.toString() ? t.materialization ? " (" + this.pretty(t.materialization) + ")" : "" : "";
-                this.popup(t.range.start, prevText + this.prettyPrint(t.evaluation) + mat, t.isCall, true);
+                const mat = t.materialization !== t.evaluation.toString() ? t.materialization ? "<small> (" + this.pretty(t.materialization) + ")</small>" : "" : "";
+                this.popup(t.range.start, prevText + this.prettyPrint(t.evaluation) + mat, t.call, "materialization-popup");
             }
             this.stepListeners.forEach(l => l(this.trace, index));
             this.slider.focus();
@@ -475,14 +464,15 @@ export default class MatteAceEditor {
     }
 
 
-    popup(offset, message, top) {
+    popup(offset, message, top, style) {
         const Tooltip = ace.require("ace/tooltip").Tooltip;
         const tip = new Tooltip(this.editor.container);
-        //tip.getElement().classList.add(exp ? "ace_tooltip_exp" : "ace_tooltip");
         this.popupPositions.set(tip, {offset, message, top});
         this.popups.push(tip);
-        tip.setClassName("my-error-tooltip");
-        tip.setHtml(message);
+        tip.getElement().classList.add("popup");
+        if(style)
+             tip.getElement().classList.add(style);
+        tip.setHtml(message.replace(/'(.*?)'/g, '<b>$1</b>'));
         this.positionPopup(tip, offset, message, top);
         tip.show()
         return tip;
@@ -521,7 +511,7 @@ export default class MatteAceEditor {
     markCompilationError(e) {
         this.editor.session.addMarker(
             this.range2Ace(e.range),
-            "ace_error-squiggle",
+            "compilation-error",
             "text"
         );
         this.editor.session.setAnnotations([{
@@ -532,10 +522,18 @@ export default class MatteAceEditor {
         }]);
     }
 
+    markSecondaryHighlights(r) {
+        this.secondaryMarkers.push(this.editor.session.addMarker(
+            this.range2Ace(r),
+            "secondary-mark",
+            "text"
+        ))
+    }
+
     markRuntimeError(e) {
         this.editor.session.addMarker(
             this.range2Ace(this.result.runtimeError.range),
-            "error-highlight",
+            "runtime-error",
             "text"
         );
         this.editor.session.setAnnotations([{
@@ -555,7 +553,7 @@ export default class MatteAceEditor {
         const markers = session.getMarkers();
 
         for (const id in markers) {
-            if (markers[id].clazz === "ace_error-squiggle" || markers[id].clazz === "error-highlight") {
+            if (markers[id].clazz === "compilation-error" || markers[id].clazz === "runtime-error") {
                 session.removeMarker(id);
             }
         }
@@ -574,14 +572,14 @@ export default class MatteAceEditor {
 
         for (const [key, value] of dataMap) {
             const mat = variableMaterialization(value)
-            const matText = mat ? " (" + mat + ")" : "";
-            this.popup(value.declaration.end, this.prettyPrint(value.evaluation) + matText, value.isParameter, false);
+            const matText = mat ? "<small> (" + mat + ")</small>" : "";
+            this.popup(value.declaration.end, this.prettyPrint(value.evaluation) + matText, false);
         }
     }
 
     prettyPrint(value) {
         if (value === null || value === undefined)
-            return "";
+            return "null";
         else if (Array.isArray(value))
             return "[" + value.join(",&nbsp;") + "]";
         else

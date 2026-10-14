@@ -345,7 +345,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             detail: {
                 related: [...varsInScope.map(v => v.nameRange)],
                 hint: exp ? "If the intention is to have a new variable, write its type " + (exp.type == PrimitiveType.NULL ? "" : "(" + exp.type + ") ") + "before the name" :
-                    varsInScope.length > 0 ? "Variables in scope are: " + varsInScope.map(v => v.name).join() :  undefined
+                    varsInScope.length > 0 ? "Variables in scope are: " + varsInScope.map(v => mark(v.name)).join(", ") :  undefined
             }
         }
     }
