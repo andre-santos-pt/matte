@@ -14,13 +14,14 @@ export function compilationError(code: string, expected: StaticErrorType, call?:
     assert.equal(result.error.type, expected);
 }
 
-export function runtimeError(code: string, expected: RuntimeErrorType, call?: string) {
-    const interpreter = new Interpreter();
+export function runtimeError(code: string, expected: RuntimeErrorType, call?: string, interpreter = new Interpreter()) {
     const result = interpreter.parseAndRun(code, call);
     if(result.error != undefined) {
         console.table(result.error)
         assert.fail(`Compilation error: ${result.error.message}`)
     }
+    if(result.callError)
+        assert.fail(result.callError)
     if(!result.trace)
         assert.fail(`No trace`)
 

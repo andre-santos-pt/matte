@@ -19,7 +19,7 @@ while(i != 10) {
 <hr>
 <h1>Independent Function</h1>
 
-<matte-ace call="sum({15, 20, 25})" ext-callstack>
+<matte-ace call="sum([15, 20, 25])" ext-callstack>
 int sum(int[] a) {
     int s = 0;
     int i = 0;
@@ -80,7 +80,7 @@ int factorial(int n) {
 <hr>
 
 <h1>Procedure (side-effects)</h1>
-<matte-ace id="ex4" width="500" height="300" call="addOne({1,2,3})">
+<matte-ace id="ex4" width="500" height="300" call="addOne([1,2,3])">
 void addOne(int[] array) {
     int i = 0;
     while(i < array.length) {

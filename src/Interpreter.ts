@@ -105,9 +105,9 @@ export class Interpreter {
     private extensions: Map<string, ExtensionProcedure> = new Map()
     private extensionTypes: Map<string, ExtensionProcedure> = new Map()
     private readonly maxLoopIterations?: number
-    private readonly maxCallStack?: number  // TODO max call stack
+    private readonly maxCallStack?: number
 
-    constructor(maxLoopIterations: number = 100, maxCallStack: number = 100) {
+    constructor(maxLoopIterations: number = 100, maxCallStack: number = 50) {
         this.maxLoopIterations = maxLoopIterations
         this.maxCallStack = maxCallStack
     }
@@ -445,7 +445,6 @@ export class Interpreter {
                     materialization: undefined
                 }
             }
-            // TODO return void
         } else
             throw new Error("Unsupported statement type: " + (s as any).constructor.name);
     }
@@ -681,6 +680,13 @@ export class Interpreter {
 
     invocation(call: CallExpression, isReturn: boolean = false):
         ExpressionEval {
+        if(this.scope.length == this.maxCallStack)
+            this.addTraceRuntimeError(call, {
+                    type: RuntimeErrorType.StackOverflow,
+                    message: "Maximum size of call stack reached (" + this.maxCallStack + ")",
+                    range: call.range
+                }
+            )
         const p = call.procedure
 
         const variables: Map<string, TraceVariable> = new Map()
@@ -703,7 +709,8 @@ export class Interpreter {
             })
             return eVal
         })
-        const mat = p.name + "(" + argValues.map(a => a?.materialization).join() + ")" // TODO mat
+        const mat = p.name + "(" + argValues.map(a => a?.materialization).join() + ")"
+
         this.scope.push({
             variables
         })
@@ -713,7 +720,6 @@ export class Interpreter {
             p.body?.statements?.forEach(s => this.execute(s));
         } catch (e: any) {
             if ('evaluation' in e) {
-                //const resMat = p.name + "(" + argValues.map(a => a?.evaluation).join() + ")"
                 this.addCallTraceEnd(call, e.evaluation, e.materialization)
                 this.scope.pop()
                 return e
