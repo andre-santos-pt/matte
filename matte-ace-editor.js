@@ -55,11 +55,61 @@ const styleCss =
                 color: black;
                 font-weight: bold;
             }
+
+            .matte-ace-settings {
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                z-index: 10;
+                color: #222;
+                font: 13px Arial, sans-serif;
+            }
+
+            .matte-ace-settings summary {
+                box-sizing: border-box;
+                width: 30px;
+                height: 28px;
+                padding: 5px;
+                border: 1px solid #c8c8c8;
+                border-radius: 4px;
+                background: rgba(255, 255, 255, 0.95);
+                cursor: pointer;
+                list-style: none;
+                text-align: center;
+            }
+
+            .matte-ace-settings summary::-webkit-details-marker {
+                display: none;
+            }
+
+            .matte-ace-settings-panel {
+                position: absolute;
+                top: 32px;
+                z-index: 20;
+                right: 0;
+                display: grid;
+                min-width: 250px;
+                gap: 10px;
+                padding: 12px;
+                border: 1px solid #c8c8c8;
+                border-radius: 5px;
+                background: #eee;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            }
+
+            .matte-ace-settings-panel label {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 12px;
+            }
+
+            .matte-ace-settings-panel select {
+                max-width: 120px;
+            }
            `;
 
 export default class MatteAceEditor {
-
-
     constructor(container, width, height) {
         this.container = container;
         this.container.style.marginTop = "25px";
@@ -90,6 +140,7 @@ export default class MatteAceEditor {
         });
         this.editor.setHighlightActiveLine(false);
 
+
         this.init();
 
         this.result = null;
@@ -113,11 +164,15 @@ export default class MatteAceEditor {
         this.beforeRunListeners = [];
         this.afterRunListeners = [];
         this.stepListeners = [];
+
+        this.showCompilationHints = true;
+        this.addSettingsMenu();
     }
 
     addExtensionProcedure(name, func) {
         this.extensions.set(name, func);
     }
+
 
     init() {
         this.editor.selection.on("changeCursor", () => {
@@ -129,10 +184,10 @@ export default class MatteAceEditor {
 
                 let message = err.message;
                 if (err.detail) {
-                    if (err.detail.related) {
+                    if (this.showCompilationHints && err.detail.related) {
                         err.detail.related.forEach(r => this.markSecondaryHighlights(r))
                     }
-                    if (err.detail.hint)
+                    if (this.showCompilationHints && err.detail.hint)
                         message += "<hr><small>" + err.detail.hint + "</small>"
 
                 }
@@ -381,8 +436,11 @@ export default class MatteAceEditor {
         }
     }
 
+    maxLoopIterations = 100
+    maxCallStack = 100
+
     createInterpreter() {
-        const interpreter = new Interpreter();
+        const interpreter = new Interpreter(this.maxLoopIterations, this.maxCallStack);
         this.extensions.keys().forEach(key => {
             interpreter.addExtensionProcedure(key, this.extensions.get(key));
         });
@@ -584,5 +642,114 @@ export default class MatteAceEditor {
             return "[" + value.join(",&nbsp;") + "]";
         else
             return value.toString();
+    }
+
+    addSettingsMenu() {
+        const host = this.container.parentElement;
+        if (!host)
+            return;
+        host.style.display = "block";
+        if (window.getComputedStyle(host).position === "static")
+            host.style.position = "relative";
+
+        const details = document.createElement("details");
+        details.className = "matte-ace-settings";
+
+        const summary = document.createElement("summary");
+        summary.textContent = "\u2699";
+        summary.title = "Editor settings";
+        summary.setAttribute("aria-label", "Editor settings");
+        details.append(summary);
+
+        const panel = document.createElement("div");
+        panel.className = "matte-ace-settings-panel";
+        details.append(panel);
+
+        const addSelect = (labelText, values, selectedValue, onChange) => {
+            const label = document.createElement("label");
+            label.append(document.createTextNode(labelText));
+            const select = document.createElement("select");
+            for (const [value, text] of values) {
+                const option = document.createElement("option");
+                option.value = value;
+                option.textContent = text;
+                select.append(option);
+            }
+            select.value = selectedValue;
+            select.addEventListener("change", () => onChange(select.value));
+            label.append(select);
+            panel.append(label);
+        };
+
+        const addPositiveNumber = (labelText, value, onChange) => {
+            const label = document.createElement("label");
+            label.append(document.createTextNode(labelText));
+            const input = document.createElement("input");
+            input.type = "number";
+            input.min = "0";
+            input.step = "any";
+            input.value = value;
+            input.addEventListener("change", () => {
+                const number = input.valueAsNumber;
+                if(input.value.trim().length === 0)
+                    onChange(undefined);
+                else if (Number.isFinite(number) && number > 0)
+                    onChange(number);
+                else
+                    input.value = value;
+            });
+            label.append(input);
+            panel.append(label);
+        };
+
+        const addCheckbox = (id, labelText, checked, onChange) => {
+            const label = document.createElement("label");
+            label.append(document.createTextNode(labelText));
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.id = id;
+            input.checked = checked;
+            input.addEventListener("change", () => onChange(input.checked));
+            label.append(input);
+            panel.append(label);
+        };
+
+        addSelect(
+            "Font size",
+            [12, 14, 16, 18, 20, 24, 28].map(size => [String(size), `${size}px`]),
+            "20",
+            size => this.editor.setFontSize(Number(size))
+        );
+        addSelect(
+            "Theme",
+            [
+                ["ace/theme/textmate", "TextMate"],
+                ["ace/theme/monokai", "Monokai"],
+                ["ace/theme/github", "GitHub"],
+                ["ace/theme/solarized_light", "Solarized Light"],
+                ["ace/theme/solarized_dark", "Solarized Dark"]
+            ],
+            "ace/theme/textmate",
+            theme => this.editor.setTheme(theme)
+        );
+        addCheckbox("line-numbers", "Line numbers", false, show => this.editor.setOption("showLineNumbers", show));
+        //addCheckbox("word-wrap", "Word wrap", false, wrap => this.editor.session.setUseWrapMode(wrap));
+        addCheckbox("line-highlight", "Highlight active line", false, highlight => this.editor.setHighlightActiveLine(highlight));
+        //addCheckbox("Show invisibles", false, show => this.editor.setShowInvisibles(show));
+
+        panel.append(document.createElement("hr"));
+
+        addPositiveNumber("Maximum loop iterations", this.maxLoopIterations.toString(), v => this.maxLoopIterations = v);
+
+        addPositiveNumber("Maximum call stack size", this.maxCallStack.toString(), v => this.maxCallStack = v);
+
+        addCheckbox("compilation-hints", "Show compilation hints", this.showCompilationHints, show => this.showCompilationHints = show);
+
+        host.append(details);
+    }
+
+    disableCompilationHints() {
+        this.showCompilationHints = false;
+        document.getElementById("compilation-hints").checked = false;
     }
 }

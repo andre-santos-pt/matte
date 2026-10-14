@@ -108,7 +108,7 @@ export class Interpreter {
     private readonly maxLoopIterations?: number
     private readonly maxCallStack?: number
 
-    constructor(maxLoopIterations: number = 100, maxCallStack: number = 50) {
+    constructor(maxLoopIterations?: number, maxCallStack: number = 100) {
         this.maxLoopIterations = maxLoopIterations
         this.maxCallStack = maxCallStack
     }
@@ -128,7 +128,7 @@ export class Interpreter {
                 if (value === this.maxLoopIterations)
                     this.addTraceRuntimeError(loop, {
                         type: RuntimeErrorType.MaxIterationsReached,
-                        message: "max loop iterations",
+                        message: "Maximum number of loop iterations reached (" + this.maxLoopIterations + ")",
                         range: loop.range
                     })
                 this.loopCount.set(loop, value + 1);

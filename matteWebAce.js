@@ -121,6 +121,9 @@ class MatteAce extends HTMLElement {
             const call = this.hasAttribute("call") ? this.getAttribute("call") : "";
             editor.addCallBox(call);
         }
+        if(this.hasAttribute("disable-compilation-hints")) {
+            editor.disableCompilationHints();
+        }
     }
 }
 

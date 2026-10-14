@@ -9,7 +9,7 @@
 
 <h1>Script mode</h1>
 <i>no width/height: TODO just PLAY</i>
-<matte-ace call="">
+<matte-ace call="" disable-compilation-hints>
 int i = 0;
 while(i != 10) {
     i = i + 1;
@@ -19,7 +19,7 @@ while(i != 10) {
 <hr>
 <h1>Independent Function</h1>
 
-<matte-ace call="sum([15, 20, 25])" ext-callstack>
+<matte-ace call="sum([15, 20, 25])" ext-callstack compile-hints>
 int sum(int[] a) {
     int s = 0;
     int i = 0;
