@@ -131,8 +131,8 @@ export default class MatteAceEditor {
         this.editorBackgroundColor = this.editor.container.querySelector('.ace_scroller').style.backgroundColor;
         this.editor.setTheme("ace/theme/textmate");
         this.editor.session.setMode("ace/mode/java");
-        this.editor.setFontSize(20);
-        this.editor.renderer.setShowGutter(true);
+        this.editor.setFontSize(14);
+        this.editor.renderer.setShowGutter(false);
         this.editor.setOption('showLineNumbers', false);
         this.editor.session.setNewLineMode("unix");
         this.editor.setOptions({
@@ -512,8 +512,10 @@ export default class MatteAceEditor {
             }
 
             if (t.evaluation != null && t.range) {
-                const mat = t.materialization !== t.evaluation.toString() ? t.materialization ? "<small> (" + this.pretty(t.materialization) + ")</small>" : "" : "";
-                this.popup(t.range.start, prevText + this.prettyPrint(t.evaluation) + mat, t.call, "materialization-popup");
+                let text = this.prettyPrint(t.evaluation);
+                if(!Array.isArray(t.evaluation))
+                    text +=  "<small> (" + this.pretty(t.materialization) + ")</small>";
+                this.popup(t.range.start, prevText + text, t.call, "materialization-popup");
             }
             this.stepListeners.forEach(l => l(this.trace, index));
             this.slider.focus();

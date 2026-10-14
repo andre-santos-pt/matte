@@ -63,7 +63,6 @@ window.callstack = (editor) => {
             return [...stack(n.parent), n.parent]
     }
     const div = document.createElement('div');
-    editor.afterRunListeners.push((r) => console.log(editor.trace))
     editor.stepListeners.push((t, i) => {
         let html = ""
         const s = stack(t[i])
@@ -71,7 +70,7 @@ window.callstack = (editor) => {
             html += "<span style='font-family: monospace'>"
             for (let d = j; d !== 0; d--)
                 html += "&nbsp;&nbsp;&nbsp;&nbsp;"
-            html += "&#8627;&nbsp;" + s[j].materialization
+            html += "&#8627;&nbsp;" + s[j].materialization // TODO call mat
 
             for(let r = i; r >= 0; r--)
                 if(t[r].returnStatement && t[r].parent === s[j]) {

@@ -69,7 +69,7 @@ interface RuntimeError {
 }
 
 export enum RuntimeErrorType {
-    DivisionByZero,
+    DivisionByZero, // TODO division by zero
     ArrayIndexOutOfBounds,
     NullPointer,
     StackOverflow,
@@ -107,6 +107,8 @@ export class Interpreter {
     private extensionTypes: Map<string, ExtensionProcedure> = new Map()
     private readonly maxLoopIterations?: number
     private readonly maxCallStack?: number
+
+    // TODO skip tracing
 
     constructor(maxLoopIterations?: number, maxCallStack: number = 100) {
         this.maxLoopIterations = maxLoopIterations
@@ -441,11 +443,11 @@ export class Interpreter {
                 this.handleUnboundCall(s.expression as UnboundCallExpression);
             }
         } else if (s instanceof ReturnStatement) {
-            let exp = undefined
             if (s.expression) {
-                this.addTraceRange(s.returnRange(), false, true, undefined, this.materialize(s.expression))
-                exp = this.evaluate(s.expression, true)
-                this.addTraceRange(s.returnRange(), false, true, exp.evaluation, exp.evaluation?.toString() ?? null)
+                if(!s.expression.isSimple())
+                    this.addTraceRange(s.returnRange(), false, true, undefined, this.materialize(s.expression))
+                let exp = this.evaluate(s.expression, true)
+                this.addTraceRange(s.expression.range, false, true, exp.evaluation, this.prettyPrint(exp.evaluation))
                 throw exp
             } else {
                 this.addTrace(s, false, true, undefined, undefined)
@@ -481,15 +483,24 @@ export class Interpreter {
 
             if (!variable && this.topScope().variables.get("this")) {
                 const fieldVal = this.topScope().variables.get("this")?.evaluation[(e as Variable).declaration.name]
-                return fieldVal.evaluation
-            } else
-                return variable?.evaluation
+                return fieldVal?.evaluation?.toString()
+            } else if(Array.isArray(variable?.evaluation))
+                return this.prettyPrint(variable?.evaluation)
+            else
+                return variable?.evaluation?.toString()
         } else if (e instanceof BinaryExpression) {
             return this.materialize(e.left) + " " + e.operator + " " + this.materialize(e.right)
         } else if (e instanceof CallExpression) {
-            return e.procedure.name + "(" + e.args.map(a => this.materialize(a)).join() + ")"
+            return e.procedure.name + "(" + e.args.map(a => this.materialize(a)).join(", ") + ")"
         } else
             return e.range?.text
+    }
+
+    private prettyPrint(value: any) {
+        if(Array.isArray(value))
+            return "[" + value.join(", ") + "]"
+        else
+            return value.toString()
     }
 
     evaluate(e: Expression, isReturn: boolean = false):
@@ -648,7 +659,7 @@ export class Interpreter {
             const array = e.elements.map(el => this.evaluate(el).evaluation)
             return {
                 evaluation: array,
-                materialization: "[" + array.join() + "]"
+                materialization: undefined //"[" + array.join() + "]"
             }
         } else if (e instanceof ArrayAllocationExpression) {
             const length = this.evaluate(e.dimensions[0]).evaluation // TODO multidim
@@ -659,7 +670,7 @@ export class Interpreter {
             // TODO other defaults
             return {
                 evaluation: array,
-                materialization: "[" + array.join() + "]"
+                materialization: undefined // "[" + array.join() + "]"
             }
         } else if (e instanceof ArrayElementExpression) {
             const arrayVal = this.evaluate(e.target).evaluation as Array<any>
@@ -842,5 +853,7 @@ export class Interpreter {
                 }
         }
     }
+
+
 }
 
