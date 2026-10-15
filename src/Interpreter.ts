@@ -345,7 +345,7 @@ export class Interpreter {
         else if (s instanceof Declaration) {
             if (s.initializer != null) {
                 const exp = this.evaluate(s.initializer as Expression)
-                this.addTrace(s, false, false, exp.evaluation, exp.materialization)
+                this.addTrace(s.initializer, false, false, structuredClone(exp.evaluation), exp.materialization)
                 this.topScope().variables.set(s.name, {
                     name: s.name,
                     evaluation: exp.evaluation,

@@ -47,6 +47,11 @@ const styleCss =
              background-color: rgba(255, 0, 0, 0.2);
              }
              
+             .materialization {
+                font-size: x-small;
+                font-color: #aaaaaa
+                }
+                
              .materialization-popup {
              background-color: rgb(218, 234, 255, 1)
              }
@@ -419,7 +424,6 @@ export default class MatteAceEditor {
             return;
 
         const compilation = compile(code);
-        console.log(compilation);
         this.lastCompilationSource = code;
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();
@@ -501,11 +505,11 @@ export default class MatteAceEditor {
             let prevText = "";
             if (cumulative) {
                 const prev = t.range
-                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === t.range.start && prev.evaluation != null)
+                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === t.range.start && prev.range?.end === t.range.end && prev.evaluation != null)
                     : [];
                 prevText = prev.map(p => {
                     const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
-                    return "<small>" + this.prettyPrint(p.evaluation) + mat + "</small>";
+                    return "<span class=\"materialization\">" + this.prettyPrint(p.evaluation) + mat + "</span>";
                 }).join("\n")
                 if (prevText.length > 0)
                     prevText += "\n";
@@ -513,8 +517,8 @@ export default class MatteAceEditor {
 
             if (t.evaluation != null && t.range) {
                 let text = this.prettyPrint(t.evaluation);
-                if(!Array.isArray(t.evaluation))
-                    text +=  "<small> (" + this.pretty(t.materialization) + ")</small>";
+                if (t.materialization != null && !Array.isArray(t.evaluation) && text !== t.materialization.toString())
+                    text += "<span class=\"materialization\"> (" + this.pretty(t.materialization) + ")</span>";
                 this.popup(t.range.start, prevText + text, t.call, "materialization-popup");
             }
             this.stepListeners.forEach(l => l(this.trace, index));
@@ -566,7 +570,9 @@ export default class MatteAceEditor {
             .replaceAll(">=", "≥")
     }
 
-
+    isLiteral(value) {
+        return value === null || (typeof value !== "object" && typeof value !== "function");
+    }
 
     markCompilationError(e) {
         this.editor.session.addMarker(
