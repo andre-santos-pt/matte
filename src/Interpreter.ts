@@ -231,12 +231,7 @@ export class Interpreter {
                     callError: e.callError,
                     result: undefined,
                     trace: undefined,
-                    error: {
-                        range: e.range,
-                        type: e.compilation,
-                        message: e.message,
-                        detail: e.detail
-                    },
+                    error: undefined,
                     runtimeError: undefined
                 }
             }
