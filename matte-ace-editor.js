@@ -137,6 +137,8 @@ export default class MatteAceEditor {
         this.editor.setTheme("ace/theme/textmate");
         this.editor.session.setMode("ace/mode/java");
         this.editor.setFontSize(14);
+        this.editor.renderer.setPadding(5);
+        this.editor.renderer.setScrollMargin(5, 0, 0, 0);
         this.editor.renderer.setShowGutter(false);
         this.editor.setOption('showLineNumbers', false);
         this.editor.session.setNewLineMode("unix");
@@ -740,7 +742,10 @@ export default class MatteAceEditor {
             "ace/theme/textmate",
             theme => this.editor.setTheme(theme)
         );
-        addCheckbox("line-numbers", "Line numbers", false, show => this.editor.setOption("showLineNumbers", show));
+        addCheckbox("line-numbers", "Line numbers", false, show => {
+            this.editor.setOption("showLineNumbers", show);
+            this.editor.setOption("showGutter", show);
+        });
         //addCheckbox("word-wrap", "Word wrap", false, wrap => this.editor.session.setUseWrapMode(wrap));
         addCheckbox("line-highlight", "Highlight active line", false, highlight => this.editor.setHighlightActiveLine(highlight));
         //addCheckbox("Show invisibles", false, show => this.editor.setShowInvisibles(show));

@@ -13,7 +13,7 @@ const PRECEDENCE: Record<string, number> = {
 
 // 1. Lexer / Tokenizer
 function tokenize(input: string): string[] {
-    return input.match(/\d+(\.\d+)?|\+|\-|\*|\/|\(\vert{}\)/g) || [];
+    return input.match(/-?\d+(\.\d+)?|\+|\-|\*|\/|\(\vert{}\)/g) || [];
 }
 
 // 2. Parser
