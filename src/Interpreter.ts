@@ -27,7 +27,7 @@ import {
     Statement,
     StaticError,
     StaticErrorType,
-    StringLiteral,
+    StringLiteral, Type,
     UnaryExpression,
     UnboundCallExpression,
     UnboundNewObjectExpression,
@@ -82,6 +82,7 @@ interface StackFrame {
 
 interface TraceVariable {
     name: string;
+    type: Type;
     evaluation: any;
     materialization: any;
     declaration?: Range;
@@ -348,6 +349,7 @@ export class Interpreter {
                 this.addTrace(s.initializer, false, false, structuredClone(exp.evaluation), exp.materialization)
                 this.topScope().variables.set(s.name, {
                     name: s.name,
+                    type: s.type,
                     evaluation: exp.evaluation,
                     materialization: exp.materialization,
                     declaration: s.range
@@ -369,6 +371,7 @@ export class Interpreter {
             if (s.expression instanceof BinaryExpression && s.expression.left instanceof Variable && s.expression.left.declaration == s.variable) {
                 this.topScope().variables.set(s.variable.name, {
                     name: s.variable.name,
+                    type: s.variable.type,
                     evaluation: exp.evaluation,
                     materialization: paren(v?.materialization) + " " + s.expression.operator + " " + this.evaluate(s.expression.right).evaluation,
                     declaration: s.variable.range
@@ -377,6 +380,7 @@ export class Interpreter {
             else if (s.expression instanceof BinaryExpression && s.expression.right instanceof Variable && s.expression.right.declaration == s.variable) {
                 this.topScope().variables.set(s.variable.name, {
                     name: s.variable.name,
+                    type: s.variable.type,
                     evaluation: exp.evaluation,
                     materialization: this.evaluate(s.expression.left).evaluation + " " + s.expression.operator + " " + paren(v?.materialization),
                     declaration: s.variable.range
@@ -386,6 +390,7 @@ export class Interpreter {
                 this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization)
                 this.topScope().variables.set(s.variable.name, {
                     name: s.variable.name,
+                    type: s.variable.type,
                     evaluation: exp.evaluation,
                     materialization: exp.materialization,
                     declaration: s.variable.range
@@ -492,8 +497,12 @@ export class Interpreter {
             return this.materialize(e.left) + " " + e.operator + " " + this.materialize(e.right)
         } else if (e instanceof CallExpression) {
             return e.procedure.name + "(" + e.args.map(a => this.materialize(a)).join(", ") + ")"
-        } else
-            return e.range?.text
+        } else {
+            let text = e.range?.text
+            if(e.type == PrimitiveType.DOUBLE && text?.indexOf('.') == -1)
+                text += ".0";
+            return text;
+        }
     }
 
     private prettyPrint(value: any) {
@@ -714,6 +723,7 @@ export class Interpreter {
             const thisVal = this.evaluate(call.args[0])
             variables.set("this", {
                 name: "this",
+                type: thisVal.evaluation.type,
                 evaluation: thisVal.evaluation,
                 materialization: thisVal.materialization
             })
@@ -723,6 +733,7 @@ export class Interpreter {
             const eVal = this.evaluate(e)
             variables.set(p.parameters[i].name, {
                 name: p.parameters[i].name,
+                type: p.parameters[i].type,
                 evaluation: eVal.evaluation,
                 materialization: eVal.materialization,
                 declaration: p.parameters[i].range

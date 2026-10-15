@@ -483,7 +483,7 @@ export default class MatteAceEditor {
             } else {
                 this.resultLabel.innerHTML = '';
                 if (this.result.result?.evaluation !== undefined)
-                    this.resultLabel.innerHTML = ' = ' + JSON.stringify(this.result.result.evaluation);
+                    this.resultLabel.innerHTML = ' = ' + this.prettyPrint(this.result.result.evaluation, this.result.call.type, true);
                 if(this.result.program.block)
                     this.createScopePopups(last(this.result.trace.children).stack.variables);
             }
@@ -641,15 +641,40 @@ export default class MatteAceEditor {
         for (const [key, value] of dataMap) {
             const mat = variableMaterialization(value)
             const matText = mat ? "<small> (" + mat + ")</small>" : "";
-            this.popup(value.declaration.end, this.prettyPrint(value.evaluation) + matText, false);
+            this.popup(value.declaration.end, this.prettyPrint(value.evaluation, value.type) + matText, false);
         }
     }
 
-    prettyPrint(value) {
+    prettyPrint(value, type, noRounding) {
+        function formatNumberIfNeeded(num) {
+            const str = num.toString();
+            let decimalPlaces = 0;
+
+            // Check for standard decimals (e.g., "3.14159")
+            if (str.includes('.')) {
+                decimalPlaces = str.split('.')[1].length;
+            }
+            // Handle scientific notation for very small numbers (e.g., "1e-5")
+            else if (str.includes('e-')) {
+                decimalPlaces = parseInt(str.split('e-')[1], 10);
+            }
+
+            // If it has more than 3 decimal places, format it to 3
+            if (decimalPlaces > 3) {
+                return Number.parseFloat(num.toFixed(3)).toString();
+            }
+
+            return str;
+        }
+
         if (value === null || value === undefined)
             return "null";
         else if (Array.isArray(value))
             return "[" + value.join(",&nbsp;") + "]";
+        else if (Number.isFinite(value) && !Number.isInteger(value) && !noRounding)
+            return formatNumberIfNeeded(value);
+        else if(Number.isInteger(value) && type === "double")
+            return value.toString() + ".0";
         else
             return value.toString();
     }
