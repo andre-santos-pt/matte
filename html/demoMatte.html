@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/html">
 <head>
-<title>Demo</title>
+<title>Demo Matte</title>
 </head>
 <body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
@@ -19,7 +19,7 @@ while(i != 10) {
 <hr>
 <h1>Independent Function</h1>
 
-<matte-ace call="sum([15, 20, 25])" ext-callstack compile-hints>
+<matte-ace call="sum([15, 20, 25])" callstack>
 int sum(int[] a) {
     int s = 0;
     int i = 0;
@@ -35,8 +35,20 @@ double avg(int[] array) {
 }
 </matte-ace>
 
+<matte-ace call="sum([15.1, 20.2, 25.3])" callstack>
+double sum(double[] a) {
+    double s = 0;
+    int i = 0;
+    while(i < a.length) {
+    s = s + a[i];
+    i++;
+    }
+    return s;
+}
+</matte-ace>
 
-<matte-ace call="nats(5)" ext-callstack>
+
+<matte-ace call="nats(5)" callstack>
 int[] nats(int n) {
     int[] arr = new int[n];
     int i = 0;
@@ -57,7 +69,7 @@ int abs(int n) {
 </matte-ace>
 
 <h1>Dependent Function</h1>
-<matte-ace call="isNotDigit(123)" ext-callstack>
+<matte-ace call="isNotDigit(123)" callstack>
 boolean isDigit(int n) {
     return n >= 0 && n <= 9;
 }
@@ -70,7 +82,7 @@ boolean isNotDigit(int n) {
 <hr>
 
 <h1>Recursive Function</h1>
-<matte-ace call="factorial(5)" ext-callstack>
+<matte-ace call="factorial(5)" callstack sysout  >
 int factorial(int n) {
     if (n == 0) return 1;
     else return n * factorial(n - 1);

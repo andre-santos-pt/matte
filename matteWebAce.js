@@ -1,6 +1,6 @@
 import MatteAceEditor from "./matte-ace-editor.js";
 
-window.sysout = (editor) => {
+window.sysout_matte = (editor) => {
     function prettyPrint(obj) {
         if (obj === null || obj === undefined) return "null";
         if (typeof obj === "number" || typeof obj === "boolean") return obj.toString();
@@ -16,8 +16,7 @@ window.sysout = (editor) => {
 
     let consoleText = [];
     const consoleDiv = document.createElement("div");
-    consoleDiv.style.cssText = 'padding: 5px; font-size: 20px; font-family: monospace; background: lightgray; box-sizing: border-box; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; overflow: auto;';
-
+    consoleDiv.style.cssText = 'padding: 5px; min-height: 50px; font-size: 20px; font-family: monospace; color: white; background-color: black; box-sizing: border-box; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; overflow: auto;';
     editor.addExtensionProcedure("println", args => {
         const argsText = prettyPrint(args[0])
         consoleText.push(argsText + "<br>");
@@ -55,7 +54,7 @@ window.sysout = (editor) => {
     return consoleDiv;
 }
 
-window.callstack = (editor) => {
+window.callstack_matte = (editor) => {
     function stack(n) {
         if(!n.parent)
             return [];
@@ -100,8 +99,8 @@ class MatteAce extends HTMLElement {
         this.append(div);
         const editor = new MatteAceEditor(div, this.getAttribute("width"), this.getAttribute("height"));
 
-        Array.from(this.attributes).filter(attr => attr.name.startsWith("ext-")).forEach(attr => {
-            const extName = attr.name.substring(4);
+        Array.from(this.attributes).filter(attr => attr.value === '').reverse().forEach(attr => {
+            const extName = attr.name + "_matte";
             if (window[extName]) {
                 const extDiv = window[extName].call(this, editor);
                 if(!(extDiv instanceof HTMLDivElement))
@@ -109,9 +108,11 @@ class MatteAce extends HTMLElement {
 
                 const div = document.createElement("div")
                 div.style.border = "1px solid gray";
-                div.style.padding = "5px";
-                div.style.background = "#ececec";
-                extDiv.style.background = div.style.background;
+                div.style.marginTop = "5px"
+                //div.style.minHeight = "50px";
+                //div.style.padding = "5px";
+                //div.style.background = extDiv.style.background;
+                //extDiv.style.background = div.style.background;
                 div.append(extDiv)
                 editor.container.after(div)
             }

@@ -1,18 +1,23 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/html">
 <head>
-    <title>Demo extensions</title>
+    <title>Demo console</title>
 </head>
 <body>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
 <script src="../dist/matte-web-ace.js" defer></script>
 
 <h1>Console</h1>
-<matte-ace call="" ext-sysout>
+<matte-ace call="" sysout>
 print(32);
 println(1);
 int[] v = {1, 2, 3};
 println(v);
+int i = 0;
+while(i < 100) {
+    println(i);
+    i++;
+}
 </matte-ace>
 
 </body>
