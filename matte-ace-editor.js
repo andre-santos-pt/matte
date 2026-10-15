@@ -5,6 +5,7 @@ import {
     variableMaterialization
 } from "./src/expSimplification.ts";
 import {Interpreter} from "./src/Interpreter.ts";
+//import {isDeepStrictEqual} from "assert/build/internal/util/comparisons.js";
 
 const {Range} = ace.require("ace/range");
 
@@ -486,6 +487,21 @@ export default class MatteAceEditor {
                     this.resultLabel.innerHTML = ' = ' + this.prettyPrint(this.result.result.evaluation, this.result.call.type, true);
                 if(this.result.program.block)
                     this.createScopePopups(last(this.result.trace.children).stack.variables);
+                else {
+                    for (const [key, value] of this.result.trace.stack.variables) {
+                        const lastValue = last(this.result.trace.children).stack.variables.get(key);
+                        if(lastValue && JSON.stringify(value.evaluation) !== JSON.stringify(lastValue.evaluation)) {
+                            const map = new Map();
+                            map.set(key, lastValue);
+                            this.createScopePopups(map);
+                            if( this.resultLabel.innerHTML !== "")
+                                this.resultLabel.innerHTML += "<br>";
+                            this.resultLabel.innerHTML += "Argument modified"
+                            this.resultLabel.style.visibility = "visible"
+                        }
+                    }
+                }
+
             }
             this.afterRunListeners.forEach(l => l(this.result));
         }
