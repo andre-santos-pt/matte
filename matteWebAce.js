@@ -147,6 +147,13 @@ class MatteAce extends HTMLElement {
     }
 
     connectedCallback() {
+        if (this.editor) {
+            requestAnimationFrame(() => {
+                if (this.isConnected)
+                    this.editor?.editor.resize();
+            });
+            return;
+        }
         const div = document.createElement("div");
         div.id = this.getAttribute('id');
         div.style = 'display: block;';
@@ -154,6 +161,7 @@ class MatteAce extends HTMLElement {
         this.innerHTML = '';
         this.append(div);
         const editor = new MatteAceEditor(div, this.getAttribute("width"), this.getAttribute("height"), this.getAttribute("call"));
+        this.editor = editor;
 
         Array.from(this.attributes).filter(attr => attr.value === '').reverse().forEach(attr => {
             const extName = attr.name + "_matte";
@@ -178,6 +186,15 @@ class MatteAce extends HTMLElement {
             editor.disableCompilationHints();
         }
     }
+
+    disconnectedCallback() {
+        queueMicrotask(() => {
+            if (this.isConnected)
+                return;
+            this.editor?.dispose();
+            this.editor = null;
+        });
+    }
 }
 
 try {
@@ -186,6 +203,3 @@ try {
     (e) {
     console.error('matte-ace definition failed:', e);
 }
-
-
-

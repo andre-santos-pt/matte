@@ -273,6 +273,15 @@ export default class MatteAceEditor {
         this.debugBox.after(div);
     }
 
+    dispose() {
+        window.clearInterval(this.compilationCheckInterval);
+        window.removeEventListener('scroll', this.repositionPopups, true);
+        if (this._resizeTimeout)
+            window.clearTimeout(this._resizeTimeout);
+        this.clearPopups();
+        this.editor.destroy();
+    }
+
 // Adjust container height based on the number of visible (screen) lines
     adjustHeight() {
         if (!this.autoHeight) return;
