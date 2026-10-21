@@ -1,0 +1,15 @@
+{
+  "title": "Matte notebook",
+  "cells": [
+    {
+      "type": "markdown",
+      "content": "# Welcome\n\nAdd code and markdown cells with the buttons above. Run code with the widget's play button."
+    },
+    {
+      "type": "code",
+      "code": "int sum(int[] a) {\n    int s = 0;\n    int i = 0;\n    while(i < a.length) {\n        s = s + a[i];\n        i++;\n    }\n    return s;\n}",
+      "call": "sum([15, 20, 25])",
+      "outputs": ["result", "callstack"]
+    }
+  ]
+}

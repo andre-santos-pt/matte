@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Matte Notebook</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <style>
+        :root {
+            color-scheme: light;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #172033;
+            background: #f4f6fa;
+        }
+        * { box-sizing: border-box; }
+        [hidden] { display: none !important; }
+        body { margin: 0; }
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 14px max(20px, calc((100% - 1000px) / 2));
+            background: #fff;
+            border-bottom: 1px solid #dce1e9;
+            box-shadow: 0 2px 8px #1720330d;
+        }
+        header strong { margin-right: auto; font-size: 18px; }
+        button, input, select { font: inherit; }
+        button {
+            padding: 8px 12px;
+            border: 1px solid #cbd3e0;
+            border-radius: 7px;
+            color: #172033;
+            background: #fff;
+            cursor: pointer;
+        }
+        button:hover { background: #f0f4fa; }
+        button.primary { color: white; background: #315fce; border-color: #315fce; }
+        button.primary:hover { background: #254fac; }
+        main { width: min(900px, calc(100% - 32px)); margin: 28px auto 80px; }
+        #notebook-title {
+            width: 100%;
+            margin: 0 0 22px;
+            padding: 8px 0;
+            border: 0;
+            border-bottom: 1px solid transparent;
+            outline: 0;
+            color: #172033;
+            background: transparent;
+            font-size: 32px;
+            font-weight: 700;
+        }
+        #notebook-title:focus { border-color: #9baac1; }
+        .cell {
+            position: relative;
+            margin: 14px 0;
+            padding: 16px;
+            border: 1px solid #dce1e9;
+            border-radius: 10px;
+            background: #fff;
+            box-shadow: 0 2px 8px #17203308;
+        }
+        .cell[data-type="markdown"] {
+            margin: 8px 0;
+            padding: 4px 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        .cell-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .cell-kind { margin-right: auto; color: #65728a; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+        .cell-toolbar .cell-action { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; }
+        .cell-drag-handle { cursor: grab; color: #65728a; font-size: 14px; }
+        .cell-drag-handle:active { cursor: grabbing; }
+        .cell.is-dragging { opacity: .4; }
+        .cell.drop-before { box-shadow: 0 -3px 0 #315fce; }
+        .cell.drop-after { box-shadow: 0 3px 0 #315fce; }
+        .cell[data-type="markdown"] .cell-toolbar { min-height: 30px; opacity: .45; }
+        .cell[data-type="markdown"]:hover .cell-toolbar,
+        .cell[data-type="markdown"]:focus-within .cell-toolbar { opacity: 1; }
+        .cell[data-type="markdown"] .cell-toolbar button { padding: 3px 7px; }
+        .cell-toolbar button { padding: 5px 9px; font-size: 13px; }
+        .insert-cell-menu { position: relative; }
+        .insert-cell-menu summary { list-style: none; cursor: pointer; }
+        .insert-cell-menu summary::-webkit-details-marker { display: none; }
+        .insert-cell-options { position: absolute; top: 34px; left: 0; z-index: 3; display: grid; min-width: 120px; padding: 4px; border: 1px solid #cbd3e0; border-radius: 7px; background: #fff; box-shadow: 0 3px 10px #17203320; }
+        .insert-cell-options button { border: 0; text-align: left; }
+        #empty-notebook { display: flex; justify-content: center; margin: 40px 0; }
+        #empty-notebook summary { width: 42px; height: 42px; border: 1px solid #cbd3e0; border-radius: 50%; background: #fff; color: #53627a; font-size: 18px; }
+        #empty-notebook .insert-cell-options { top: 48px; left: 50%; transform: translateX(-50%); }
+        .call-input { width: min(360px, 100%); padding: 6px 8px; border: 1px solid #cbd3e0; border-radius: 6px; }
+        .markdown-input {
+            display: block;
+            width: 100%;
+            min-height: 110px;
+            margin-top: 4px;
+            padding: 10px 0;
+            resize: vertical;
+            border: 0;
+            border-top: 1px solid #dce1e9;
+            border-bottom: 1px solid #dce1e9;
+            border-radius: 0;
+            outline-color: #9baac1;
+            background: transparent;
+            font: 14px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+        }
+        .markdown-preview { margin-top: 4px; padding: 0; line-height: 1.6; overflow-wrap: anywhere; }
+        .markdown-preview:empty { display: none; }
+        .markdown-preview > :first-child { margin-top: 0; }
+        .markdown-preview pre { overflow-x: auto; padding: 12px; border-radius: 6px; background: #f1f4f8; }
+        .markdown-preview code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+        .markdown-preview img { max-width: 100%; }
+        .code-host { margin-top: 8px; }
+        .code-host matte-ace { display: block; }
+        .output-options { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; border: 0; }
+        .output-options legend { float: left; margin-right: 6px; color: #65728a; font-size: 12px; }
+        .output-options label { display: inline-flex; align-items: center; gap: 4px; color: #45536b; font-size: 13px; }
+        #status { min-height: 22px; margin: 10px 0; color: #53627a; font-size: 14px; }
+        #status.error { color: #b42318; }
+        body.readonly-mode #add-markdown,
+        body.readonly-mode #add-code,
+        body.readonly-mode #load-notebook,
+        body.readonly-mode .cell-toolbar .cell-action,
+        body.readonly-mode .insert-cell-menu,
+        body.readonly-mode #empty-notebook { display: none !important; }
+        @media (max-width: 560px) {
+            header { padding: 12px 16px; }
+            header strong { width: 100%; }
+            #notebook-title { font-size: 26px; }
+            .cell { padding: 12px; }
+            .output-options { flex-wrap: wrap; }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <strong>Matte Notebook</strong>
+    <button id="add-markdown" type="button">+ Markdown</button>
+    <button id="add-code" type="button">+ Code</button>
+    <button id="load-notebook" type="button">Load JSON</button>
+    <input id="notebook-file" type="file" accept=".json,application/json" hidden>
+    <button id="save-notebook" class="primary" type="button">Save JSON</button>
+</header>
+<main>
+    <input id="notebook-title" aria-label="Notebook title" value="Untitled notebook">
+    <div id="status" role="status" aria-live="polite"></div>
+    <section id="cells" aria-label="Notebook cells"></section>
+    <details id="empty-notebook" class="insert-cell-menu">
+        <summary class="cell-action" title="Add a cell" aria-label="Add a cell">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </summary>
+        <div class="insert-cell-options">
+            <button id="empty-add-markdown" type="button">Markdown</button>
+            <button id="empty-add-code" type="button">Code</button>
+        </div>
+    </details>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+<script src="matte-web-ace.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+<script src="notebook.js"></script>
+</body>
+</html>
