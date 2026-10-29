@@ -722,10 +722,14 @@ export default class MatteAceEditor {
             return "null";
         else if (Array.isArray(value))
             return "[" + value.join(",&nbsp;") + "]";
+        else if (typeof value === "object")
+            return "{" + Object.keys(value).filter(k => k !== "$type").map(k => `${k}: ${this.prettyPrint(value[k])}`).join(", ") + "}"
         else if (Number.isFinite(value) && !Number.isInteger(value) && !noRounding)
             return formatNumberIfNeeded(value);
         else if (Number.isInteger(value) && type === "double")
             return value.toString() + ".0";
+        else if(typeof value === "string")
+            return "\"" + value + "\""
         else
             return value.toString();
     }

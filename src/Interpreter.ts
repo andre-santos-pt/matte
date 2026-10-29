@@ -154,11 +154,11 @@ export class Interpreter {
             return
 
         const t = this.addTraceRange(node.range, call, isReturn, evaluation, materialization, extension)
-        if (node instanceof CallExpression && call) {
+        if (call && (node instanceof NewObjectExpression || node instanceof CallExpression)) {
             this.traceStack.push(t)
             if (!this.trace) {
                 this.trace = t
-                t.range = node.procedure.nameRange
+                t.range = node instanceof CallExpression ? node.procedure.nameRange : node.type.nameRange
             }
         }
     }
@@ -176,7 +176,7 @@ export class Interpreter {
 
     private addTraceRange(range: Range | undefined, call: boolean, returnStatement: boolean, evaluation: any, materialization?: string, extension?: any) {
         const entry = {
-            stack: structuredClone(last(this.scope)),
+            stack: this.scope.length == 0 ? {variables:new Map()} : structuredClone(last(this.scope)),
             range,
             materialization,
             evaluation,
@@ -503,6 +503,8 @@ export class Interpreter {
     private prettyPrint(value: any) {
         if(Array.isArray(value))
             return "[" + value.join(", ") + "]"
+        else if(typeof value == "object")
+                return JSON.stringify(value)
         else if(value == null)
             return "null"
         else
@@ -630,6 +632,7 @@ export class Interpreter {
                     obj[f.name] = args[i].evaluation
                 })
             }
+            this.addTrace(e, true, false, obj);
             return {
                 evaluation: obj,
                 materialization: `new ${e.type.name}(${args.map(a => a.materialization || a.evaluation).join(", ")})`

@@ -15,6 +15,13 @@ describe('Matte Interpreter Objects', () => {
                 ["create()", {$type: "Point", x: 1.2, y: -3.4}]);
         })
 
+        it('Point int', () => {
+            cases(`
+            record Point(int x, int y) { }    
+            `,
+                ["new Point(1, -3)", {$type: "Point", x: 1, y: -3}]);
+        })
+
         it('constructor', () => {
             cases(`
             record Point(double x, double y) { }    
@@ -171,5 +178,33 @@ describe('Matte Interpreter Objects', () => {
         })
     })
 
-
+    describe('Classes', () => {
+        it('turtle', () => {
+            cases(`
+            class Turtle {
+                int x = 0;
+                int y = 0;
+                int directionX = 1;
+                int directionY = 0;
+            
+                void move() {
+                    x = x + directionX;
+                    y = y + directionY;
+                }
+            
+                void rotateRight() {
+                    if(directionX == 0) {
+                        directionX = directionY == 1 ? -1 : 1;
+                        directionY = 0;
+                    }
+                    else {
+                        directionY = directionX == 1 ? 1 : -1;
+                        directionX = 0;
+                    }
+                }
+            }
+            `,
+                ["new Turtle()", {$type: "Turtle", x: 0, y: 0, directionX: 1, directionY: 0}]);
+        })
+    })
 })
