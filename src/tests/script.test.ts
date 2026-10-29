@@ -217,6 +217,18 @@ describe('Matte Interpreter Test Script', () => {
                 .set("j", 20))
         });
 
+        it('conditional', () => {
+            script(`
+            int a = 0;
+            int b = a == 0 ? -1 : 1;
+            int c = b == 0 ? 1 : 2;
+        `, new Map()
+                .set("a", 0)
+                .set("b", -1)
+                .set("c", 2)
+            )
+        });
+
         it('string', () => {
             script(`
         String hello = "ola";

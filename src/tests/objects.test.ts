@@ -202,9 +202,16 @@ describe('Matte Interpreter Objects', () => {
                         directionX = 0;
                     }
                 }
+                
+                int getX() {
+                    return x;
+                }
             }
             `,
-                ["new Turtle()", {$type: "Turtle", x: 0, y: 0, directionX: 1, directionY: 0}]);
+                ["new Turtle()", {$type: "Turtle", x: 0, y: 0, directionX: 1, directionY: 0}],
+                ["new Turtle().move()", undefined],
+                ["new Turtle().getX()", 0]
+            );
         })
     })
 })

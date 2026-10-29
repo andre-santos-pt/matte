@@ -42,7 +42,7 @@ export function cases(code: string, ...tests: [string, any][]) {
         if(result.runtimeError) {
             assert.fail(`Runtime error ${result.runtimeError.message}`)
         }
-        assert.deepStrictEqual(result.result.evaluation, t[1]);
+        assert.deepStrictEqual(result.result.evaluation, t[1], t[0]);
     })
 }
 

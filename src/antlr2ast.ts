@@ -13,11 +13,11 @@ import JavaGrammarParser, {
     BracketsExprContext,
     BreakContext,
     CallContext,
-    CallExprContext, CallLiteralContext,
+    CallExprContext, CallLiteralContext, ClassContext, ConditionalExprContext,
     DecContext,
     DeclarationContext,
     DoubleExprContext, DoubleLiteralContext,
-    ExpContext, ExpLiteralContext,
+    ExpContext, ExpLiteralContext, FieldContext,
     FieldExprContext,
     ForStmtContext,
     IdExprContext,
@@ -50,7 +50,7 @@ import {
     BooleanLiteral,
     BreakStatement,
     CallExpression,
-    CallStatement,
+    CallStatement, ConditionalExpression,
     Declaration,
     DoubleLiteral,
     Expression,
@@ -96,7 +96,7 @@ import JavaGrammarLexer from "./generated/JavaGrammarLexer";
 import {checkBracketMatching, MatteErrorListener} from "./MatteErrorListener";
 
 
-export function compile(source: string): Program | StaticError  {
+export function compile(source: string): Program | StaticError {
     try {
         return buildAST(source)
     } catch (e: any) {
@@ -130,7 +130,7 @@ function getTokenStreamAndParser(input: string): [CommonTokenStream, MatteErrorL
     // }
     parser.removeErrorListeners()
     parser.addErrorListener(errorListener)
-    return [tokens,errorListener,parser];
+    return [tokens, errorListener, parser];
 }
 
 
@@ -158,26 +158,25 @@ export function buildASTandCall(source: string, call: string): [Program, Express
     visitor.tokenStream = tokens2
     try {
         const exp = visitor.visitExpLiteral(callCtx)
-        if(exp instanceof UnboundCallExpression)
+        if (exp instanceof UnboundCallExpression)
             throw {
                 callError: `'${exp.procedureName}' not found`,
                 program: program,
             }
-        if(!(exp instanceof CallExpression || exp instanceof NewObjectExpression))
+        if (!(exp instanceof CallExpression || exp instanceof NewObjectExpression))
             throw {
                 callError: "Not a valid call",
                 program: program,
             }
         exp.setLoose()
         return [program, exp]
-    }
-    catch (e: any) {
-        if(e.callError)
+    } catch (e: any) {
+        if (e.callError)
             throw e
         e.program = program
-        if(e.compilation == StaticErrorType.UndeclaredVariable || e.compilation == StaticErrorType.Unsupported)
-            e.callError =  "Not a valid call"
-        else if(e.compilation)
+        if (e.compilation == StaticErrorType.UndeclaredVariable || e.compilation == StaticErrorType.Unsupported)
+            e.callError = "Not a valid call"
+        else if (e.compilation)
             e.callError = e.message
         throw {
             callError: "Not a valid call",
@@ -206,8 +205,8 @@ function alwaysReturns(statement: Statement): boolean {
 function checkReturns(procedure: Procedure): void {
     function checkReturnsAux(statement: Statement, procedure: Procedure): void {
         if (statement instanceof ReturnStatement) {
-            if(statement.expression == undefined) {
-                if(procedure.returnType != PrimitiveType.VOID)
+            if (statement.expression == undefined) {
+                if (procedure.returnType != PrimitiveType.VOID)
                     throw {
                         compilation: StaticErrorType.TypeMismatch,
                         range: statement.range,
@@ -217,9 +216,8 @@ function checkReturns(procedure: Procedure): void {
                         }
                     }
 
-            }
-            else {
-                if(procedure.returnType == PrimitiveType.VOID)
+            } else {
+                if (procedure.returnType == PrimitiveType.VOID)
                     throw {
                         compilation: StaticErrorType.TypeMismatch,
                         range: statement.expression.range,
@@ -248,17 +246,16 @@ function checkReturns(procedure: Procedure): void {
         }
     }
 
-    if(procedure.body && procedure.returnType)
+    if (procedure.body && procedure.returnType)
         checkReturnsAux(procedure.body, procedure);
 }
 
 
-
-export function  mark(text: string): string {
+export function mark(text: string): string {
     return "'" + (text ?? "") + "'";
 }
 
-export function  markType(type: Type | undefined): string {
+export function markType(type: Type | undefined): string {
     return "'" + (typeName(type) ?? "") + "'";
 }
 
@@ -345,7 +342,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             detail: {
                 related: [...varsInScope.map(v => v.nameRange)],
                 hint: exp ? "If the intention is to have a new variable, write its type " + (exp.type == PrimitiveType.NULL ? "" : "(" + exp.type + ") ") + "before the name" :
-                    varsInScope.length > 0 ? "Variables in scope are: " + varsInScope.map(v => mark(v.name)).join(", ") :  undefined
+                    varsInScope.length > 0 ? "Variables in scope are: " + varsInScope.map(v => mark(v.name)).join(", ") : undefined
             }
         }
     }
@@ -359,7 +356,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return PrimitiveType.BOOLEAN
         else if (name == "String")
             return PrimitiveType.STRING
-        else if(name == "void")
+        else if (name == "void")
             return PrimitiveType.VOID
         else
             return this.types.find(t => t.name == name)
@@ -377,14 +374,19 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         if (ctx.script())
             return new Program(this.visitScript(ctx.script()))
         else {
-            const typeMap: [TypeDeclaration, RecordContext][] = []
+            const typeMap: [TypeDeclaration, MethodContext[]][] = []
             for (let i = 0; i < ctx.getChildCount(); i++)
                 if (ctx.getChild(i) instanceof RecordContext) {
                     let typeDeclaration = this.visitRecord(ctx.getChild(i) as RecordContext);
-                    typeMap.push([typeDeclaration, ctx.getChild(i) as RecordContext])
+                    typeMap.push([typeDeclaration, (ctx.getChild(i) as RecordContext).method_list()])
+                    this.types.push(typeDeclaration)
+                } else if (ctx.getChild(i) instanceof ClassContext) {
+                    let typeDeclaration = this.visitClass(ctx.getChild(i) as ClassContext);
+                    typeMap.push([typeDeclaration, (ctx.getChild(i) as ClassContext).member_list().filter(m => m.method() != null).map(m => m.method())])
                     this.types.push(typeDeclaration)
                 }
 
+            // top-level methods
             for (let i = 0; i < ctx.getChildCount(); i++) {
                 if (ctx.getChild(i) instanceof MethodContext) {
                     const mctx = ctx.getChild(i) as MethodContext
@@ -415,11 +417,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
             typeMap.forEach(tm => {
                 const type = tm[0]
-                const recordCtx = tm[1]
+                const typeCtx = tm[1]
                 const recordProcedures = this.procedures.filter(p => p.range && p.instance && p.parameters.length > 0 && p.parameters[0].type == type)
                 this.typeContext = type
                 recordProcedures.forEach((p, i) => {
-                    p.body = this.visitMethod(recordCtx.method_list()[i])
+                    p.body = this.visitMethod(typeCtx[i])
                 })
                 this.typeContext = undefined
             })
@@ -480,29 +482,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             []
         )
         ctx.method_list().forEach(mctx => {
-            const params = mctx.params() ? mctx.params().param_list().map(p => {
-                let type = this.findType(p.type_())
-                return new Declaration(
-                    this.rangeContext(p),
-                    p._id.text,
-                    this.rangeToken(p._id),
-                    true,
-                    type ? type : new ForeignType(p.type_().getText()),
-                    this.rangeContext(p.type_())
-                )
-            }) : []
-
-            let type = mctx.type_().getText() == ctx._id.text ? typedec : this.findType(mctx.type_())
-            this.procedures.push(new Procedure(
-                this.rangeContext(ctx),
-                mctx._id.text,
-                this.rangeToken(mctx._id),
-                true,
-                [new Declaration(this.rangeToken(ctx._id), "this", undefined, true, typedec, undefined)].concat(params),
-                type ? type : new ForeignType(mctx.type_().getText()),
-                this.rangeContext(mctx.type_()),
-                undefined
-            ))
+            this.addInstanceMethod(typedec, mctx)
         })
 
         ctx.params().param_list().forEach(p => {
@@ -532,6 +512,56 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         })
         return typedec
     }
+
+    addInstanceMethod(typedec: TypeDeclaration, mctx: MethodContext) {
+        const params = mctx.params() ? mctx.params().param_list().map(p => {
+            let type = this.findType(p.type_())
+            return new Declaration(
+                this.rangeContext(p),
+                p._id.text,
+                this.rangeToken(p._id),
+                true,
+                type ? type : new ForeignType(p.type_().getText()),
+                this.rangeContext(p.type_())
+            )
+        }) : []
+
+        let type = mctx.type_().getText() == typedec.name ? typedec : this.findType(mctx.type_())
+        this.procedures.push(new Procedure(
+            this.rangeContext(mctx),
+            mctx._id.text,
+            this.rangeToken(mctx._id),
+            true,
+            [new Declaration(undefined, "this", undefined, true, typedec, undefined)].concat(params),
+            type ? type : new ForeignType(mctx.type_().getText()),
+            this.rangeContext(mctx.type_()),
+            undefined
+        ))
+    }
+
+
+    visitClass = (ctx: ClassContext) => {
+        const typedec = new TypeDeclaration(
+            ctx._id.text,
+            this.rangeToken(ctx._id),
+            false,
+            ctx.member_list().filter(m => m.field() != null).map(f =>
+                new Declaration(
+                    this.rangeContext(f),
+                    f.field().ID().getText(),
+                    this.rangeToken(f.field()._id),
+                    false,
+                    this.findType(f.field().type_()) ?? new ForeignType(f.field().type_().getText()),
+                    this.rangeContext(f.field().type_()),
+                    f.field().exp() ? this.expToAST(f.field().exp()) : undefined
+                )
+            )
+        )
+        ctx.member_list().filter(m => m.method() != null)
+            .forEach(m => this.addInstanceMethod(typedec, m.method()))
+        return typedec
+    }
+
 
     visitMethod = (ctx: MethodContext) => {
         this.varScope.push({
@@ -817,6 +847,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 this.expToAST(ctx._right)
             )
 
+            else if (ctx instanceof ConditionalExprContext)
+                return new ConditionalExpression(
+                    this.rangeContext(ctx),
+                    this.expToAST(ctx._condition),
+                    this.expToAST(ctx._trueCase),
+                    this.expToAST(ctx._falseCase)
+                )
+
         else if (ctx instanceof ArrayAllocExprContext) {
             let type: Type | undefined = this.findSingleType(ctx.ID().getText())
             return new ArrayAllocationExpression(
@@ -857,12 +895,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitExpLiteral = (ctx: ExpLiteralContext): Expression => {
-        if(ctx instanceof IntLiteralContext)
+        if (ctx instanceof IntLiteralContext)
             return new IntLiteral(
                 this.rangeContext(ctx),
                 Number((ctx.MINUS() ? "-" : "") + ctx.INT().getText())
             )
-        else if(ctx instanceof DoubleLiteralContext)
+        else if (ctx instanceof DoubleLiteralContext)
             return new DoubleLiteral(
                 this.rangeContext(ctx),
                 Number((ctx.MINUS() ? "-" : "") + ctx.DOUBLE().getText())
@@ -883,35 +921,15 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         else if (ctx instanceof NullLiteralContext)
             return new NullLiteral(this.rangeContext(ctx))
 
-        else if(ctx instanceof ArrayLiteralBracketsContext) {
-                return new ArrayLiteralExpression(
-                    this.rangeContext(ctx),
-                    ctx._elements?.expLiteral_list()?.map(e => this.visitExpLiteral(e)) ?? []
-                )
-        }
-        else if(ctx instanceof CallLiteralContext) {
-            const proc = this.procedures.find(p => p.name == ctx._id.text)
-                if (proc) {
-                    let args =  ctx._args ? ctx._args.expLiteral_list().map(a => this.visitExpLiteral(a)) : []
-                    this.checkArgs(ctx, args, proc)
-                    return new CallExpression(
-                        this.rangeContext(ctx),
-                        proc,
-                        args,
-                        false
-                    )
-                } else
-                    throw {
-                        message: "Invalid call",
-                        compilation: StaticErrorType.Unsupported,
-                        range: this.rangeContext(ctx)
-                    }
-        }
-        else if(ctx instanceof InstanceCallLiteralContext) {
+        else if (ctx instanceof ArrayLiteralBracketsContext) {
+            return new ArrayLiteralExpression(
+                this.rangeContext(ctx),
+                ctx._elements?.expLiteral_list()?.map(e => this.visitExpLiteral(e)) ?? []
+            )
+        } else if (ctx instanceof CallLiteralContext) {
             const proc = this.procedures.find(p => p.name == ctx._id.text)
             if (proc) {
-                let instance = this.visitExpLiteral(ctx.expLiteral());
-                let args =  ctx._args ? [instance, ...ctx._args.expLiteral_list().map(a => this.visitExpLiteral(a))] : [instance]
+                let args = ctx._args ? ctx._args.expLiteral_list().map(a => this.visitExpLiteral(a)) : []
                 this.checkArgs(ctx, args, proc)
                 return new CallExpression(
                     this.rangeContext(ctx),
@@ -925,8 +943,25 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     compilation: StaticErrorType.Unsupported,
                     range: this.rangeContext(ctx)
                 }
-        }
-        else if(ctx instanceof NewCallLiteralContext) {
+        } else if (ctx instanceof InstanceCallLiteralContext) {
+            const proc = this.procedures.find(p => p.name == ctx._id.text)
+            if (proc) {
+                let instance = this.visitExpLiteral(ctx.expLiteral());
+                let args = ctx._args ? [instance, ...ctx._args.expLiteral_list().map(a => this.visitExpLiteral(a))] : [instance]
+                this.checkArgs(ctx, args, proc)
+                return new CallExpression(
+                    this.rangeContext(ctx),
+                    proc,
+                    args,
+                    false
+                )
+            } else
+                throw {
+                    message: "Invalid call",
+                    compilation: StaticErrorType.Unsupported,
+                    range: this.rangeContext(ctx)
+                }
+        } else if (ctx instanceof NewCallLiteralContext) {
             const typeId = ctx.ID().getText()
             const type = this.findSingleType(typeId)
             const args = ctx._args ? ctx._args.expLiteral_list().map(
@@ -943,8 +978,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     typeId,
                     args
                 )
-        }
-        else {
+        } else {
             throw {
                 message: "Invalid expression",
                 compilation: StaticErrorType.Unsupported,
@@ -1045,12 +1079,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 compilation: StaticErrorType.NumberArgumentsMismatch,
                 range: this.rangeContext(ctx),
                 detail: {
-                    related: [... proc.parameters.map(p => p.typeRange)]
+                    related: [...proc.parameters.map(p => p.typeRange)]
                 }
             }
 
         proc.parameters.forEach((p, index) => {
-            if(p.type instanceof ArrayType && args[index] instanceof ArrayLiteralExpression && (args[index] as ArrayLiteralExpression).getChildren().length == 0)
+            if (p.type instanceof ArrayType && args[index] instanceof ArrayLiteralExpression && (args[index] as ArrayLiteralExpression).getChildren().length == 0)
                 (args[index] as ArrayLiteralExpression).type = p.type
 
             if (!typeCompatibleWith(args[index].type, p.type))
@@ -1067,13 +1101,20 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     private toWordOrder(n: number) {
         switch (n) {
-            case 0: return "first"
-            case 1: return "second"
-            case 2: return "third"
-            case 3: return "forth"
-            case 4: return "fifth"
-            case 5: return "sixth"
-            default: return n + "th"
+            case 0:
+                return "first"
+            case 1:
+                return "second"
+            case 2:
+                return "third"
+            case 3:
+                return "forth"
+            case 4:
+                return "fifth"
+            case 5:
+                return "sixth"
+            default:
+                return n + "th"
         }
     }
 }

@@ -110,18 +110,18 @@ export function isReferenceType(type?: Type) {
     return type instanceof ArrayType || type instanceof TypeDeclaration || type instanceof ForeignType
 }
 
-export function typeCompatibleWith(a: Type | undefined, b: Type | undefined): boolean {
-    function isSameType(a: Type | undefined, b: Type | undefined): boolean {
-        if (isPrimitiveType(a) || a instanceof TypeDeclaration)
-            return a == b
-        else if (a instanceof ArrayType)
-            return b instanceof ArrayType && (isSameType(a.componentType, b.componentType) || a.componentType == undefined || b.componentType == undefined)
-        else if (a instanceof ForeignType)
-            return b instanceof ForeignType && a.name == b.name
-        else
-            return false
-    }
+function isSameType(a: Type | undefined, b: Type | undefined): boolean {
+    if (isPrimitiveType(a) || a instanceof TypeDeclaration)
+        return a == b
+    else if (a instanceof ArrayType)
+        return b instanceof ArrayType && (isSameType(a.componentType, b.componentType) || a.componentType == undefined || b.componentType == undefined)
+    else if (a instanceof ForeignType)
+        return b instanceof ForeignType && a.name == b.name
+    else
+        return false
+}
 
+export function typeCompatibleWith(a: Type | undefined, b: Type | undefined): boolean {
     if(a == PrimitiveType.INT && b == PrimitiveType.DOUBLE)
         return true
     else if(isPrimitiveType(a) && isPrimitiveType(b))
@@ -438,6 +438,34 @@ export class Variable extends Expression {
     }
 }
 
+export class ConditionalExpression extends Expression {
+    condition: Expression;
+    trueCase: Expression;
+    falseCase: Expression;
+
+    constructor(range: Range, condition: Expression, trueCase: Expression, falseCase: Expression) {
+        super(range, trueCase.type)
+        if(condition.type != PrimitiveType.BOOLEAN)
+            throw {
+                message: "Boolean expression expected (not " + markType(condition.type) + ")",
+                compilation: StaticErrorType.TypeMismatch,
+                range: condition.range
+            }
+
+        if(!isSameType(trueCase.type, falseCase.type))
+            throw {
+                message: "The type of this expression (" + markType(falseCase) +") is not the same as the other alternative expression (" + markType(trueCase.type) + ")",
+                compilation: StaticErrorType.TypeMismatch,
+                range: falseCase.range,
+                detail: {
+                    related: trueCase.range
+                }
+            }
+        this.condition = condition
+        this.trueCase = trueCase
+        this.falseCase = falseCase
+    }
+}
 
 export class UnaryExpression extends Expression {
     operator: string;

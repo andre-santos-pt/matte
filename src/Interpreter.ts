@@ -11,7 +11,7 @@ import {
     BooleanLiteral,
     BreakStatement,
     CallExpression,
-    CallStatement,
+    CallStatement, ConditionalExpression,
     Declaration,
     DoubleLiteral,
     Expression,
@@ -27,7 +27,8 @@ import {
     Statement,
     StaticError,
     StaticErrorType,
-    StringLiteral, Type,
+    StringLiteral,
+    Type,
     UnaryExpression,
     UnboundCallExpression,
     UnboundNewObjectExpression,
@@ -555,6 +556,10 @@ export class Interpreter {
                 evaluation: null,
                 materialization: "null"
             }
+        else if (e instanceof ConditionalExpression) {
+            const condVal = this.evaluate(e.condition);
+            return condVal.evaluation ?  this.evaluate(e.trueCase) : this.evaluate(e.falseCase)
+        }
         else if (e instanceof UnaryExpression) {
             const expVal = this.evaluate(e.expression);
             if (e.operator === "-") {
@@ -632,6 +637,11 @@ export class Interpreter {
                     obj[f.name] = args[i].evaluation
                 })
             }
+            else {
+                e.type.fields.forEach((f, i) => {
+                    obj[f.name] = f.initializer ? this.evaluate(f.initializer).evaluation : this.defaultValue(f.type)
+                })
+            }
             this.addTrace(e, true, false, obj);
             return {
                 evaluation: obj,
@@ -706,6 +716,7 @@ export class Interpreter {
             detail: "INTERPRETER"
         }
     }
+
 
     invocation(call: CallExpression, isReturn: boolean = false):
         ExpressionEval {
@@ -866,5 +877,13 @@ export class Interpreter {
     }
 
 
+    private defaultValue(type: Type) {
+        if(type == PrimitiveType.INT || type == PrimitiveType.DOUBLE)
+            return 0
+        else if(type == PrimitiveType.BOOLEAN)
+            return false
+        else
+            return null;
+    }
 }
 
