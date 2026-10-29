@@ -24,6 +24,7 @@ import JavaGrammarParser, {
     IfElseStmtContext,
     IncContext,
     InstanceCallExprContext, InstanceCallLiteralContext,
+    InstanceCallStatementContext,
     IntExprContext, IntLiteralContext,
     MethodContext, NewCallLiteralContext,
     NullExprContext, NullLiteralContext,
@@ -770,6 +771,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             this.handleCall(ctx)
         )
 
+    visitInstanceCallStatement = (ctx: InstanceCallStatementContext) =>
+        new CallStatement(
+            this.rangeContext(ctx),
+            this.handleInstanceCall(ctx, ctx.exp(),ctx.call())
+        )
+
     expToAST(ctx: ExpContext):
         Expression {
         if (ctx instanceof BracketsExprContext) {
@@ -884,7 +891,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             )
 
         else if (ctx instanceof InstanceCallExprContext) {
-            return this.handleInstanceCall(ctx);
+            return this.handleInstanceCall(ctx, ctx.exp(), ctx.call());
         } else
             throw {
                 message: "Invalid expression: " + this.streamText(ctx),
@@ -993,33 +1000,33 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     }
 
-    private handleInstanceCall(ctx: InstanceCallExprContext) {
-        const target = this.expToAST(ctx.exp())
+    private handleInstanceCall(ctx: ParserRuleContext, expCtx: ExpContext, callCtx: CallContext) {
+        const target = this.expToAST(expCtx)
         if (!(target instanceof Variable || target instanceof NewObjectExpression))
             throw {
-                message: "Unsupported target: " + ctx.exp().getText(),
+                message: "Unsupported target: " + expCtx.getText(),
                 compilation: StaticErrorType.Unsupported,
-                range: this.rangeContext(ctx.exp())
+                range: this.rangeContext(expCtx)
             }
 
         if (!(target.type instanceof TypeDeclaration))
             throw {
-                message: "Unsupported target: " + ctx.exp().getText(),
+                message: "Unsupported target: " + expCtx.getText(),
                 compilation: StaticErrorType.Unsupported,
-                range: this.rangeContext(ctx.exp())
+                range: this.rangeContext(expCtx)
             }
 
-        const proc = this.findMethodInType(target.type, ctx.call()._id.text)
+        const proc = this.findMethodInType(target.type, callCtx._id.text)
         if (!proc)
             throw {
-                message: "No method named '" + ctx.call()._id.text + "' found for type '" + target.type.name + "'",
+                message: "No method named '" + callCtx._id.text + "' found for type '" + target.type.name + "'",
                 compilation: StaticErrorType.MethodNotFound,
-                range: this.rangeToken(ctx.call()._id),
+                range: this.rangeToken(callCtx._id),
                 detail: "AST-instanceCall"
             }
 
-        const args = [this.expToAST(ctx.exp())].concat(ctx.call()._args ? ctx.call()._args.exp_list().map(e => this.expToAST(e)) : [])
-        this.checkArgs(ctx.call(), args, proc);
+        const args = [this.expToAST(expCtx)].concat(callCtx._args ? callCtx._args.exp_list().map(e => this.expToAST(e)) : [])
+        this.checkArgs(callCtx, args, proc);
 
         return new CallExpression(
             this.rangeContext(ctx),
