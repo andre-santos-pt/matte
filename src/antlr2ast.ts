@@ -1,7 +1,7 @@
 import JavaGrammarParser, {
     ArrayAllocExprContext,
     ArrayAssignmentContext,
-    ArrayExprContext, ArrayLiteralContext,
+    ArrayExprContext, ArrayLiteralBracketsContext, ArrayLiteralContext,
     //ArrayLitExprContext,
     AssignmentContext,
     BinaryOpAddContext,
@@ -9,30 +9,30 @@ import JavaGrammarParser, {
     BinaryOpMulContext,
     BinaryOpRelContext,
     BlockStmtContext,
-    BoolExprContext,
+    BoolExprContext, BoolLiteralContext,
     BracketsExprContext,
     BreakContext,
     CallContext,
-    CallExprContext,
+    CallExprContext, CallLiteralContext,
     DecContext,
     DeclarationContext,
-    DoubleExprContext,
-    ExpContext, ExpMatteContext,
+    DoubleExprContext, DoubleLiteralContext,
+    ExpContext, ExpLiteralContext,
     FieldExprContext,
     ForStmtContext,
     IdExprContext,
     IfElseStmtContext,
     IncContext,
-    InstanceCallExprContext,
-    IntExprContext, MatteCallContext,
-    MethodContext,
-    NullExprContext,
+    InstanceCallExprContext, InstanceCallLiteralContext,
+    IntExprContext, IntLiteralContext,
+    MethodContext, NewCallLiteralContext,
+    NullExprContext, NullLiteralContext,
     ObjectAllocExprContext,
     RecordContext,
     ReturnContext,
     ScriptContext,
     StatementContext,
-    StringExprContext,
+    StringExprContext, StringLiteralContext,
     TypeContext,
     UnaryOpContext,
     UnitContext,
@@ -151,19 +151,19 @@ export function buildASTandCall(source: string, call: string): [Program, Express
     const lexer2 = new JavaGrammarLexer(chars2);
     const tokens2 = new CommonTokenStream(lexer2);
     const parser2 = new JavaGrammarParser(tokens2);
-    let callCtx = parser2.matteCall();
+    let callCtx = parser2.expLiteral();
 
     const program = visitor.visitUnit(unitCtx)
 
     visitor.tokenStream = tokens2
     try {
-        const exp = visitor.visitMatteCall(callCtx)
+        const exp = visitor.visitExpLiteral(callCtx)
         if(exp instanceof UnboundCallExpression)
             throw {
                 callError: `'${exp.procedureName}' not found`,
                 program: program,
             }
-        if(!(exp instanceof CallExpression))
+        if(!(exp instanceof CallExpression || exp instanceof NewObjectExpression))
             throw {
                 callError: "Not a valid call",
                 program: program,
@@ -856,37 +856,102 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             }
     }
 
-    expToASTMatte(ctx: ExpMatteContext): Expression {
-        if(ctx.exp())
-            return this.expToAST(ctx.exp())
-        else
-            return new ArrayLiteralExpression(
+    visitExpLiteral = (ctx: ExpLiteralContext): Expression => {
+        if(ctx instanceof IntLiteralContext)
+            return new IntLiteral(
                 this.rangeContext(ctx),
-                (ctx.arrayLiteralBrackets().expListMatte()?.expMatte_list() ?? [])
-                    .map(e => this.expToASTMatte(e))
+                Number((ctx.MINUS() ? "-" : "") + ctx.INT().getText())
             )
-    }
-
-
-    visitMatteCall= (ctx: MatteCallContext) => {
-        const proc = this.procedures.find(p => p.name == ctx._id.text)
-        if (proc) {
-            let args =  ctx._args ? ctx._args.expMatte_list().map(a => this.expToASTMatte(a)) : []
-            this.checkArgs(ctx, args, proc)
-            return new CallExpression(
+        else if(ctx instanceof DoubleLiteralContext)
+            return new DoubleLiteral(
                 this.rangeContext(ctx),
-                proc,
-                args,
-                false
+                Number((ctx.MINUS() ? "-" : "") + ctx.DOUBLE().getText())
             )
-        } else
+
+        else if (ctx instanceof BoolLiteralContext)
+            return new BooleanLiteral(
+                this.rangeContext(ctx),
+                ctx.BOOLEAN().getText() == "true"
+            )
+
+        else if (ctx instanceof StringLiteralContext)
+            return new StringLiteral(
+                this.rangeContext(ctx),
+                ctx.STRING().getText().substring(1, ctx.STRING().getText().length - 1)
+            )
+
+        else if (ctx instanceof NullLiteralContext)
+            return new NullLiteral(this.rangeContext(ctx))
+
+        else if(ctx instanceof ArrayLiteralBracketsContext) {
+                return new ArrayLiteralExpression(
+                    this.rangeContext(ctx),
+                    ctx._elements?.expLiteral_list()?.map(e => this.visitExpLiteral(e)) ?? []
+                )
+        }
+        else if(ctx instanceof CallLiteralContext) {
+            const proc = this.procedures.find(p => p.name == ctx._id.text)
+                if (proc) {
+                    let args =  ctx._args ? ctx._args.expLiteral_list().map(a => this.visitExpLiteral(a)) : []
+                    this.checkArgs(ctx, args, proc)
+                    return new CallExpression(
+                        this.rangeContext(ctx),
+                        proc,
+                        args,
+                        false
+                    )
+                } else
+                    throw {
+                        message: "Invalid call",
+                        compilation: StaticErrorType.Unsupported,
+                        range: this.rangeContext(ctx)
+                    }
+        }
+        else if(ctx instanceof InstanceCallLiteralContext) {
+            const proc = this.procedures.find(p => p.name == ctx._id.text)
+            if (proc) {
+                let instance = this.visitExpLiteral(ctx.expLiteral());
+                let args =  ctx._args ? [instance, ...ctx._args.expLiteral_list().map(a => this.visitExpLiteral(a))] : [instance]
+                this.checkArgs(ctx, args, proc)
+                return new CallExpression(
+                    this.rangeContext(ctx),
+                    proc,
+                    args,
+                    false
+                )
+            } else
+                throw {
+                    message: "Invalid call",
+                    compilation: StaticErrorType.Unsupported,
+                    range: this.rangeContext(ctx)
+                }
+        }
+        else if(ctx instanceof NewCallLiteralContext) {
+            const typeId = ctx.ID().getText()
+            const type = this.findSingleType(typeId)
+            const args = ctx._args ? ctx._args.expLiteral_list().map(
+                e => this.visitExpLiteral(e)
+            ) : []
+            if (type)
+                // TODO n args check + type
+                return new NewObjectExpression(
+                    this.rangeContext(ctx), type, args
+                )
+            else
+                return new UnboundNewObjectExpression(
+                    this.rangeContext(ctx),
+                    typeId,
+                    args
+                )
+        }
+        else {
             throw {
-                message: "Invalid call",
+                message: "Invalid expression",
                 compilation: StaticErrorType.Unsupported,
                 range: this.rangeContext(ctx)
             }
+        }
     }
-
 
     private findMethodInType(type: TypeDeclaration, methodName: string):
         Procedure | undefined {

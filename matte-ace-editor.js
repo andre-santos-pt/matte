@@ -203,7 +203,9 @@ export default class MatteAceEditor {
             console.log(result)
             this.clearErrorMarkers();
             this.editor.session.clearAnnotations();
-            if (!result.callError && result.error)
+            if(result.callError) {
+            }
+            else if(result.error)
                 this.markCompilationError(result.error);
             else {
                 this.trace = flatTrace(result.trace)
@@ -443,7 +445,8 @@ export default class MatteAceEditor {
         this.backBtn.before(this.cumulative);
         this.afterRunListeners.push(result => {
             this.debugBtn.style.visibility = !result.callError && !result.compilationError ? "visible" : "hidden";
-            this.setDebugMode(false);
+            if(!result.callError)
+                this.setDebugMode(false);
         })
     }
 
@@ -531,10 +534,11 @@ export default class MatteAceEditor {
         this.lastCompilationSource = code;
 
         this.result = this.createInterpreter().parseAndRun(code, call === "" ? null : call);
-        if (!this.result.error)
-            this.trace = flatTrace(this.result.trace)
+        // if (!this.result.callError && !this.result.error)
+        //     this.trace = flatTrace(this.result.trace)
 
         this.afterRunListeners.forEach(l => l(this.result));
+
     }
 
 

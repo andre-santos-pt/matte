@@ -113,7 +113,7 @@ describe('Matte Interpreter Types', () => {
                 int[] f() {
                    return null;
                 }`) as Program
-            assert.equal(p.procedures[0].returnType, new ArrayType(PrimitiveType.INT))
+            assert.deepEqual(p.procedures[0].returnType, new ArrayType(PrimitiveType.INT))
         })
 
         it('non-void function missing return', () => {

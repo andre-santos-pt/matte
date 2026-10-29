@@ -32,6 +32,9 @@ export function cases(code: string, ...tests: [string, any][]) {
     const interpreter = new Interpreter();
     tests.forEach(t => {
         const result = interpreter.parseAndRun(code, t[0]);
+        if(result.callError != undefined) {
+            assert.fail(`Call error: ${t[0]}`)
+        }
         if(result.error != undefined) {
             console.table(result.error)
             assert.fail(`Compilation error: ${result.error.message}`)

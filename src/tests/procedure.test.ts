@@ -197,7 +197,7 @@ describe('Matte Interpreter Test Procedure', () => {
             const code = `
             int[] v = {1,2,3};
             `
-            buildASTandCall(code,"sum()")
+            buildASTandCall(code,"[1,2]")
         })
         it('nats', () => {
             const code = `

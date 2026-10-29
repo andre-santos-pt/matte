@@ -4,12 +4,24 @@ import {RuntimeErrorType} from "../Interpreter";
 
 describe('Matte Interpreter Objects', () => {
     describe('Records', () => {
+        it('create function Point', () => {
+            cases(`
+            record Point(double x, double y) { }
+            
+            Point create() {  
+                return new Point(1.2,-3.4);
+            }
+            `,
+                ["create()", {$type: "Point", x: 1.2, y: -3.4}]);
+        })
+
         it('constructor', () => {
             cases(`
             record Point(double x, double y) { }    
             `,
                 ["new Point(1.2, -3.4)", {$type: "Point", x: 1.2, y: -3.4}]);
         })
+
         it('field access', () => {
             cases(`
             record Point(double x, double y) { }    
@@ -56,6 +68,7 @@ describe('Matte Interpreter Objects', () => {
              double sum() {
                     return x + z;
              }
+            }
             `, StaticErrorType.UndeclaredVariable);
         })
 
@@ -141,7 +154,7 @@ describe('Matte Interpreter Objects', () => {
             )
         })
 
-        it('call on null', () => {
+        it('field on null', () => {
             runtimeError(`
             record Point(double x, double y) { 
               

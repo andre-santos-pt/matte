@@ -503,6 +503,8 @@ export class Interpreter {
     private prettyPrint(value: any) {
         if(Array.isArray(value))
             return "[" + value.join(", ") + "]"
+        else if(value == null)
+            return "null"
         else
             return value.toString()
     }

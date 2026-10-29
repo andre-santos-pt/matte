@@ -77,7 +77,7 @@ exp:
     | left=exp bopRel right=exp                 # binaryOpRel
     | left=exp bopLog right=exp                 # binaryOpLog
     | call                                      # callExpr
-    | condition=exp QUESTION trueCase=exp COLON falseCase=exp #conditionalExpr
+    | condition=exp QUESTION trueCase=exp COLON falseCase=exp # conditionalExpr
     | left=exp AND right=exp                    # andExpr
     | left=exp OR right=exp                     # orExpr
     | NEW typeName=ID dimensions                # arrayAllocExpr
@@ -86,7 +86,7 @@ exp:
     | INT                                       # intExpr
     | DOUBLE                                    # doubleExpr
     | BOOLEAN                                   # boolExpr
-    | CHAR                                      # charExpr
+   // | CHAR                                      # charExpr
     | NULL                                      # nullExpr
     | STRING                                    # stringExpr
 ;
@@ -118,13 +118,20 @@ bopLog:
 AND | OR;
 
 
-matteCall: id=ID LPAREN args=expListMatte? RPAREN;
+expLiteral:
+id=ID LPAREN args=expLiteralList? RPAREN                    # callLiteral
+| NEW id=ID LPAREN args=expLiteralList? RPAREN              # newCallLiteral
+| expLiteral DOT id=ID LPAREN args=expLiteralList? RPAREN   # instanceCallLiteral
+| LBRACK elements=expLiteralList? RBRACK                    # arrayLiteralBrackets
+| MINUS? INT                                                # intLiteral
+| MINUS? DOUBLE                                             # doubleLiteral
+| BOOLEAN                                                   # boolLiteral
+//| CHAR                                                      # charLiteral
+| NULL                                                      # nullLiteral
+| STRING                                                    # stringLiteral
+;
 
-expListMatte: expMatte (COMMA expMatte)*;
-
-expMatte: exp | arrayLiteralBrackets | matteCall;
-
-arrayLiteralBrackets: LBRACK elements=expListMatte? RBRACK;
+expLiteralList: expLiteral (COMMA expLiteral)*;
 
 
 PLUS: '+' ;
