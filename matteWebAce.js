@@ -1,4 +1,12 @@
 import MatteAceEditor from "./matte-ace-editor.js";
+import {TraceEntry} from "./src/Interpreter.ts";
+
+window.flatTrace = (trace) => {
+    if(trace.children)
+        return [trace, ... trace.children.flatMap(t => window.flatTrace(t))]
+    else
+        return [trace]
+}
 
 window.sysout_matte = (editor) => {
     function prettyPrint(obj) {
@@ -175,13 +183,10 @@ class MatteAce extends HTMLElement {
                 div.style.marginTop = "5px"
                 div.append(extDiv)
                 editor.addExtension(div)
-                // editor.container.append(div)
             }
+            if(window[attr.name + "_matte_include"])
+                editor.include = window[attr.name + "_matte_include"]
         });
-        // if (this.hasAttribute("callbar") || this.hasAttribute("call")) {
-        //     const call = this.hasAttribute("call") ? this.getAttribute("call") : "";
-        //     editor.addCallBox(call);
-        // }
         if(this.hasAttribute("disable-compilation-hints")) {
             editor.disableCompilationHints();
         }

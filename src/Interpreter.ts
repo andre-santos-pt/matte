@@ -11,7 +11,8 @@ import {
     BooleanLiteral,
     BreakStatement,
     CallExpression,
-    CallStatement, ConditionalExpression,
+    CallStatement,
+    ConditionalExpression,
     Declaration,
     DoubleLiteral,
     Expression,
@@ -194,7 +195,7 @@ export class Interpreter {
             stack: this.scope.length == 0 ? {variables:new Map()} : structuredClone(last(this.scope)),
             range,
             materialization,
-            evaluation,
+            evaluation: structuredClone(evaluation),
             call,
             children: call ? [] : undefined,
             parent: last(this.traceStack),
@@ -387,23 +388,9 @@ export class Interpreter {
             }
             else if (s.expression instanceof BinaryExpression && s.expression.right instanceof Variable && s.expression.right.declaration == s.variable) {
                 assVar.materialization = this.evaluate(s.expression.left).evaluation + " " + s.expression.operator + " " + paren(assVar?.materialization)
-                // this.topScope().variables.set(s.variable.name, {
-                //     name: s.variable.name,
-                //     type: s.variable.type,
-                //     evaluation: exp.evaluation,
-                //     materialization: this.evaluate(s.expression.left).evaluation + " " + s.expression.operator + " " + paren(assVar?.materialization),
-                //     declaration: s.variable.range
-                // })
             }
             else {
                 this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization)
-                // this.topScope().variables.set(s.variable.name, {
-                //     name: s.variable.name,
-                //     type: s.variable.type,
-                //     evaluation: exp.evaluation,
-                //     materialization: exp.materialization,
-                //     declaration: s.variable.range
-                // })
                 assVar.materialization = exp.materialization
             }
         } else if (s instanceof ArrayAssignment) {
@@ -495,12 +482,6 @@ export class Interpreter {
     materialize(e: Expression): string | undefined {
         if (e instanceof Variable) {
             let variable = this.resolveVariable(e.declaration.name)
-                //this.topScope().variables.get((e as Variable).declaration.name);
-
-            // if (!variable && this.topScope().variables.get("this")) {
-            //     const fieldVal = this.topScope().variables.get("this")?.evaluation[(e as Variable).declaration.name]
-            //     return fieldVal?.evaluation?.toString()
-            // }
             if(Array.isArray(variable?.evaluation))
                 return this.prettyPrint(variable?.evaluation)
             else
@@ -751,7 +732,7 @@ export class Interpreter {
             args = args.slice(1, args.length)
             variables.set("this", {
                 name: "this",
-                type: thisVal.evaluation.type,
+                type: p.parameters[0].type,
                 evaluation: thisVal.evaluation,
                 materialization: thisVal.materialization
             })

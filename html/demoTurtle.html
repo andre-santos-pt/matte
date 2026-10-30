@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+<title>Demo</title>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+<script src="../dist/matte-web-ace.js" defer></script>
+
+<hr>
+<h1>demo turtles</h1>
+
+
+<script>
+    function getRotatedImage(img, angleInDegrees) {
+        // 1. Create a temporary hidden canvas
+        const tempCanvas = document.createElement('canvas');
+
+        // Set dimensions (using square dimensions to fit rotation safely)
+        const size = Math.max(img.width, img.height);
+        tempCanvas.width = size;
+        tempCanvas.height = size;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // 2. Rotate the temporary canvas around its center
+        tempCtx.translate(size / 2, size / 2);
+        tempCtx.rotate((angleInDegrees * Math.PI) / 180);
+        tempCtx.drawImage(img, -img.width / 2, -img.height / 2);
+
+        // 3. Export the result as a new static image Data URL
+        const dataUrl = tempCanvas.toDataURL('image/png');
+
+        // 4. Load it into a new Image object and return it via callback
+        const rotatedImg = new Image();
+        rotatedImg.src = dataUrl;
+        return rotatedImg
+    }
+
+    function getRotatedTurtleSvg(angleInDegrees) {
+        const rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+    <g transform="rotate(${angleInDegrees}, 10, 10)">
+      <!-- Flippers -->
+      <circle cx="5" cy="6" r="2.5" fill="#2E7D32" />
+      <circle cx="15" cy="6" r="2.5" fill="#2E7D32" />
+      <circle cx="5" cy="14" r="2.5" fill="#2E7D32" />
+      <circle cx="15" cy="14" r="2.5" fill="#2E7D32" />
+      <!-- Head -->
+      <circle cx="10" cy="3" r="2.5" fill="#388E3C" />
+      <!-- Shell -->
+      <circle cx="10" cy="10" r="5.5" fill="#4CAF50" stroke="#1B5E20" stroke-width="1.2" />
+    </g>
+  </svg>`;
+        let img = new Image();
+        img.src = `data:image/svg+xml;utf8,${encodeURIComponent(rawSvg)}`
+        return img;
+    }
+
+function turtle_matte(editor) {
+    const turtleSvg = `data:image/svg+xml;utf8,
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+    <circle cx="5" cy="6" r="2.5" fill="%232E7D32" />
+    <circle cx="15" cy="6" r="2.5" fill="%232E7D32" />
+    <circle cx="5" cy="14" r="2.5" fill="%232E7D32" />
+    <circle cx="15" cy="14" r="2.5" fill="%232E7D32" />
+    <circle cx="10" cy="3" r="2.5" fill="%23388E3C" />
+    <circle cx="10" cy="10" r="5.5" fill="%234CAF50" stroke="%231B5E20" stroke-width="1.2" />
+  </svg>`;
+
+    const up = getRotatedTurtleSvg(0);
+    const right = getRotatedTurtleSvg(90);
+    const down = getRotatedTurtleSvg(180);
+    const left = getRotatedTurtleSvg(270);
+
+    const wrapper = document.createElement('div');
+    wrapper.style.height = '200px';
+    const canvas = document.createElement('canvas');
+    wrapper.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'lightgray'
+
+    function drawTurtles(map, last) {
+        map.keys().forEach(k => {
+            if (map.get(k)["type"]["name"] === "Turtle") {
+                const turtle = map.get(k).evaluation
+                ctx.fillRect(turtle.x.evaluation * 20, turtle.y.evaluation * 20, 20, 20)
+                if(last) {
+                    let img;
+                    if(turtle.directionX.evaluation === -1)
+                        img = left
+                    else if(turtle.directionX.evaluation === 1)
+                        img = right
+                    else if(turtle.directionY.evaluation === 1)
+                        img = down
+                    else
+                        img = up
+                    ctx.drawImage(img, turtle.x.evaluation * 20, turtle.y.evaluation * 20, 20, 20);
+                }
+            }
+        })
+    }
+    editor.afterRunListeners.push(r => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const trace =  flatTrace(r.trace)
+        for(let i = 0; i < trace.length; i++)
+            drawTurtles(trace[i].stack.variables, i === trace.length - 1)
+    })
+    editor.stepListeners.push((t,index) => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for(let i = 0; i <= index; i++)
+            drawTurtles(t[i].stack.variables, i === index)
+    });
+    return wrapper;
+}
+
+var turtle_matte_include = `
+class Turtle {
+    int x = 0;
+    int y = 0;
+    int directionX = 1;
+    int directionY = 0;
+
+    void move() {
+        x = x + directionX;
+        y = y + directionY;
+    }
+
+    void rotateRight() {
+        if(directionX == 0) {
+            directionX = directionY == 1 ? -1 : 1;
+            directionY = 0;
+        }
+        else {
+            directionY = directionX == 1 ? 1 : -1;
+            directionX = 0;
+        }
+    }
+    int getX() {
+        return x;
+    }
+}
+`
+</script>
+<matte-ace call="main()" turtle callstack>
+void main() {
+    Turtle a = new Turtle();
+    a.move();
+    a.move();
+
+    Turtle b = new Turtle();
+    b.rotateRight();
+    for(int i = 0; i != 5; i++)
+        b.move();
+    b.rotateRight();
+    b.rotateRight();
+    b.rotateRight();
+    for(int i = 0; i != 5; i++)
+        b.move();
+
+}
+</matte-ace>
+
+
+</body>
+</html>

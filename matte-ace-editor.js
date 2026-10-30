@@ -156,7 +156,7 @@ export default class MatteAceEditor {
         this.runBtn.title = "Evaluate call";
         this.runBtn.style = "cursor: pointer; border: solid 1px; padding: 2px 10px; border-radius: 3px; font-weight: bold;";
         this.runBtn.onclick = () => {
-            this.runParser(this.getEditorCode(), this.callBox?.value ?? "");
+            this.runParser(this.callBox?.value ?? "");
         }
         this.runBar.append(this.runBtn);
 
@@ -166,8 +166,6 @@ export default class MatteAceEditor {
         } else {
             this.editor.container.append(this.runBar);
         }
-
-
         this.init();
 
         this.result = null;
@@ -208,7 +206,7 @@ export default class MatteAceEditor {
             else if(result.error)
                 this.markCompilationError(result.error);
             else {
-                this.trace = flatTrace(result.trace)
+                this.trace = flatTrace(result.trace).filter(e => e.range.end < this.editor.getValue().length)
                 if (result.runtimeError)
                     this.markRuntimeError(result.runtimeError);
                 else if (result.program.block)
@@ -319,7 +317,7 @@ export default class MatteAceEditor {
         this.callBox.addEventListener("keydown", (event) => {
             if (event.key === "Enter") {
                 event.preventDefault();
-                this.runParser(this.getEditorCode(), this.callBox.value);
+                this.runParser(this.callBox.value);
             }
         });
         this.runBar.append(this.callBox)
@@ -494,8 +492,12 @@ export default class MatteAceEditor {
         this.forwardBtn.disabled = index >= Number(this.slider.max);
     }
 
+    getCodeToCompile() {
+        return this.editor.getValue() + (this.include == null ? "" : "\n\n" + this.include);
+    }
+
     checkCompilation() {
-        const code = this.editor.getValue() + (this.include == null ? "" : "\n\n" + this.include);
+        const code = this.getCodeToCompile()
         if (code === this.lastCompilationSource)
             return;
 
@@ -529,16 +531,12 @@ export default class MatteAceEditor {
         return interpreter;
     }
 
-    runParser(code, call) {
+    runParser(call) {
+        let src = this.getCodeToCompile()
         this.beforeRunListeners.forEach(l => l());
-        this.lastCompilationSource = code;
-
-        this.result = this.createInterpreter().parseAndRun(code, call === "" ? null : call);
-        // if (!this.result.callError && !this.result.error)
-        //     this.trace = flatTrace(this.result.trace)
-
+        this.lastCompilationSource = src;
+        this.result = this.createInterpreter().parseAndRun(src, call === "" ? null : call);
         this.afterRunListeners.forEach(l => l(this.result));
-
     }
 
 
@@ -582,6 +580,8 @@ export default class MatteAceEditor {
 
 
     popup(offset, message, top, style) {
+        if(offset >= this.editor.getValue().length)
+            return
         const Tooltip = ace.require("ace/tooltip").Tooltip;
         const tip = new Tooltip(this.editor.container);
         this.popupPositions.set(tip, {offset, message, top});
@@ -697,10 +697,8 @@ export default class MatteAceEditor {
 
             else if(key === "this") {
                 Object.keys(value.evaluation).forEach(f => {
-                    if(f !== "$type" && value.evaluation[f].declaration) {
-                        console.log(f, value.evaluation[f])
+                    if(f !== "$type" && value.evaluation[f].declaration)
                         this.popup(value.evaluation[f].declaration.end, this.prettyPrint(value.evaluation[f].evaluation, f.type) + matText, false)
-                    }
                 })
             }
 
@@ -735,7 +733,7 @@ export default class MatteAceEditor {
         else if (Array.isArray(value))
             return "[" + value.join(",&nbsp;") + "]";
         else if (typeof value === "object")
-            return "{" + Object.keys(value).filter(k => k !== "$type").map(k => `${k}: ${this.prettyPrint(value[k])}`).join(", ") + "}"
+            return "{" + Object.keys(value).filter(k => k !== "$type").map(k => `${k}: ${this.prettyPrint(value[k].evaluation)}`).join(", ") + "}"
         else if (Number.isFinite(value) && !Number.isInteger(value) && !noRounding)
             return formatNumberIfNeeded(value);
         else if (Number.isInteger(value) && type === "double")
