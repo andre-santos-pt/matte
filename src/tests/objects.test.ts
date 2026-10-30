@@ -179,8 +179,7 @@ describe('Matte Interpreter Objects', () => {
     })
 
     describe('Classes', () => {
-        it('turtle', () => {
-            cases(`
+        cases(`
             class Turtle {
                 int x = 0;
                 int y = 0;
@@ -204,7 +203,11 @@ describe('Matte Interpreter Objects', () => {
                 }
                 
                 int getX() {
-                    return x;
+                    return this.x;
+                }
+                
+                int getDirectionX() {
+                    return directionX;
                 }
             }
             
@@ -214,11 +217,11 @@ describe('Matte Interpreter Objects', () => {
                 t.move();
             }
             `,
-                ["new Turtle()", {$type: "Turtle", x: 0, y: 0, directionX: 1, directionY: 0}],
-                ["new Turtle().move()", undefined],
-                ["new Turtle().getX()", 0],
-                ["main()", undefined]
-            );
-        })
+            ["main()", undefined],
+            ["new Turtle().getX()", 0],
+            ["new Turtle().getDirectionX()", 1]
+
+        );
+
     })
 })

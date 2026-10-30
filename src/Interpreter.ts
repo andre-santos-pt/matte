@@ -150,6 +150,20 @@ export class Interpreter {
         return this.scope[this.scope.length - 1];
     }
 
+    resolveVariable(id: string) :TraceVariable | undefined {
+        let v = this.topScope().variables.get(id)
+        if(v)
+            return v
+        else {
+            // TODO: resolve at AST translation
+            const thisVar = this.topScope().variables.get("this")
+            if (thisVar && thisVar.evaluation.hasOwnProperty(id))
+                return thisVar.evaluation[id]
+            else
+                return undefined
+        }
+    }
+
     private addTrace(node: ASTNode, call: boolean, isReturn: boolean, evaluation: any, materialization?: string, extension?: any) {
         if (!this.traceOn)
             return
@@ -353,9 +367,6 @@ export class Interpreter {
             }
         } else if (s instanceof Assignment) {
             const exp = this.evaluate(s.expression);
-
-            const v = this.topScope().variables.get(s.variable.name)
-
             function paren(mat: string | undefined): string | undefined {
                 if (mat == undefined)
                     return ""
@@ -364,33 +375,36 @@ export class Interpreter {
                 else
                     return mat
             }
+
+            const assVar = this.resolveVariable(s.variable.name)
+            if(!assVar)
+                throw new Error("Unresolved variable: " + s.variable.name)
+
+            assVar.evaluation = exp.evaluation
+
             if (s.expression instanceof BinaryExpression && s.expression.left instanceof Variable && s.expression.left.declaration == s.variable) {
-                this.topScope().variables.set(s.variable.name, {
-                    name: s.variable.name,
-                    type: s.variable.type,
-                    evaluation: exp.evaluation,
-                    materialization: paren(v?.materialization) + " " + s.expression.operator + " " + this.evaluate(s.expression.right).evaluation,
-                    declaration: s.variable.range
-                })
+                assVar.materialization = paren(assVar?.materialization) + " " + s.expression.operator + " " + this.evaluate(s.expression.right).evaluation
             }
             else if (s.expression instanceof BinaryExpression && s.expression.right instanceof Variable && s.expression.right.declaration == s.variable) {
-                this.topScope().variables.set(s.variable.name, {
-                    name: s.variable.name,
-                    type: s.variable.type,
-                    evaluation: exp.evaluation,
-                    materialization: this.evaluate(s.expression.left).evaluation + " " + s.expression.operator + " " + paren(v?.materialization),
-                    declaration: s.variable.range
-                })
+                assVar.materialization = this.evaluate(s.expression.left).evaluation + " " + s.expression.operator + " " + paren(assVar?.materialization)
+                // this.topScope().variables.set(s.variable.name, {
+                //     name: s.variable.name,
+                //     type: s.variable.type,
+                //     evaluation: exp.evaluation,
+                //     materialization: this.evaluate(s.expression.left).evaluation + " " + s.expression.operator + " " + paren(assVar?.materialization),
+                //     declaration: s.variable.range
+                // })
             }
             else {
                 this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization)
-                this.topScope().variables.set(s.variable.name, {
-                    name: s.variable.name,
-                    type: s.variable.type,
-                    evaluation: exp.evaluation,
-                    materialization: exp.materialization,
-                    declaration: s.variable.range
-                })
+                // this.topScope().variables.set(s.variable.name, {
+                //     name: s.variable.name,
+                //     type: s.variable.type,
+                //     evaluation: exp.evaluation,
+                //     materialization: exp.materialization,
+                //     declaration: s.variable.range
+                // })
+                assVar.materialization = exp.materialization
             }
         } else if (s instanceof ArrayAssignment) {
             const arrayVal = this.evaluate(s.target).evaluation
@@ -480,12 +494,14 @@ export class Interpreter {
 
     materialize(e: Expression): string | undefined {
         if (e instanceof Variable) {
-            let variable = this.topScope().variables.get((e as Variable).declaration.name);
+            let variable = this.resolveVariable(e.declaration.name)
+                //this.topScope().variables.get((e as Variable).declaration.name);
 
-            if (!variable && this.topScope().variables.get("this")) {
-                const fieldVal = this.topScope().variables.get("this")?.evaluation[(e as Variable).declaration.name]
-                return fieldVal?.evaluation?.toString()
-            } else if(Array.isArray(variable?.evaluation))
+            // if (!variable && this.topScope().variables.get("this")) {
+            //     const fieldVal = this.topScope().variables.get("this")?.evaluation[(e as Variable).declaration.name]
+            //     return fieldVal?.evaluation?.toString()
+            // }
+            if(Array.isArray(variable?.evaluation))
                 return this.prettyPrint(variable?.evaluation)
             else
                 return variable?.evaluation?.toString()
@@ -515,15 +531,7 @@ export class Interpreter {
     evaluate(e: Expression, isReturn: boolean = false):
         ExpressionEval {
         if (e instanceof Variable) {
-            let variable = this.topScope().variables.get((e as Variable).declaration.name);
-
-            if (!variable && this.topScope().variables.get("this")) {
-                const fieldVal = this.topScope().variables.get("this")?.evaluation[(e as Variable).declaration.name]
-                return {
-                    evaluation: fieldVal,
-                    materialization: undefined
-                }
-            }
+            let variable = this.resolveVariable(e.declaration.name)
             return {
                 evaluation: variable?.evaluation,
                 materialization: e.type == PrimitiveType.DOUBLE && Number.isInteger(variable?.evaluation) ? variable?.materialization + ".0" : variable?.materialization
@@ -634,12 +642,18 @@ export class Interpreter {
             const args = e.args.map(a => this.evaluate(a))
             if (e.type.isRecord) {
                 e.type.fields.forEach((f, i) => {
-                    obj[f.name] = args[i].evaluation
+                    obj[f.name] = f.name
+                    obj[f.name] = args[i]
+                    obj[f.name].declaration = f.range
+                    obj[f.name].type = f.type
                 })
             }
             else {
                 e.type.fields.forEach((f, i) => {
-                    obj[f.name] = f.initializer ? this.evaluate(f.initializer).evaluation : this.defaultValue(f.type)
+                    obj[f.name] = f.name
+                    obj[f.name] = f.initializer ? this.evaluate(f.initializer) : this.defaultEvalution(f.type)
+                    obj[f.name].declaration = f.range
+                    obj[f.name].type = f.type
                 })
             }
             this.addTrace(e, true, false, obj);
@@ -729,9 +743,12 @@ export class Interpreter {
             )
         const p = call.procedure
 
+        let thisVal: ExpressionEval | undefined = undefined
+        let args = call.args
         const variables: Map<string, TraceVariable> = new Map()
         if (p.instance) {
-            const thisVal = this.evaluate(call.args[0])
+            thisVal = this.evaluate(call.args[0])
+            args = args.slice(1, args.length)
             variables.set("this", {
                 name: "this",
                 type: thisVal.evaluation.type,
@@ -739,8 +756,7 @@ export class Interpreter {
                 materialization: thisVal.materialization
             })
         }
-        const argValues = call.args.map((e, i) => {
-            if (i == 0 && call.instanceCall) return;
+        const argValues = args.map((e, i) => {
             const eVal = this.evaluate(e)
             variables.set(p.parameters[i].name, {
                 name: p.parameters[i].name,
@@ -751,7 +767,11 @@ export class Interpreter {
             })
             return eVal
         })
-        const mat = p.name + "(" + argValues.map(a => a?.materialization).join() + ")"
+        let mat: string
+            if(p.instance)
+                mat = thisVal?.materialization + "." + p.name + "(" + argValues.map(a => a?.materialization).join() + ")"
+            else
+                mat = p.name + "(" + argValues.map(a => a?.materialization).join() + ")"
 
         this.scope.push({
             variables
@@ -877,13 +897,19 @@ export class Interpreter {
     }
 
 
-    private defaultValue(type: Type) {
+    private defaultEvalution(type: Type) : ExpressionEval {
         if(type == PrimitiveType.INT || type == PrimitiveType.DOUBLE)
-            return 0
+            return {
+                evaluation: 0
+            }
         else if(type == PrimitiveType.BOOLEAN)
-            return false
+            return {
+                evaluation: false
+            }
         else
-            return null;
+            return {
+                evaluation: null
+            };
     }
 }
 

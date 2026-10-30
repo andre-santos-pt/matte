@@ -180,8 +180,7 @@ export class ForeignType {
     }
 }
 
-export abstract class Statement extends ASTNode {
-}
+export abstract class Statement extends ASTNode { }
 
 export class Declaration extends Statement {
     name: string;

@@ -960,7 +960,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     this.rangeContext(ctx),
                     proc,
                     args,
-                    false
+                    true
                 )
             } else
                 throw {

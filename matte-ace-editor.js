@@ -692,7 +692,19 @@ export default class MatteAceEditor {
         for (const [key, value] of dataMap) {
             const mat = variableMaterialization(value)
             const matText = mat ? "<small> (" + mat + ")</small>" : "";
-            this.popup(value.declaration.end, this.prettyPrint(value.evaluation, value.type) + matText, false);
+            if(value.declaration)
+                this.popup(value.declaration.end, this.prettyPrint(value.evaluation, value.type) + matText, false);
+
+            else if(key === "this") {
+                Object.keys(value.evaluation).forEach(f => {
+                    if(f !== "$type" && value.evaluation[f].declaration) {
+                        console.log(f, value.evaluation[f])
+                        this.popup(value.evaluation[f].declaration.end, this.prettyPrint(value.evaluation[f].evaluation, f.type) + matText, false)
+                    }
+                })
+            }
+
+
         }
     }
 
