@@ -292,6 +292,7 @@ export class Interpreter {
             this.traceStack.push(this.trace)
             return this.tryRun(() => {
                 // script execution
+                this.addTrace((program.block as BlockStatement), false, false, undefined, undefined);
                 (program.block as BlockStatement).statements.forEach(i => this.execute(i));
                 this.addTrace((program.block as BlockStatement), false, false, undefined, undefined)
                 this.scope.pop()
