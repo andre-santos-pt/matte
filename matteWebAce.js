@@ -149,47 +149,55 @@ window.callstack_matte = (editor) => {
     return div
 }
 
+const matteDivs = new Set();
+
+function initializeMatteAce(element) {
+    if (element.editor) {
+        requestAnimationFrame(() => {
+            if (element.isConnected)
+                element.editor?.editor.resize();
+        });
+        return;
+    }
+    const div = document.createElement("div");
+    div.id = element.getAttribute('id');
+    div.style = 'display: block;';
+    div.innerHTML = element.innerHTML.startsWith("\n") ? element.innerHTML.substring(1) : element.innerHTML;
+    element.innerHTML = '';
+    element.append(div);
+    const editor = new MatteAceEditor(div, element.getAttribute("width"), element.getAttribute("height"), element.getAttribute("call"));
+    element.editor = editor;
+    if (element instanceof HTMLDivElement)
+        matteDivs.add(element);
+
+    Array.from(element.attributes).filter(attr => attr.value === '').reverse().forEach(attr => {
+        const extName = attr.name + "_matte";
+        if (window[extName]) {
+            const extDiv = window[extName].call(element, editor);
+            if(!(extDiv instanceof HTMLDivElement))
+                console.error("Extension '" + extName + "' did not return a DIV");
+
+            const div = document.createElement("div")
+            div.style.border = "1px solid gray";
+            div.style.marginTop = "5px"
+            div.append(extDiv)
+            editor.addExtension(div)
+        }
+        if(window[attr.name + "_matte_include"])
+            editor.include = window[attr.name + "_matte_include"]
+    });
+    if(element.hasAttribute("disable-compilation-hints")) {
+        editor.disableCompilationHints();
+    }
+}
+
 class MatteAce extends HTMLElement {
     constructor() {
         super();
     }
 
     connectedCallback() {
-        if (this.editor) {
-            requestAnimationFrame(() => {
-                if (this.isConnected)
-                    this.editor?.editor.resize();
-            });
-            return;
-        }
-        const div = document.createElement("div");
-        div.id = this.getAttribute('id');
-        div.style = 'display: block;';
-        div.innerHTML = this.innerHTML.startsWith("\n") ? this.innerHTML.substring(1) : this.innerHTML;
-        this.innerHTML = '';
-        this.append(div);
-        const editor = new MatteAceEditor(div, this.getAttribute("width"), this.getAttribute("height"), this.getAttribute("call"));
-        this.editor = editor;
-
-        Array.from(this.attributes).filter(attr => attr.value === '').reverse().forEach(attr => {
-            const extName = attr.name + "_matte";
-            if (window[extName]) {
-                const extDiv = window[extName].call(this, editor);
-                if(!(extDiv instanceof HTMLDivElement))
-                    console.error("Extension '" + extName + "' did not return a DIV");
-
-                const div = document.createElement("div")
-                div.style.border = "1px solid gray";
-                div.style.marginTop = "5px"
-                div.append(extDiv)
-                editor.addExtension(div)
-            }
-            if(window[attr.name + "_matte_include"])
-                editor.include = window[attr.name + "_matte_include"]
-        });
-        if(this.hasAttribute("disable-compilation-hints")) {
-            editor.disableCompilationHints();
-        }
+        initializeMatteAce(this);
     }
 
     disconnectedCallback() {
@@ -200,6 +208,42 @@ class MatteAce extends HTMLElement {
             this.editor = null;
         });
     }
+}
+
+function initializeMatteDivs(root) {
+    if (root instanceof HTMLDivElement && root.classList.contains("matte"))
+        initializeMatteAce(root);
+    root.querySelectorAll?.("div.matte").forEach(initializeMatteAce);
+}
+
+const matteDivObserver = new MutationObserver(records => {
+    for (const record of records) {
+        if (record.type === "attributes")
+            initializeMatteDivs(record.target);
+        else
+            record.addedNodes.forEach(initializeMatteDivs);
+    }
+    for (const element of matteDivs) {
+        if (!element.isConnected) {
+            queueMicrotask(() => {
+                if (element.isConnected)
+                    return;
+                element.editor?.dispose();
+                element.editor = null;
+                matteDivs.delete(element);
+            });
+        }
+    }
+});
+
+if (document.documentElement) {
+    initializeMatteDivs(document);
+    matteDivObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class"],
+        childList: true,
+        subtree: true
+    });
 }
 
 try {

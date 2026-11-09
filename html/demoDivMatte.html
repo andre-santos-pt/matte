@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+<title>Demo SIGCSE Virtual paper</title>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+<script src="../dist/matte-web-ace.js" defer></script>
+
+<div class="matte" call="sum([15.2, 20.2, 25.5])">
+double sum(double[] a) {
+    double s = 0.0;
+    int i = 0;
+    while(i < a.length) {
+        s = s + a[i];
+        i++;
+    }
+    return s;
+}
+</div>
+
+
+
+
+</body>
+</html>
