@@ -1,5 +1,12 @@
+import "ace-builds/src-noconflict/ace";
+import "ace-builds/src-noconflict/mode-java";
+import "ace-builds/src-noconflict/theme-textmate";
+import "ace-builds/src-noconflict/theme-monokai";
+import "ace-builds/src-noconflict/theme-github";
+import "ace-builds/src-noconflict/theme-solarized_light";
+import "ace-builds/src-noconflict/theme-solarized_dark";
+
 import MatteAceEditor from "./matte-ace-editor.js";
-import {TraceEntry} from "./src/Interpreter.ts";
 
 window.flatTrace = (trace) => {
     if(trace.children)
@@ -214,9 +221,9 @@ class MatteAce extends HTMLElement {
 }
 
 function initializeMatteDivs(root) {
-    if (root instanceof HTMLDivElement && root.classList.contains("matte"))
+    if (root instanceof HTMLDivElement && root.classList.contains("matte-ace"))
         initializeMatteAce(root);
-    root.querySelectorAll?.("div.matte").forEach(initializeMatteAce);
+    root.querySelectorAll?.("div.matte-ace").forEach(initializeMatteAce);
 }
 
 const matteDivObserver = new MutationObserver(records => {
