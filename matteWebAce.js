@@ -165,7 +165,10 @@ function initializeMatteAce(element) {
     div.innerHTML = element.innerHTML.startsWith("\n") ? element.innerHTML.substring(1) : element.innerHTML;
     element.innerHTML = '';
     element.append(div);
-    const editor = new MatteAceEditor(div, element.getAttribute("width"), element.getAttribute("height"), element.getAttribute("call"));
+    let call = element.getAttribute("call");
+    if(!call)
+        call = element.getAttribute("data-call");
+    const editor = new MatteAceEditor(div, element.getAttribute("width"), element.getAttribute("height"), call);
     element.editor = editor;
     if (element instanceof HTMLDivElement)
         matteDivs.add(element);
