@@ -14,8 +14,6 @@ The interpreter is self-contained and runs entirely in the browser. It can be us
 <script src="matte-web-ace.js" defer></script>
 
 <matte-ace call="sum([15.2, 20.2, 25.5])">
-```
-```java
 double sum(double[] a) {
     double s = 0.0;
     int i = 0;
@@ -25,13 +23,13 @@ double sum(double[] a) {
     }
     return s;
 }
-```
-```html
 </matte-ace>
 ```
 - If the `call` attribute is provided, that text will appear in the call box for the specified function.
 - attribute `width` is optional; if undefined, a 100% width will be used.
 - attribute `height` is optional; if undefined, the editor adapts its height to the number of lines.
+
+For convenience, array literals in the calls may be written in JSON format, as illustrated above.
 
 #### Alternative
 If you need to avoid non-standard HTML tags, you may simply create a `div` with the class `matte-ace`, optionally holding the attribute `data-call`.
