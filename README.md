@@ -14,6 +14,8 @@ The interpreter is self-contained and runs entirely in the browser. It can be us
 <script src="matte-web-ace.js" defer></script>
 
 <matte-ace call="sum([15.2, 20.2, 25.5])">
+```
+```java
 double sum(double[] a) {
     double s = 0.0;
     int i = 0;
@@ -23,6 +25,8 @@ double sum(double[] a) {
     }
     return s;
 }
+```
+```html
 </matte-ace>
 ```
 - If the `call` attribute is provided, that text will appear in the call box for the specified function.
@@ -59,8 +63,12 @@ npm run lib
 ```
 
 ### Package for ACE editor
-(depends on the output of the previous step, **matte.js**)
+(depends on the output file of the previous step, **matte.js**)
 ```bash
 npm run ace
 ```
 
+### Build all
+```bash
+npm run build
+```
