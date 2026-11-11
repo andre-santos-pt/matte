@@ -6,10 +6,10 @@
   "type": "module",
   "scripts": {
     "test": "jest",
-    "antlr": "antlr4ts -visitor -o ./src/generated ./JavaGrammar.g4",
+    "antlr": "java -jar antlr-4.13.2-complete.jar -visitor -o ./src/generated -Dlanguage=TypeScript ./JavaGrammar.g4",
     "lib": "esbuild src/Interpreter.ts --bundle --outfile=dist/matte.js --format=esm --platform=browser --sourcemap --minify",
     "ace": "npx esbuild matteWebAce.js --bundle --minify --outfile=dist/matte-web-ace.js",
-    "build": "npm run lib && npm run ace"
+    "build": "npm run antlr && npm run lib && npm run ace"
   },
   "author": "",
   "license": "ISC",
@@ -22,7 +22,7 @@
     "@types/jest": "^30.0.0",
     "antlr4ts-cli": "^0.5.0-alpha.4",
     "assert": "^2.1.0",
-    "esbuild": "^0.27.3",
+    "esbuild": "0.27.7",
     "jest": "^30.4.2",
     "mocha": "^11.7.5",
     "ts-jest": "^29.4.11",

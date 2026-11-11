@@ -1,6 +1,6 @@
 # MatteJ
 
-MatteJ is a prototype interpreter for a subset of Java that can be embedded in webpages, providing expression materialization over execution traces.
+MatteJ is a prototype interpreter for a subset of Java that can be embedded in webpages, providing expression materialization over execution traces. It is a work-in-progress, where some elementary Java constructs are still to be developed.
 
 The interpreter is self-contained and runs entirely in the browser. It can be used standalone, but for convenience we also developed an integration with the [ACE editor](https://ace.c9.io).
 
@@ -53,6 +53,16 @@ println(array);
 
 
 ## How to build
+
+Requirements:
+- [ANTLR 4.13.2](https://www.antlr.org/download.html): `antlr-4.13.2-complete.jar` is assumed to be present in the project root
+- [esbuild](https://esbuild.github.io/): `npm install --save-exact --save-dev esbuild`
+
+### Generate Parser (ANTLR)
+
+```bash
+npm run antlr
+```
 
 ### Matte interpreter (standalone JS library)
 
