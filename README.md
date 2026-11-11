@@ -10,6 +10,9 @@ The interpreter is self-contained and runs entirely in the browser. It can be us
 2. Write a `matte-ace` tag holding the desired code.
 
 ### Example
+
+<img width="461" height="270" alt="MatteJ" src="https://github.com/user-attachments/assets/622c3ac6-9564-4354-be9f-fee24edd41f5" />
+
 ```html
 <script src="matte-web-ace.js" defer></script>
 
