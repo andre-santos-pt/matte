@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+    <title>MatteJ Demo Extensions: Canvas</title>
+</head>
+<body>
+<script src="../dist/matte-web-ace.js" defer></script>
+
+<h1>Canvas</h1>
+Example extension that introduces the <code>dot(x, y)</code> procedure to draw a black point on a canvas.
+<matte-ace call="" dotcanvas canvasWidth="300" canvasHeight="200">
+int n = 99;
+for( int i = 0; i != n; i++)
+    for(int j = 0; j != n; j++)
+        dot(i, j);
+</matte-ace>
+<script>
+    function dotcanvas_matte(editor) {
+        const div = document.createElement("div");
+        const canvas = document.createElement("canvas");
+        div.appendChild(canvas);
+        canvas.width = this.getAttribute('canvasWidth') || 200;
+        canvas.height = this.getAttribute('canvasHeight') || 200;
+        //canvas.style.cssText = 'border: 1px solid #000; background: white; display: block; margin-top: 10px;';
+        const ctx = canvas.getContext('2d');
+
+        let imageData;
+        let pixelChanges = [];
+
+        function setBlack(x, y) {
+            const data = imageData.data;
+            const index = (y * canvas.width + x) * 4;
+            data[index] = 0;   // Red
+            data[index + 1] = 0;   // Green
+            data[index + 2] = 0;   // Blue
+            data[index + 3] = 255;   // Alpha
+        }
+
+        editor.addExtensionProcedure("dot", args => {
+            pixelChanges.push({x:args[0], y:args[1]})
+            return {
+                evaluation: undefined,
+                materialization: undefined,
+                extension: "dot"
+            };
+        });
+        editor.beforeRunListeners.push(() => {
+            pixelChanges = [];
+        });
+        editor.afterRunListeners.push(() => {
+            imageData = ctx.createImageData(canvas.width, canvas.height);
+            pixelChanges.forEach(p => setBlack(p.x, p.y))
+            ctx.putImageData(imageData, 0, 0);
+        });
+        editor.stepListeners.push((trace, index) => {
+            imageData = ctx.createImageData(canvas.width, canvas.height);
+            for (let i = 0, j = 0; i < index; i++)
+                if (trace[i].extension === 'dot') {
+                    setBlack(pixelChanges[j].x, pixelChanges[j].y);
+                    j++;
+                }
+            ctx.putImageData(imageData, 0, 0);
+        });
+        return div;
+    }
+</script>
+</body>
+</html>

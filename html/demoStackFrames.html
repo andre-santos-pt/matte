@@ -4,35 +4,34 @@
     <title>Demo stack frames</title>
 </head>
 <body>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
 <script src="../dist/matte-web-ace.js" defer></script>
 
 <h1>Stack frames</h1>
 <hr>
-<matte-ace call="factorial(4)" ext-table ext-callstack>
+<matte-ace call="factorial(4)" callstack table>
 int factorial(int n) {
     if (n == 0) return 1;
     else return n * factorial(n - 1);
 }
 </matte-ace>
 
-<matte-ace call="firstDigit(2026)" ext-callstack>
-    int firstDigit(int n) {
+<matte-ace call="firstDigit(2026)" callstack>
+int firstDigit(int n) {
     if (n < 10) return n;
     else return firstDigit(n / 10);
-    }
+}
 </matte-ace>
 
-<matte-ace call="fib(7)"  ext-callstack>
-    int fib(int n) {
+<matte-ace call="fib(7)"  callstack>
+int fib(int n) {
     if (n <= 1) return n;
     else return fib(n-1) + fib(n-2);
-    }
+}
 </matte-ace>
 <hr>
 
 <script>
-    function table(editor) {
+    function table_matte(editor) {
         const div = document.createElement('div');
         editor.stepListeners.push((t, i) => {
             div.replaceChildren()

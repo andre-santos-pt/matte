@@ -4,12 +4,12 @@
     <title>Demo tracing exercise</title>
 </head>
 <body>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
 <script src="../dist/matte-web-ace.js" defer></script>
 
-<hr>
 <h1>Tracing</h1>
-<matte-ace height="160" width="400" call="" ext-trace>
+Extension to perform tracing exercises on scripts. Upon execution, the user inserts the sequence of variable values, which are checked against the trace.
+
+<matte-ace call="" trace>
 int i;
 i = 1;
 int j = i;
@@ -18,8 +18,6 @@ i = i * 3;
 </matte-ace>
 
 <script>
-
-
     function collectDistinctSequenceOfValues(trace, varName) {
         const values = [];
         trace.map(t => t.stack.variables.get(varName)).forEach(t => {
@@ -29,8 +27,9 @@ i = i * 3;
         return values;
     }
 
-    function trace(editor) {
+    function trace_matte(editor) {
         let div = document.createElement("div");
+        div.style = "margin-top: .5em; margin-bottom: .5em; margin-left: .5em; margin-right: .5em;";
         let att = this.getAttribute("vars");
         let varNames;
         let textBoxes = {};
@@ -49,7 +48,7 @@ i = i * 3;
             varNames.forEach((v, index) => {
                 if (index > 0) div.appendChild(document.createElement("hr"));
                 const span = document.createElement("span");
-                span.innerHTML = "Write the sequence of values of variable <b>" + v + "</b>.";
+                span.innerHTML = "Write the sequence of values of variable <code>" + v + "</code>.";
                 div.appendChild(span);
                 const trace = collectDistinctSequenceOfValues(r.trace.children, v);
                 trace.forEach(t => {
@@ -72,23 +71,9 @@ i = i * 3;
                 });
             })
         });
-        // TODO complete tracing
-        // editor.stepListeners.push((t, index) => {
-        //     varNames.forEach((v) => {
-        //         const value = t[index].stack.variables.get(v);
-        //         console.log(value)
-        //         if (value !== undefined) {
-        //             let trace = collectDistinctSequenceOfValues(t.slice(0, index), v);
-        //             console.log(trace)
-        //             let i = trace.indexOf(value.evaluation);
-        //             textBoxes[v][i].value = value.evaluation;
-        //         }
-        //     })
-        // });
         return div;
     }
 </script>
-<hr>
 
 </body>
 </html>

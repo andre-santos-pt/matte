@@ -1,17 +1,27 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/html">
 <head>
-    <title>Demo ChartJS</title>
+    <title>MatteJ Demo Extension: ChartJS</title>
 </head>
 <body>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
 <script src="../dist/matte-web-ace.js" defer></script>
 
-
-<hr>
 <h1>Bar Chart</h1>
-<matte-ace  call="naturals(4)" barchart>
+
+This example illustrates an extension that provides a custom output extension using <a href="https://www.chartjs.org/">ChartJS</a>.
+
+<pre><code>
+&lt;matte-ace call="..."  <b>barchart</b>&gt;
+    ...
+&lt;/matte-ace&gt;
+</code></pre>
+
+
+If a function named <code>barchart<i>_matte</i></code> is available, it is called to activate the extension.
+
+<matte-ace call="naturals(4)" barchart>
 int[] naturals(int n) {
     int[] a = new int[n];
     for(int i = 0; i < n; i++)
@@ -21,10 +31,13 @@ int[] naturals(int n) {
 </matte-ace>
 
 
-<script>
+
+
+
+<script id="barchart-script">
 function barchart_matte(editor) {
     const wrapper = document.createElement('div');
-    wrapper.style.height = '100px';
+    //wrapper.style.height = '100px';
     const canvas = document.createElement('canvas');
     wrapper.appendChild(canvas);
     let chart = new Chart(canvas, {
@@ -41,11 +54,12 @@ function barchart_matte(editor) {
             chart.data.datasets[0].data = ret;
             chart.update();
         }
+        else
+            console.error('Output is not an array.');
     });
     return wrapper;
 }
 </script>
-<hr>
 
 </body>
 </html>

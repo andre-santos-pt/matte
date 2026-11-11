@@ -8,13 +8,21 @@
 <script src="../dist/matte-web-ace.js" defer></script>
 
 <h1>Console</h1>
+Example usage of the built-in <code>sysout</code> extension, which provide the procedure <code>print</code> and <code>println</code> to write to the console.
+
+<pre><code>
+&lt;matte-ace call="..."  <b>sysout</b>&gt;
+    ...
+&lt;/matte-ace&gt;
+</code></pre>
+
 <matte-ace sysout>
 print(32);
 println(1);
 int[] v = {1, 2, 3};
 println(v);
 int i = 0;
-while(i < 100) {
+while(i < 10) {
     println(i);
     i++;
 }
