@@ -72,7 +72,6 @@ describe('Matte Interpreter Test Script', () => {
         `, StaticErrorType.DuplicateVariable)
         });
 
-
         it('operation types error', () => {
             compilationError(`
         int i = 10;
@@ -81,6 +80,15 @@ describe('Matte Interpreter Test Script', () => {
         `, StaticErrorType.TypeMismatch)
         });
 
+        it('dec no init', () => {
+            script(`
+        int i;
+        i = 1;
+        int j = i;
+        i = j * 2;
+        i = i * 3;
+        `, new Map().set("i", 6).set("j", 1));
+        });
         it('if', () => {
             script(`
         int n = -2;

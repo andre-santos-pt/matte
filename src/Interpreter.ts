@@ -356,7 +356,16 @@ export class Interpreter {
         if (s instanceof BlockStatement)
             s.statements.forEach(i => this.execute(i));
         else if (s instanceof Declaration) {
-            if (s.initializer != null) {
+            if (s.initializer == null) {
+                this.topScope().variables.set(s.name, {
+                    name: s.name,
+                    type: s.type,
+                    evaluation: undefined,
+                    materialization: undefined,
+                    declaration: s.range
+                })
+            }
+            else {
                 const exp = this.evaluate(s.initializer as Expression)
                 this.addTrace(s.initializer, false, false, structuredClone(exp.evaluation), exp.materialization)
                 this.topScope().variables.set(s.name, {
