@@ -194,7 +194,7 @@ export class Declaration extends Statement {
         if(initializer instanceof ArrayLiteralExpression && initializer.elements.length == 0)
             (initializer as ArrayLiteralExpression).type = type
 
-        if (initializer && !typeCompatibleWith(initializer.type, type))
+        if (initializer && initializer.type && !typeCompatibleWith(initializer.type, type))
             throw {
                 message: "Expected an expression of type " + markType(type) + " (not " + markType(initializer.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
@@ -218,7 +218,7 @@ export class Assignment extends Statement {
     expression: Expression;
 
     constructor(range: Range, variable: Declaration, expression: Expression) {
-        if (!typeCompatibleWith(expression.type, variable.type))
+        if (expression.type && !typeCompatibleWith(expression.type, variable.type))
             throw {
                 message: "Expected expression of type " + markType(variable.type) + " (not " + markType(expression.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
@@ -741,11 +741,13 @@ export class CallExpression extends Expression {
 
 export class UnboundCallExpression extends Expression {
     procedureName: string;
+    isInstance: boolean;
     args: Expression[];
 
-    constructor(range: Range, procedureName: string, args: Expression[]) {
+    constructor(range: Range, procedureName: string, isInstance: boolean, args: Expression[]) {
         super(range, undefined);
         this.procedureName = procedureName;
+        this.isInstance = isInstance;
         this.args = args;
     }
 

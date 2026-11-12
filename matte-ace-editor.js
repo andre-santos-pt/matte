@@ -186,6 +186,7 @@ export default class MatteAceEditor {
         };
         window.addEventListener('scroll', this.repositionPopups, true);
         this.extensions = new Map();
+        this.extensionTypes = new Map();
         this.beforeRunListeners = [];
         this.afterRunListeners = [];
         this.stepListeners = [];
@@ -221,6 +222,9 @@ export default class MatteAceEditor {
         this.extensions.set(name, func);
     }
 
+    addExtensionType(name, type) {
+        this.extensionTypes.set(name, type);
+    }
 
     init() {
         this.editor.selection.on("changeCursor", () => {
@@ -443,7 +447,7 @@ export default class MatteAceEditor {
         this.backBtn.before(this.cumulative);
         this.afterRunListeners.push(result => {
             this.debugBtn.style.visibility = !result.callError && !result.compilationError ? "visible" : "hidden";
-            if(!result.callError)
+            if(!result.callError && !result.error)
                 this.setDebugMode(false);
         })
     }
@@ -527,6 +531,9 @@ export default class MatteAceEditor {
         const interpreter = new Interpreter(this.maxLoopIterations, this.maxCallStack);
         this.extensions.keys().forEach(key => {
             interpreter.addExtensionProcedure(key, this.extensions.get(key));
+        });
+        this.extensionTypes.forEach((name, type) => {
+            interpreter.addExtensionType(name, type);
         });
         return interpreter;
     }

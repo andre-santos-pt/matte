@@ -1,7 +1,7 @@
 {
   "name": "matte",
   "version": "1.0.0",
-  "description": "",
+  "description": "MatteJ",
   "main": "matteWebAce.js",
   "type": "module",
   "scripts": {

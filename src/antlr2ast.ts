@@ -216,7 +216,6 @@ function checkReturns(procedure: Procedure): void {
                             related: [procedure.returnTypeRange]
                         }
                     }
-
             } else {
                 if (procedure.returnType == PrimitiveType.VOID)
                     throw {
@@ -774,7 +773,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     visitInstanceCallStatement = (ctx: InstanceCallStatementContext) =>
         new CallStatement(
             this.rangeContext(ctx),
-            this.handleInstanceCall(ctx, ctx.exp(),ctx.call())
+            this.handleInstanceCall(ctx, ctx.exp(), ctx.call())
         )
 
     expToAST(ctx: ExpContext):
@@ -854,13 +853,13 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 this.expToAST(ctx._right)
             )
 
-            else if (ctx instanceof ConditionalExprContext)
-                return new ConditionalExpression(
-                    this.rangeContext(ctx),
-                    this.expToAST(ctx._condition),
-                    this.expToAST(ctx._trueCase),
-                    this.expToAST(ctx._falseCase)
-                )
+        else if (ctx instanceof ConditionalExprContext)
+            return new ConditionalExpression(
+                this.rangeContext(ctx),
+                this.expToAST(ctx._condition),
+                this.expToAST(ctx._trueCase),
+                this.expToAST(ctx._falseCase)
+            )
 
         else if (ctx instanceof ArrayAllocExprContext) {
             let type: Type | undefined = this.findSingleType(ctx.ID().getText())
@@ -997,7 +996,6 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     private findMethodInType(type: TypeDeclaration, methodName: string):
         Procedure | undefined {
         return this.procedures.find(p => p.instance && p.name == methodName && p.parameters.length > 0 && p.parameters[0].type == type)
-
     }
 
     private handleInstanceCall(ctx: ParserRuleContext, expCtx: ExpContext, callCtx: CallContext) {
@@ -1009,14 +1007,26 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 range: this.rangeContext(expCtx)
             }
 
-        if (!(target.type instanceof TypeDeclaration))
+        const args = [this.expToAST(expCtx)].concat(callCtx._args ? callCtx._args.exp_list().map(e => this.expToAST(e)) : [])
+
+        let proc: Procedure | undefined = undefined
+
+        if (target.type instanceof TypeDeclaration)
+            proc = this.findMethodInType(target.type, callCtx._id.text)
+        else if (target.type instanceof ForeignType)
+            return new UnboundCallExpression(
+                this.rangeContext(ctx),
+                callCtx._id.text,
+                true,
+                args
+            )
+        else
             throw {
                 message: "Unsupported target: " + expCtx.getText(),
                 compilation: StaticErrorType.Unsupported,
                 range: this.rangeContext(expCtx)
             }
 
-        const proc = this.findMethodInType(target.type, callCtx._id.text)
         if (!proc)
             throw {
                 message: "No method named '" + callCtx._id.text + "' found for type '" + target.type.name + "'",
@@ -1025,7 +1035,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 detail: "AST-instanceCall"
             }
 
-        const args = [this.expToAST(expCtx)].concat(callCtx._args ? callCtx._args.exp_list().map(e => this.expToAST(e)) : [])
+
         this.checkArgs(callCtx, args, proc);
 
         return new CallExpression(
@@ -1075,6 +1085,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return new UnboundCallExpression(
                 this.rangeContext(ctx),
                 ctx._id.text,
+                false,
                 ctx._args ? ctx._args.exp_list().map(e => this.expToAST(e)) : []
             )
     }

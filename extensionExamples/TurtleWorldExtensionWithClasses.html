@@ -8,32 +8,7 @@
 
 <h1>Turtles</h1>
 
-
 <script>
-    function getRotatedImage(img, angleInDegrees) {
-        // 1. Create a temporary hidden canvas
-        const tempCanvas = document.createElement('canvas');
-
-        // Set dimensions (using square dimensions to fit rotation safely)
-        const size = Math.max(img.width, img.height);
-        tempCanvas.width = size;
-        tempCanvas.height = size;
-        const tempCtx = tempCanvas.getContext('2d');
-
-        // 2. Rotate the temporary canvas around its center
-        tempCtx.translate(size / 2, size / 2);
-        tempCtx.rotate((angleInDegrees * Math.PI) / 180);
-        tempCtx.drawImage(img, -img.width / 2, -img.height / 2);
-
-        // 3. Export the result as a new static image Data URL
-        const dataUrl = tempCanvas.toDataURL('image/png');
-
-        // 4. Load it into a new Image object and return it via callback
-        const rotatedImg = new Image();
-        rotatedImg.src = dataUrl;
-        return rotatedImg
-    }
-
     function getRotatedTurtleSvg(angleInDegrees) {
         const rawSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
     <g transform="rotate(${angleInDegrees}, 10, 10)">

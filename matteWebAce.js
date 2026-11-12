@@ -7,6 +7,8 @@ import "ace-builds/src-noconflict/theme-solarized_light";
 import "ace-builds/src-noconflict/theme-solarized_dark";
 
 import MatteAceEditor from "./matte-ace-editor.js";
+import {ExtensionProcedure} from "./src/Interpreter.ts";
+import {PrimitiveType} from "./src/ast.ts";
 
 window.flatTrace = (trace) => {
     if(trace.children)
@@ -32,25 +34,25 @@ window.sysout_matte = (editor) => {
     let consoleText = [];
     const consoleDiv = document.createElement("div");
     consoleDiv.style.cssText = 'padding: 5px; min-height: 50px; font-size: 20px; font-family: monospace; color: white; background-color: black; box-sizing: border-box; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; overflow: auto;';
-    editor.addExtensionProcedure("println", args => {
-        const argsText = prettyPrint(args[0])
+    editor.addExtensionProcedure(new ExtensionProcedure(args => {
+        const argsText = prettyPrint(args[0].evaluation)
         consoleText.push(argsText + "<br>");
         return {
             evaluation: undefined,
             materialization: `println(${argsText})`,
             extension: "sysout"
         }
-    });
+    }, PrimitiveType.VOID, "println"));
 
-    editor.addExtensionProcedure("print", args => {
-        const argsText = prettyPrint(args[0])
+    editor.addExtensionProcedure(new ExtensionProcedure( args => {
+        const argsText = prettyPrint(args[0].evaluation)
         consoleText.push(argsText);
         return {
             evaluation: undefined,
             materialization: `print(${argsText})`,
             extension: "sysout"
         }
-    });
+    }, PrimitiveType.VOID, "print"));
 
     editor.beforeRunListeners.push(() => {
         consoleText = [];
@@ -184,14 +186,13 @@ function initializeMatteAce(element) {
         const extName = attr.name + "_matte";
         if (window[extName]) {
             const extDiv = window[extName].call(element, editor);
-            if(!(extDiv instanceof HTMLDivElement))
-                console.error("Extension '" + extName + "' did not return a DIV");
-
-            const div = document.createElement("div")
-            div.style.border = "1px solid gray";
-            div.style.marginTop = "5px"
-            div.append(extDiv)
-            editor.addExtension(div)
+            if(extDiv instanceof HTMLDivElement) {
+                const div = document.createElement("div")
+                div.style.border = "1px solid gray";
+                div.style.marginTop = "5px"
+                div.append(extDiv)
+                editor.addExtension(div)
+            }
         }
         if(window[attr.name + "_matte_include"])
             editor.include = window[attr.name + "_matte_include"]
