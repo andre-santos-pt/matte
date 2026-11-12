@@ -2,78 +2,22 @@
 <html xmlns="http://www.w3.org/1999/html">
 <head>
     <title>Demo tracing exercise</title>
+
 </head>
 <body>
 <script src="../dist/matte-web-ace.js" defer></script>
+<script src="./tracing-matte.js"></script>
 
 <h1>Tracing</h1>
 Extension to perform tracing exercises on scripts. Upon execution, the user inserts the sequence of variable values, which are checked against the trace.
 
-<matte-ace call="" trace>
+<matte-ace call="" tracing>
 int i;
 i = 1;
 int j = i;
 i = j * 2;
 i = i * 3;
 </matte-ace>
-
-<script>
-    function collectDistinctSequenceOfValues(trace, varName) {
-        const values = [];
-        trace.map(t => t.stack.variables.get(varName)).forEach(t => {
-            if (t !== undefined && t.evaluation !== values[values.length - 1])
-                values.push(t.evaluation);
-        });
-        return values;
-    }
-
-    function trace_matte(editor) {
-        let div = document.createElement("div");
-        div.style = "margin-top: .5em; margin-bottom: .5em; margin-left: .5em; margin-right: .5em;";
-        let att = this.getAttribute("vars");
-        let varNames;
-        let textBoxes = {};
-
-        editor.beforeRunListeners.push(() => {
-            div.replaceChildren();
-            textBoxes = {};
-        });
-        editor.afterRunListeners.push((r) => {
-            console.log(r);
-            if (att === null || att === undefined || att.trim() === "")
-                varNames = Array.from(new Set(r.trace.children.map(t => t.stack.variables.keys().toArray()).flat()));
-            else
-                varNames = this.getAttribute("vars").split(",").map(v => v.trim());
-
-            varNames.forEach((v, index) => {
-                if (index > 0) div.appendChild(document.createElement("hr"));
-                const span = document.createElement("span");
-                span.innerHTML = "Write the sequence of values of variable <code>" + v + "</code>.";
-                div.appendChild(span);
-                const trace = collectDistinctSequenceOfValues(r.trace.children, v);
-                trace.forEach(t => {
-                    const text = document.createElement("input");
-                    text.type = "text";
-                    text.style.cssText = "margin: 5px; padding: 3px; width: 20px;";
-                    const correct = t;
-                    text.addEventListener("change", () => {
-                        if (text.value === correct.toString()) {
-                            text.style.backgroundColor = "lightgreen";
-                        } else {
-                            text.style.backgroundColor = "salmon";
-                        }
-                    });
-                    div.append(text);
-                    if (textBoxes[v] === undefined)
-                        textBoxes[v] = [text]
-                    else
-                        textBoxes[v].push(text);
-                });
-            })
-        });
-        return div;
-    }
-</script>
 
 </body>
 </html>

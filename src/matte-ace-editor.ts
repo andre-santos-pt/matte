@@ -165,6 +165,7 @@ export default class MatteAceEditor {
     afterRunListeners: Array<(result: EditorResult) => void> = [];
     stepListeners: Array<(trace: TraceEntry[], index: number) => void> = [];
     showCompilationHints = true;
+    showVariableMaterialization = true;
     maxLoopIterations: number | undefined = 100;
     maxCallStack: number | undefined = 100;
     trace: TraceEntry[] = [];
@@ -780,7 +781,7 @@ export default class MatteAceEditor {
     }
 
     createScopePopups(dataMap?: TraceVariables): void {
-        if (dataMap === undefined)
+        if (dataMap === undefined || !this.showVariableMaterialization)
             return
 
         for (const [key, value] of dataMap) {
@@ -960,12 +961,21 @@ export default class MatteAceEditor {
 
         addCheckbox("compilation-hints", "Show compilation hints", this.showCompilationHints, show => this.showCompilationHints = show);
 
+        addCheckbox("variable-materialization", "Show variable materialization", this.showVariableMaterialization, show => this.showVariableMaterialization = show);
+
         host.append(details);
     }
 
     disableCompilationHints(): void {
         this.showCompilationHints = false;
         const checkbox = document.getElementById("compilation-hints") as HTMLInputElement | null;
+        if (checkbox)
+            checkbox.checked = false;
+    }
+
+    disableVariableMaterialization(): void {
+        this.showVariableMaterialization = false;
+        const checkbox = document.getElementById("variable-materialization") as HTMLInputElement | null;
         if (checkbox)
             checkbox.checked = false;
     }
