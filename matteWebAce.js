@@ -7,7 +7,11 @@ import "ace-builds/src-noconflict/theme-solarized_light";
 import "ace-builds/src-noconflict/theme-solarized_dark";
 
 import MatteAceEditor from "./src/matte-ace-editor.js";
-import {ExtensionProcedure, ExtensionType} from "./src/Interpreter.ts";
+import {
+    ExtensionProcedure,
+    ExtensionType,
+    RuntimeErrorType
+} from "./src/Interpreter.ts";
 import {PrimitiveType} from "./src/ast.ts";
 
 window.flatTrace = (trace) => {

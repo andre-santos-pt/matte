@@ -130,8 +130,8 @@ export function typeCompatibleWith(a: Type | undefined, b: Type | undefined): bo
         return a == PrimitiveType.NULL || a instanceof ArrayType && (isSameType(a.componentType, b.componentType))
     else if (b instanceof TypeDeclaration)
         return a == PrimitiveType.NULL || a instanceof TypeDeclaration && (a.name == b.name)
-    else if (a instanceof ForeignType)
-        return b instanceof ForeignType && a.name == b.name
+    else if (b instanceof ForeignType)
+        return a == PrimitiveType.NULL || a instanceof ForeignType && a.name == b.name
     else
         return false
 }

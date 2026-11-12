@@ -506,6 +506,14 @@ export class Interpreter {
         if (ext) {
             const args =
                 exp.args.map(a => this.evaluate(a))
+
+            if(exp.isInstance && args[0].evaluation == null)
+                this.addTraceRuntimeError(exp.args[0], {
+                    type: RuntimeErrorType.NullPointer,
+                    message: "Reference is null",
+                    range: exp.args[0].range
+                })
+
             // TODO n-arg error
             // const expected = exp.isInstance ?
             //     ext.func.length :
@@ -516,9 +524,20 @@ export class Interpreter {
             //         range: exp.range,
             //         message: `Expected ${expected} arguments (not ${args.length - 1})`
             //     }
-            const res = ext.func(args)
-            this.addTrace(exp, false, true, res.evaluation, res.materialization, res.extension)
-            return {evaluation: res.evaluation, materialization: res.materialization}
+            this.addTrace(exp, true, false, undefined, undefined)
+            let res: ExpressionEval | undefined
+            try {
+                res = ext.func(args)
+                this.addTrace(exp, false, true, res.evaluation, res.materialization, res.extension)
+
+            } catch (error: any) {
+                this.addTraceRuntimeError(exp, {
+                    type: error.runtimeError,
+                    message: error.message,
+                    range: exp.range
+                })
+            }
+            return {evaluation: res?.evaluation, materialization: res?.materialization}
         } else {
             throw {
                 compilation: StaticErrorType.MethodNotFound,
@@ -681,7 +700,7 @@ export class Interpreter {
             else {
                 e.type.fields.forEach((f, i) => {
                     obj[f.name] = f.name
-                    obj[f.name] = f.initializer ? this.evaluate(f.initializer) : this.defaultEvalution(f.type)
+                    obj[f.name] = f.initializer ? this.evaluate(f.initializer) : this.defaultEvaluation(f.type)
                     obj[f.name].declaration = f.range
                     obj[f.name].type = f.type
                 })
@@ -927,7 +946,7 @@ export class Interpreter {
     }
 
 
-    private defaultEvalution(type: Type) : ExpressionEval {
+    private defaultEvaluation(type: Type) : ExpressionEval {
         if(type == PrimitiveType.INT || type == PrimitiveType.DOUBLE)
             return {
                 evaluation: 0
