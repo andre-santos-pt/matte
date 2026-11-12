@@ -109,13 +109,15 @@ export class ExtensionProcedure {
     }
 }
 
-class ExtensionType {
-    constructors: ExtensionProcedure[];
-    operations: ExtensionProcedure[];
+export class ExtensionType {
+    name: string
+    constProcedure: ExtensionProcedure // TODO multiple constructors
+    operations: ExtensionProcedure[]
 
-    constructor(constructors: ExtensionProcedure[], operations: ExtensionProcedure[]) {
-        this.constructors = constructors;
-        this.operations = operations;
+    constructor(name: string, constProcedure: ExtensionProcedure, ...operations: ExtensionProcedure[]) {
+        this.name = name
+        this.constProcedure = constProcedure
+        this.operations = operations
     }
 }
 
@@ -126,8 +128,8 @@ export class Interpreter {
     private traceOn = true
 
     private loopCount = new Map()
-    private extensionProcedures: Map<string, ExtensionProcedure> = new Map()
-    private extensionTypes: Map<string, ExtensionType> = new Map()
+    private extensionProcedures: ExtensionProcedure[] = []
+    private extensionTypes: ExtensionType[] = []
     private readonly maxLoopIterations?: number
     private readonly maxCallStack?: number
 
@@ -140,13 +142,13 @@ export class Interpreter {
 
     addExtensionProcedure(extension: ExtensionProcedure) {
         if(extension.name)
-            this.extensionProcedures.set(extension.name, extension)
+            this.extensionProcedures.push(extension)
         else
             throw Error("extension procedure must have a name")
     }
 
-    addExtensionType(name: string, constructor: ExtensionProcedure, ...operations: ExtensionProcedure[]) {
-        this.extensionTypes.set(name, new ExtensionType([constructor], operations))
+    addExtensionType(name: string, constProcedure: ExtensionProcedure, ...operations: ExtensionProcedure[]) {
+        this.extensionTypes.push(new ExtensionType(name, constProcedure, ...operations))
     }
 
     loopIteration(loop: WhileStatement) {
@@ -499,10 +501,21 @@ export class Interpreter {
     private handleUnboundCall(exp: UnboundCallExpression): ExpressionEval {
         const ext =
             exp.isInstance ?
-                this.extensionTypes.get((exp.args[0].type as ForeignType).name)?.operations.find(op => op.name === exp.procedureName) :
-            this.extensionProcedures.get(exp.procedureName)
+                this.extensionTypes.find(t => t.name === (exp.args[0].type as ForeignType).name)?.operations.find(op => op.name === exp.procedureName) :
+            this.extensionProcedures.find(e => e.name == exp.procedureName)
         if (ext) {
-            const args = exp.args.map(a => this.evaluate(a))
+            const args =
+                exp.args.map(a => this.evaluate(a))
+            // TODO n-arg error
+            // const expected = exp.isInstance ?
+            //     ext.func.length :
+            //     ext.func.length + 1;
+            // if(ext.func.length != expected)
+            //     throw {
+            //         compilation: StaticErrorType.NumberArgumentsMismatch,
+            //         range: exp.range,
+            //         message: `Expected ${expected} arguments (not ${args.length - 1})`
+            //     }
             const res = ext.func(args)
             this.addTrace(exp, false, true, res.evaluation, res.materialization, res.extension)
             return {evaluation: res.evaluation, materialization: res.materialization}
@@ -679,7 +692,7 @@ export class Interpreter {
                 materialization: `new ${e.type.name}(${args.map(a => a.materialization || a.evaluation).join(", ")})`
             }
         } else if (e instanceof UnboundNewObjectExpression) {
-            const ext = this.extensionTypes.get(e.typeName)?.constructors[0] // TODO constructor match
+            const ext = this.extensionTypes.find(t => t.name == e.typeName)?.constProcedure
             if (ext) {
                 const args = e.args.map(a => this.evaluate(a).evaluation)
                 return ext.func.call(null, args)

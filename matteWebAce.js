@@ -6,8 +6,8 @@ import "ace-builds/src-noconflict/theme-github";
 import "ace-builds/src-noconflict/theme-solarized_light";
 import "ace-builds/src-noconflict/theme-solarized_dark";
 
-import MatteAceEditor from "./matte-ace-editor.js";
-import {ExtensionProcedure} from "./src/Interpreter.ts";
+import MatteAceEditor from "./src/matte-ace-editor.js";
+import {ExtensionProcedure, ExtensionType} from "./src/Interpreter.ts";
 import {PrimitiveType} from "./src/ast.ts";
 
 window.flatTrace = (trace) => {
@@ -256,6 +256,8 @@ if (document.documentElement) {
         subtree: true
     });
 }
+
+window.Matte = { ExtensionProcedure, ExtensionType, PrimitiveType, RuntimeErrorType };
 
 try {
     customElements.define('matte-ace', MatteAce);

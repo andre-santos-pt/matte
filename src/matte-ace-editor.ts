@@ -1,13 +1,32 @@
-import {flatTrace, last, lastTrace} from "./src/utils.ts";
-import {compile} from "./src/antlr2ast.ts";
+import {flatTrace, last} from "./utils";
+import {compile} from "./antlr2ast";
 import {
     simplifyExpression,
     variableMaterialization
-} from "./src/expSimplification.ts";
-import {Interpreter} from "./src/Interpreter.ts";
+} from "./expSimplification";
+import {
+    ExtensionProcedure,
+    ExtensionType,
+    Interpreter,
+    TraceEntry
+} from "./Interpreter";
+import type {Ace} from "ace-builds";
+import type {StaticError, Type} from "./ast";
+import MatteRange from "./Range";
 //import {isDeepStrictEqual} from "assert/build/internal/util/comparisons.js";
 
-const {Range} = ace.require("ace/range");
+//const {Range} = ace.require("ace/range");
+declare const ace: typeof import("ace-builds");
+
+type EditorResult = ReturnType<Interpreter["parseAndRun"]>;
+type TraceVariables = TraceEntry["stack"]["variables"];
+type AceTooltip = Ace.Tooltip;
+
+interface PopupPosition {
+    offset: number;
+    message: string;
+    top: boolean;
+}
 
 const styleCss =
     `.compilation-error {
@@ -116,7 +135,48 @@ const styleCss =
            `;
 
 export default class MatteAceEditor {
-    constructor(container, width, height, call) {
+    container!: HTMLElement;
+    editor!: Ace.Editor;
+    editorBackgroundColor!: string;
+    runBar!: HTMLDivElement;
+    runBtn!: HTMLButtonElement;
+    callBox?: HTMLInputElement;
+    resultLabel!: HTMLSpanElement;
+    debugBox!: HTMLDivElement;
+    debugBtn!: HTMLButtonElement;
+    slider!: HTMLInputElement;
+    backBtn!: HTMLButtonElement;
+    forwardBtn!: HTMLButtonElement;
+    closeDebugBtn!: HTMLButtonElement;
+    cumulative!: HTMLButtonElement;
+    autoHeight!: boolean;
+    include?: string | null;
+    result: EditorResult | null = null;
+    lastCompilationSource: string | null = null;
+    compilationError: StaticError | null = null;
+    compilationCheckInterval!: number;
+    popups: AceTooltip[] = [];
+    popupPositions = new WeakMap<AceTooltip, PopupPosition>();
+    secondaryMarkers: number[] = [];
+    repositionPopups!: () => void;
+    extensionProcedures: ExtensionProcedure[] = [];
+    extensionTypes: ExtensionType[] = [];
+    beforeRunListeners: Array<() => void> = [];
+    afterRunListeners: Array<(result: EditorResult) => void> = [];
+    stepListeners: Array<(trace: TraceEntry[], index: number) => void> = [];
+    showCompilationHints = true;
+    maxLoopIterations: number | undefined = 100;
+    maxCallStack: number | undefined = 100;
+    trace: TraceEntry[] = [];
+    cumulativeMode = false;
+    private _resizeTimeout: number | null = null;
+
+    constructor(
+        container: HTMLElement,
+        width?: number | string | null,
+        height?: number | string | null,
+        call?: string | null
+    ) {
         this.container = container;
         this.container.style.marginTop = "25px";
         this.container.style.border = "1px solid #d0d0d0";
@@ -134,7 +194,7 @@ export default class MatteAceEditor {
         }
         this.container.style.display = "block"
         this.editor = ace.edit(this.container);
-        this.editorBackgroundColor = this.editor.container.querySelector('.ace_scroller').style.backgroundColor;
+        this.editorBackgroundColor = this.getAceScroller().style.backgroundColor;
         this.editor.setTheme("ace/theme/textmate");
         this.editor.session.setMode("ace/mode/java");
         this.editor.setFontSize(14);
@@ -185,8 +245,6 @@ export default class MatteAceEditor {
             });
         };
         window.addEventListener('scroll', this.repositionPopups, true);
-        this.extensions = new Map();
-        this.extensionTypes = new Map();
         this.beforeRunListeners = [];
         this.afterRunListeners = [];
         this.stepListeners = [];
@@ -207,40 +265,47 @@ export default class MatteAceEditor {
             else if(result.error)
                 this.markCompilationError(result.error);
             else {
+            if (result.trace)
                 this.trace = flatTrace(result.trace).filter(e => e.range && e.range.end < this.editor.getValue().length)
-                if (result.runtimeError)
-                    this.markRuntimeError(result.runtimeError);
-                else if (result.program.block)
-                    this.createScopePopups(last(result.trace.children).stack.variables);
-            }
+            if (result.runtimeError)
+                this.markRuntimeError(result.runtimeError);
+            else if (result.program?.block && result.trace?.children?.length)
+                this.createScopePopups(last(result.trace.children).stack.variables);
+        }
         });
 
         this.addCallBox(call);
     }
 
-    addExtensionProcedure(name, func) {
-        this.extensions.set(name, func);
+    // addExtensionProcedure(name: string, func: (args: any[]) => any): void {
+    //     this.extensions.push(new ExtensionProcedure(func, undefined, name));
+    //     console.log(this.extensions)
+    // }
+
+    addExtensionProcedure(ext: ExtensionProcedure) {
+        this.extensionProcedures.push(ext);
     }
 
-    addExtensionType(name, type) {
-        this.extensionTypes.set(name, type);
+    addExtensionType(type: ExtensionType) {
+        this.extensionTypes.push(type);
     }
 
-    init() {
+    init(): void {
         this.editor.selection.on("changeCursor", () => {
-            this.popups.forEach(p => p.hide())
+            this.popups.forEach(p => p.hide(undefined))
             this.clearSecondaryMarkers()
-            const err = this.compilationError ?? this.result?.error ?? this.result?.runtimeError;
+            const compilationError = this.compilationError ?? this.result?.error;
+            const err = compilationError ?? this.result?.runtimeError;
             const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
-            if (err && index >= err.range.start && index <= err.range.end) {
+            if (err?.range && index >= err.range.start && index <= err.range.end) {
 
                 let message = err.message;
-                if (err.detail) {
-                    if (this.showCompilationHints && err.detail.related) {
-                        err.detail.related.forEach(r => this.markSecondaryHighlights(r))
+                if (compilationError?.detail) {
+                    if (this.showCompilationHints && compilationError.detail.related) {
+                        compilationError.detail.related.forEach((range: MatteRange) => this.markSecondaryHighlights(range))
                     }
-                    if (this.showCompilationHints && err.detail.hint)
-                        message += "<hr><small>" + err.detail.hint + "</small>"
+                    if (this.showCompilationHints && compilationError.detail.hint)
+                        message += "<hr><small>" + compilationError.detail.hint + "</small>"
 
                 }
                 this.popup(err.range.start, message);
@@ -259,8 +324,8 @@ export default class MatteAceEditor {
             // debounced resize to avoid thrashing while typing
             this._resizeTimeout = null;
             const scheduleAdjust = () => {
-                if (this._resizeTimeout) clearTimeout(this._resizeTimeout);
-                this._resizeTimeout = setTimeout(() => this.adjustHeight(), 100);
+                if (this._resizeTimeout) window.clearTimeout(this._resizeTimeout);
+                this._resizeTimeout = window.setTimeout(() => this.adjustHeight(), 100);
             };
 
             // initial adjust after renderer is ready
@@ -273,11 +338,18 @@ export default class MatteAceEditor {
         }
     }
 
-    addExtension(div) {
+    addExtension(div: HTMLElement): void {
         this.debugBox.after(div);
     }
 
-    dispose() {
+    private getAceScroller(): HTMLElement {
+        const scroller = this.editor.container.querySelector<HTMLElement>(".ace_scroller");
+        if (!scroller)
+            throw new Error("Ace editor scroller was not found");
+        return scroller;
+    }
+
+    dispose(): void {
         window.clearInterval(this.compilationCheckInterval);
         window.removeEventListener('scroll', this.repositionPopups, true);
         if (this._resizeTimeout)
@@ -287,7 +359,7 @@ export default class MatteAceEditor {
     }
 
 // Adjust container height based on the number of visible (screen) lines
-    adjustHeight() {
+    adjustHeight(): void {
         if (!this.autoHeight) return;
         try {
             const session = this.editor.session;
@@ -308,30 +380,31 @@ export default class MatteAceEditor {
         }
     }
 
-    getEditorCode() {
+    getEditorCode(): string {
         return this.editor.getValue() + (this.include == null ? "" : "\n\n" + this.include)
     }
 
-    addCallBox(call) {
-        this.callBox = document.createElement('input');
-        this.callBox.type = "text";
-        this.callBox.title = "Write a call to a function or leave empty to run script";
-        this.callBox.style = "margin-left: 10px; font-family: 'Monaco', 'Menlo', monospace; background-color: #f0f0f0; border: 1px solid #d0d0d0; border-radius: 3px; padding: 2px 5px; width: 300px;";
-        this.callBox.value = call == null ? "" : call;
-        this.callBox.addEventListener("keydown", (event) => {
+    addCallBox(call?: string | null): void {
+        const callBox = document.createElement('input');
+        this.callBox = callBox;
+        callBox.type = "text";
+        callBox.title = "Write a call to a function or leave empty to run script";
+        callBox.style = "margin-left: 10px; font-family: 'Monaco', 'Menlo', monospace; background-color: #f0f0f0; border: 1px solid #d0d0d0; border-radius: 3px; padding: 2px 5px; width: 300px;";
+        callBox.value = call == null ? "" : call;
+        callBox.addEventListener("keydown", (event) => {
             if (event.key === "Enter") {
                 event.preventDefault();
-                this.runParser(this.callBox.value);
+                this.runParser(callBox.value);
             }
         });
-        this.runBar.append(this.callBox)
+        this.runBar.append(callBox)
 
         this.resultLabel = document.createElement('span');
         this.resultLabel.title = "Result of the last evaluation";
         this.resultLabel.style = "font-family: monospace; font-weight: bold; margin-left: 10px;";
 
-        this.callBox.after(this.resultLabel);
-        this.callBox.addEventListener('input', () => {
+        callBox.after(this.resultLabel);
+        callBox.addEventListener('input', () => {
             this.resultLabel.style.visibility = "hidden";
         });
 
@@ -353,7 +426,7 @@ export default class MatteAceEditor {
         this.createDebugBox();
     }
 
-    updateCallBar(result) {
+    updateCallBar(result: EditorResult): void {
         this.resultLabel.style.visibility = result.callError || result.result?.evaluation !== undefined ? "visible" : "hidden";
 
         if (result.callError)
@@ -361,25 +434,29 @@ export default class MatteAceEditor {
         else if (!result.error && !result.runtimeError) {
             this.resultLabel.innerHTML = '';
             if (result.result?.evaluation !== undefined)
-                this.resultLabel.innerHTML = ' = ' + this.prettyPrint(result.result.evaluation, result.call.type, true);
+                this.resultLabel.innerHTML = ' = ' + this.prettyPrint(result.result.evaluation, result.call?.type, true);
 
 
-            for (const [key, value] of result.trace.stack.variables) {
-                const lastValue = last(result.trace.children).stack.variables.get(key);
-                if (lastValue && JSON.stringify(value.evaluation) !== JSON.stringify(lastValue.evaluation)) {
-                    const map = new Map();
-                    map.set(key, lastValue);
-                    this.createScopePopups(map);
-                    if (this.resultLabel.innerHTML !== "")
-                        this.resultLabel.innerHTML += "<br>";
-                    this.resultLabel.innerHTML += "Argument modified"
-                    this.resultLabel.style.visibility = "visible"
+            const trace = result.trace;
+            if (trace?.children?.length) {
+                const finalVariables = last(trace.children).stack.variables;
+                for (const [key, value] of trace.stack.variables) {
+                    const lastValue = finalVariables.get(key);
+                    if (lastValue && JSON.stringify(value.evaluation) !== JSON.stringify(lastValue.evaluation)) {
+                        const map = new Map();
+                        map.set(key, lastValue);
+                        this.createScopePopups(map);
+                        if (this.resultLabel.innerHTML !== "")
+                            this.resultLabel.innerHTML += "<br>";
+                        this.resultLabel.innerHTML += "Argument modified"
+                        this.resultLabel.style.visibility = "visible"
+                    }
                 }
             }
         }
     }
 
-    createDebugBox() {
+    createDebugBox(): void {
         this.debugBox = document.createElement('div');
         this.debugBox.style = "display: flex; align-items: center; gap: 10px; margin-top: 5px; margin-bottom: 5px";
         this.runBar.after(this.debugBox);
@@ -397,8 +474,8 @@ export default class MatteAceEditor {
         this.slider.min = "0";
         this.slider.value = "0";
         this.slider.hidden = true;
-        this.slider.addEventListener('input', (e) => {
-            const index = Number(e.target.value);
+        this.slider.addEventListener('input', () => {
+            const index = Number(this.slider.value);
             this.step(index, this.cumulativeMode);
             this.updateDebugNavigation();
         });
@@ -446,13 +523,13 @@ export default class MatteAceEditor {
         this.cumulative.hidden = true;
         this.backBtn.before(this.cumulative);
         this.afterRunListeners.push(result => {
-            this.debugBtn.style.visibility = !result.callError && !result.compilationError ? "visible" : "hidden";
+            this.debugBtn.style.visibility = !result.callError && !result.error ? "visible" : "hidden";
             if(!result.callError && !result.error)
                 this.setDebugMode(false);
         })
     }
 
-    setDebugMode(on) {
+    setDebugMode(on: boolean): void {
         this.debugBtn.hidden = on;
         this.editor.setReadOnly(on);
 
@@ -466,7 +543,7 @@ export default class MatteAceEditor {
         this.slider.value = "0";
 
         if (on) {
-            this.editor.container.querySelector('.ace_scroller').style.backgroundColor = '#e8e8e8';
+            this.getAceScroller().style.backgroundColor = '#e8e8e8';
             this.resultLabel.style.visibility = "hidden";
             this.step(0, this.cumulativeMode);
             this.updateDebugNavigation();
@@ -474,13 +551,13 @@ export default class MatteAceEditor {
             this.editor.session.clearAnnotations();
         } else {
             this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
-            this.editor.container.querySelector('.ace_scroller').style.backgroundColor = this.editorBackgroundColor;
+            this.getAceScroller().style.backgroundColor = this.editorBackgroundColor;
            // this.clearPopups()
             this.editor.clearSelection();
         }
     }
 
-    moveSlider(delta) {
+    moveSlider(delta: number): void {
         const index = Math.max(
             Number(this.slider.min),
             Math.min(Number(this.slider.value) + delta, Number(this.slider.max))
@@ -490,17 +567,17 @@ export default class MatteAceEditor {
         this.updateDebugNavigation();
     }
 
-    updateDebugNavigation() {
+    updateDebugNavigation(): void {
         const index = Number(this.slider.value);
         this.backBtn.disabled = index <= Number(this.slider.min);
         this.forwardBtn.disabled = index >= Number(this.slider.max);
     }
 
-    getCodeToCompile() {
+    getCodeToCompile(): string {
         return this.editor.getValue() + (this.include == null ? "" : "\n\n" + this.include);
     }
 
-    checkCompilation() {
+    checkCompilation(): void {
         const code = this.getCodeToCompile()
         if (code === this.lastCompilationSource)
             return;
@@ -527,27 +604,28 @@ export default class MatteAceEditor {
     }
 
 
-    createInterpreter() {
+    createInterpreter(): Interpreter {
         const interpreter = new Interpreter(this.maxLoopIterations, this.maxCallStack);
-        this.extensions.keys().forEach(key => {
-            interpreter.addExtensionProcedure(key, this.extensions.get(key));
+        this.extensionProcedures.forEach((extension) => {
+            interpreter.addExtensionProcedure(extension);
         });
-        this.extensionTypes.forEach((name, type) => {
-            interpreter.addExtensionType(name, type);
+        this.extensionTypes.forEach((type) => {
+            interpreter.addExtensionType(type.name, type.constProcedure, ...type.operations);
         });
         return interpreter;
     }
 
-    runParser(call) {
+    runParser(call: string): void {
         let src = this.getCodeToCompile()
         this.beforeRunListeners.forEach(l => l());
         this.lastCompilationSource = src;
-        this.result = this.createInterpreter().parseAndRun(src, call === "" ? null : call);
-        this.afterRunListeners.forEach(l => l(this.result));
+        const result = this.createInterpreter().parseAndRun(src, call === "" ? undefined : call);
+        this.result = result;
+        this.afterRunListeners.forEach(l => l(result));
     }
 
 
-    step(index, cumulative = false) {
+    step(index: number, cumulative = false): void {
         const lastIndex = this.trace.length - 1;
         if (index >= 0 && index <= lastIndex) {
             const t = this.trace[index];
@@ -557,13 +635,14 @@ export default class MatteAceEditor {
             if (t.stack.variables)
                 this.createScopePopups(t.stack.variables);
 
-            if (t.error)
+            if (t.error?.range)
                 this.popup(t.error.range.start, t.error.message, false, "error-popup");
 
             let prevText = "";
+            const range = t.range;
             if (cumulative) {
-                const prev = t.range
-                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === t.range.start && prev.range?.end === t.range.end && prev.evaluation != null)
+                const prev = range
+                    ? this.trace.filter((prev, i) => i < index && prev.range?.start === range.start && prev.range?.end === range.end && prev.evaluation != null)
                     : [];
                 prevText = prev.map(p => {
                     const mat = p.materialization ? " (" + this.pretty(p.materialization) + ")" : "";
@@ -586,10 +665,10 @@ export default class MatteAceEditor {
     }
 
 
-    popup(offset, message, top, style) {
+    popup(offset: number, message: string, top = false, style?: string): AceTooltip | undefined {
         if(offset >= this.editor.getValue().length)
             return
-        const Tooltip = ace.require("ace/tooltip").Tooltip;
+        const Tooltip = ace.require("ace/tooltip").Tooltip as new (parent: Element) => AceTooltip;
         const tip = new Tooltip(this.editor.container);
         this.popupPositions.set(tip, {offset, message, top});
         this.popups.push(tip);
@@ -602,7 +681,7 @@ export default class MatteAceEditor {
         return tip;
     }
 
-    positionPopup(tip, offset, message, top) {
+    positionPopup(tip: AceTooltip, offset: number, message: string, top: boolean): void {
         const pos = this.editor.session.doc.indexToPosition(offset);
         const y = pos.row;
         const x = top ? pos.column - 1 : this.editor.session.getLine(pos.row).length; // end of line
@@ -614,27 +693,33 @@ export default class MatteAceEditor {
         tip.setPosition(canvasPos.pageX, canvasPos.pageY)
     }
 
-    range2Ace(range) {
+    range2Ace(range: MatteRange): Ace.Range {
         const startPos = this.editor.session.doc.indexToPosition(range.start);
         const endPos = this.editor.session.doc.indexToPosition(range.end);
-        return new Range(startPos.row, startPos.column, endPos.row, endPos.column);
+        const AceRange = ace.require("ace/range").Range as new (
+            startRow: number,
+            startColumn: number,
+            endRow: number,
+            endColumn: number
+        ) => Ace.Range;
+        return new AceRange(startPos.row, startPos.column, endPos.row, endPos.column);
     }
 
-    pretty(mat) {
+    pretty(mat: string): string {
         return mat.toString()
-            .replaceAll("&&", "∧")
-            .replaceAll("||", "∨")
-            .replaceAll("!=", "≠")
-            .replaceAll("!", "¬")
-            .replaceAll("<=", "≤")
-            .replaceAll(">=", "≥")
+            .replace(/&&/g, "∧")
+            .replace(/\|\|/g, "∨")
+            .replace(/!=/g, "≠")
+            .replace(/!/g, "¬")
+            .replace(/<=/g, "≤")
+            .replace(/>=/g, "≥")
     }
 
-    isLiteral(value) {
+    isLiteral(value: unknown): boolean {
         return value === null || (typeof value !== "object" && typeof value !== "function");
     }
 
-    markCompilationError(e) {
+    markCompilationError(e: StaticError): void {
         this.editor.session.addMarker(
             this.range2Ace(e.range),
             "compilation-error",
@@ -648,7 +733,7 @@ export default class MatteAceEditor {
         }]);
     }
 
-    markSecondaryHighlights(r) {
+    markSecondaryHighlights(r: MatteRange): void {
         this.secondaryMarkers.push(this.editor.session.addMarker(
             this.range2Ace(r),
             "secondary-mark",
@@ -656,9 +741,11 @@ export default class MatteAceEditor {
         ))
     }
 
-    markRuntimeError(e) {
+    markRuntimeError(e: NonNullable<EditorResult["runtimeError"]>): void {
+        if (!e.range)
+            return;
         this.editor.session.addMarker(
-            this.range2Ace(this.result.runtimeError.range),
+            this.range2Ace(e.range),
             "runtime-error",
             "text"
         );
@@ -670,29 +757,29 @@ export default class MatteAceEditor {
         }]);
     }
 
-    clearPopups() {
-        this.popups.forEach(p => p.hide());
+    clearPopups(): void {
+        this.popups.forEach(p => p.hide(undefined));
     }
 
-    clearErrorMarkers() {
+    clearErrorMarkers(): void {
         const session = this.editor.getSession();
         const markers = session.getMarkers();
 
         for (const id in markers) {
             if (markers[id].clazz === "compilation-error" || markers[id].clazz === "runtime-error") {
-                session.removeMarker(id);
+                session.removeMarker(Number(id));
             }
         }
     }
 
-    clearSecondaryMarkers() {
+    clearSecondaryMarkers(): void {
         this.secondaryMarkers.forEach(m => {
             this.editor.session.removeMarker(m);
         })
         this.secondaryMarkers = []
     }
 
-    createScopePopups(dataMap) {
+    createScopePopups(dataMap?: TraceVariables): void {
         if (dataMap === undefined)
             return
 
@@ -705,7 +792,7 @@ export default class MatteAceEditor {
             else if(key === "this") {
                 Object.keys(value.evaluation).forEach(f => {
                     if(f !== "$type" && value.evaluation[f].declaration)
-                        this.popup(value.evaluation[f].declaration.end, this.prettyPrint(value.evaluation[f].evaluation, f.type) + matText, false)
+                        this.popup(value.evaluation[f].declaration.end, this.prettyPrint(value.evaluation[f].evaluation, value.evaluation[f].type) + matText, false)
                 })
             }
 
@@ -713,8 +800,12 @@ export default class MatteAceEditor {
         }
     }
 
-    prettyPrint(value, type, noRounding) {
-        function formatNumberIfNeeded(num) {
+    prettyPrint(value: unknown, type?: Type, noRounding = false): string {
+        const prettyPrintObject = (value: object): string => {
+            const fields = value as Record<string, {evaluation: unknown}>;
+            return "{" + Object.keys(fields).filter(k => k !== "$type").map(k => `${k}: ${this.prettyPrint(fields[k].evaluation)}`).join(", ") + "}";
+        };
+        function formatNumberIfNeeded(num: number): string {
             const str = num.toString();
             let decimalPlaces = 0;
 
@@ -740,10 +831,10 @@ export default class MatteAceEditor {
         else if (Array.isArray(value))
             return "[" + value.join(",&nbsp;") + "]";
         else if (typeof value === "object")
-            return "{" + Object.keys(value).filter(k => k !== "$type").map(k => `${k}: ${this.prettyPrint(value[k].evaluation)}`).join(", ") + "}"
-        else if (Number.isFinite(value) && !Number.isInteger(value) && !noRounding)
+            return prettyPrintObject(value)
+        else if (typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value) && !noRounding)
             return formatNumberIfNeeded(value);
-        else if (Number.isInteger(value) && type === "double")
+        else if (typeof value === "number" && Number.isInteger(value) && type === "double")
             return value.toString() + ".0";
         else if(typeof value === "string")
             return "\"" + value + "\""
@@ -751,7 +842,7 @@ export default class MatteAceEditor {
             return value.toString();
     }
 
-    addSettingsMenu() {
+    addSettingsMenu(): void {
         const host = this.container.parentElement;
         if (!host)
             return;
@@ -772,7 +863,12 @@ export default class MatteAceEditor {
         panel.className = "matte-ace-settings-panel";
         details.append(panel);
 
-        const addSelect = (labelText, values, selectedValue, onChange) => {
+        const addSelect = (
+            labelText: string,
+            values: Array<[string, string]>,
+            selectedValue: string,
+            onChange: (value: string) => void
+        ): void => {
             const label = document.createElement("label");
             label.append(document.createTextNode(labelText));
             const select = document.createElement("select");
@@ -788,7 +884,11 @@ export default class MatteAceEditor {
             panel.append(label);
         };
 
-        const addPositiveNumber = (labelText, value, onChange) => {
+        const addPositiveNumber = (
+            labelText: string,
+            value: string,
+            onChange: (value: number | undefined) => void
+        ): void => {
             const label = document.createElement("label");
             label.append(document.createTextNode(labelText));
             const input = document.createElement("input");
@@ -809,7 +909,12 @@ export default class MatteAceEditor {
             panel.append(label);
         };
 
-        const addCheckbox = (id, labelText, checked, onChange) => {
+        const addCheckbox = (
+            id: string,
+            labelText: string,
+            checked: boolean,
+            onChange: (checked: boolean) => void
+        ): void => {
             const label = document.createElement("label");
             label.append(document.createTextNode(labelText));
             const input = document.createElement("input");
@@ -849,17 +954,19 @@ export default class MatteAceEditor {
 
         panel.append(document.createElement("hr"));
 
-        addPositiveNumber("Maximum loop iterations", this.maxLoopIterations.toString(), v => this.maxLoopIterations = v);
+        addPositiveNumber("Maximum loop iterations", this.maxLoopIterations?.toString() ?? "", v => this.maxLoopIterations = v);
 
-        addPositiveNumber("Maximum call stack size", this.maxCallStack.toString(), v => this.maxCallStack = v);
+        addPositiveNumber("Maximum call stack size", this.maxCallStack?.toString() ?? "", v => this.maxCallStack = v);
 
         addCheckbox("compilation-hints", "Show compilation hints", this.showCompilationHints, show => this.showCompilationHints = show);
 
         host.append(details);
     }
 
-    disableCompilationHints() {
+    disableCompilationHints(): void {
         this.showCompilationHints = false;
-        document.getElementById("compilation-hints").checked = false;
+        const checkbox = document.getElementById("compilation-hints") as HTMLInputElement | null;
+        if (checkbox)
+            checkbox.checked = false;
     }
 }
