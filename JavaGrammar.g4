@@ -217,6 +217,6 @@ STRING: '"'~([\n"])*'"';
 
 //NL: ('\n'|'\r\n');
 
-LINE_COMMENT: '//'~('\n'|'\r')*('\n'|'\r\n') -> channel(HIDDEN);
+LINE_COMMENT: '//' ~[\r\n]* -> channel(HIDDEN);
 
 WS: [ \t\r\n]+ -> channel(HIDDEN) ;

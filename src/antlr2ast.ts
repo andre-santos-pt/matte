@@ -266,7 +266,10 @@ function renderExpression(expression: Expression): string {
     if (expression instanceof ArithmeticExpression ||
         expression instanceof RelationalExpression ||
         expression instanceof LogicalExpression)
-        return `(${renderExpression(expression.left)} ${expression.operator} ${renderExpression(expression.right)})`
+        if(expression.parent && expression.parent instanceof Expression)
+            return `(${renderExpression(expression.left)} ${expression.operator} ${renderExpression(expression.right)})`
+        else
+            return `${renderExpression(expression.left)} ${expression.operator} ${renderExpression(expression.right)}`
     if (expression instanceof ArrayLiteralExpression)
         return `{${expression.elements.map(renderExpression).join(", ")}}`
     if (expression instanceof ArrayAllocationExpression)

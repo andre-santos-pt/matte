@@ -206,6 +206,7 @@ function initializeMatteAce(element) {
     if(element.hasAttribute("disable-compilation-hints")) {
         editor.disableCompilationHints();
     }
+    editor.runPreprocessors()
 }
 
 class MatteAce extends HTMLElement {

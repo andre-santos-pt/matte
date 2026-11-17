@@ -1,5 +1,5 @@
 import {flatTrace, last} from "./utils";
-import {compile} from "./antlr2ast";
+import {compile, getJavaCode} from "./antlr2ast";
 import {
     simplifyExpression,
     variableMaterialization
@@ -11,8 +11,9 @@ import {
     TraceEntry
 } from "./Interpreter";
 import type {Ace} from "ace-builds";
-import type {StaticError, Type} from "./ast";
+import {Program, StaticError, Type} from "./ast";
 import MatteRange from "./Range";
+import {Marker} from "ace-builds-internal/layer/marker";
 //import {isDeepStrictEqual} from "assert/build/internal/util/comparisons.js";
 
 //const {Range} = ace.require("ace/range");
@@ -161,6 +162,7 @@ export default class MatteAceEditor {
     repositionPopups!: () => void;
     extensionProcedures: ExtensionProcedure[] = [];
     extensionTypes: ExtensionType[] = [];
+    preprocessors: ((p: Program) => void)[] = [];
     beforeRunListeners: Array<() => void> = [];
     afterRunListeners: Array<(result: EditorResult) => void> = [];
     stepListeners: Array<(trace: TraceEntry[], index: number) => void> = [];
@@ -276,6 +278,18 @@ export default class MatteAceEditor {
         });
 
         this.addCallBox(call);
+
+
+    }
+
+    runPreprocessors() {
+        this.preprocessors.forEach((pp: (p: Program) => void) => {
+            const compilation = compile(this.getCodeToCompile());
+            if(compilation instanceof Program) {
+                pp(compilation);
+                this.editor.setValue(getJavaCode(compilation))
+            }
+        })
     }
 
     // addExtensionProcedure(name: string, func: (args: any[]) => any): void {
@@ -530,6 +544,10 @@ export default class MatteAceEditor {
         })
     }
 
+    setReadOnly(value: boolean) {
+        this.editor.setReadOnly(value);
+    }
+
     setDebugMode(on: boolean): void {
         this.debugBtn.hidden = on;
         this.editor.setReadOnly(on);
@@ -744,6 +762,38 @@ export default class MatteAceEditor {
             "secondary-mark",
             "text"
         ))
+    }
+
+    highlightedRange?: number = undefined
+    highlightRange(range: MatteRange) {
+        this.highlightedRange = this.editor.session.addMarker(
+            this.range2Ace(range),
+            "range-highlight",
+            "text"
+        );
+    }
+
+    highlightLine(line: number, style: string): void {
+        const row = line - 1;
+        if (!Number.isInteger(line) || row < 0 || row >= this.editor.session.getLength())
+            throw new RangeError(`Line number must be between 1 and ${this.editor.session.getLength()}`);
+
+        const AceRange = ace.require("ace/range").Range as new (
+            startRow: number,
+            startColumn: number,
+            endRow: number,
+            endColumn: number
+        ) => Ace.Range;
+        this.highlightedRange = this.editor.session.addMarker(
+            new AceRange(row, 0, row, Infinity),
+            style,
+            "fullLine"
+        );
+    }
+
+    clearHighlight() {
+        if(this.highlightedRange)
+            this.editor.session.removeMarker(this.highlightedRange);
     }
 
     markRuntimeError(e: NonNullable<EditorResult["runtimeError"]>): void {

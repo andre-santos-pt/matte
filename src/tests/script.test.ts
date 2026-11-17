@@ -246,5 +246,19 @@ describe('Matte Interpreter Test Script', () => {
                 .set("helloExc", "ola!")
             )
         });
+
+        it('comments', () => {
+           const p = script(`
+       
+        int sum = 5; // variable
+       
+        int result = sum + 10;  // This is a comment
+        `, new Map()
+                .set("sum", 5)
+                .set("result", 15)
+            )
+            console.log(p?.block?.statements)
+        });
+
     })
 })

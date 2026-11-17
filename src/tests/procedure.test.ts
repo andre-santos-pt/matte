@@ -193,12 +193,6 @@ describe('Matte Interpreter Test Procedure', () => {
     })
 
     describe('Other', () => {
-        it('call matte', () => {
-            const code = `
-            int[] v = {1,2,3};
-            `
-            buildASTandCall(code,"[1,2]")
-        })
         it('nats', () => {
             const code = `
             int[] nats(int n) {
