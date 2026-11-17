@@ -24,56 +24,22 @@
         }
 
         .control-flow-message {
-            padding: 8px;
+            padding: 2px;
             color: #687887;
             font-size: 13px;
         }
 
         .control-flow svg {
             display: block;
+            max-width: 100%;
+            height: auto;
             font-family: Arial, sans-serif;
-        }
-
-        .control-flow .cfg-edge {
-            fill: none;
-            stroke: #718494;
-            stroke-width: 1.5;
-        }
-
-        .control-flow .cfg-edge-label {
-            fill: #526879;
-            font-size: 10px;
-        }
-
-        .control-flow .cfg-node rect {
-            fill: #f5f9fc;
-            stroke: #8da1b3;
-            stroke-width: 1.5;
-        }
-
-        .control-flow .cfg-node.cfg-decision rect {
-            fill: #fff8df;
-            stroke: #c3a74d;
-        }
-
-        .control-flow .cfg-node.cfg-terminal ellipse {
-            fill: #e8f4eb;
-            stroke: #6f9c79;
-            stroke-width: 1.5;
-        }
-
-        .control-flow .cfg-node text {
-            fill: #263b4b;
-            font-size: 11px;
-            text-anchor: middle;
-        }
-
-        .control-flow .cfg-node.cfg-terminal text {
-            font-weight: bold;
         }
     </style>
 </head>
 <body>
+<script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js"></script>
 <script src="../dist/matte-web-ace.js" defer></script>
 <script>
 function controlflow_matte(editor) {
@@ -93,11 +59,8 @@ function controlflow_matte(editor) {
 
     let compilation;
     let selectedIndex = 0;
-    const nodeWidth = 100;
-    const nodeHeight = 20;
-    const horizontalGap = 60;
-    const verticalGap = 60;
-    const margin = 24;
+    let renderSequence = 0;
+    let viz;
 
     function sourceText(range) {
         if (!range)
@@ -210,240 +173,64 @@ function controlflow_matte(editor) {
 
         const bodyStart = buildStatement(body, exit, exit);
         addEdge(entry, bodyStart);
-
-        const depths = new Map();
-        let maxDepth = 0;
-        function assignDepth(start, startDepth) {
-            const queue = [start];
-            depths.set(start, startDepth);
-            while (queue.length) {
-                const from = queue.shift();
-                const nextDepth = depths.get(from) + 1;
-                maxDepth = Math.max(maxDepth, depths.get(from));
-                edges.forEach(edge => {
-                    if (edge.from === from && edge.to !== exit && !depths.has(edge.to)) {
-                        depths.set(edge.to, nextDepth);
-                        queue.push(edge.to);
-                    }
-                });
-            }
-        }
-
-        assignDepth(entry, 0);
-        nodes.filter(node => node.id !== exit).forEach(node => {
-            if (!depths.has(node.id))
-                assignDepth(node.id, maxDepth + 1);
-        });
-        depths.set(exit, maxDepth + 1);
-
-        const layers = new Map();
-        nodes.forEach(node => {
-            const depth = depths.get(node.id);
-            if (!layers.has(depth))
-                layers.set(depth, []);
-            layers.get(depth).push(node.id);
-        });
-        const maxColumns = Math.max(...Array.from(layers.values(), layer => layer.length), 1);
-        const contentWidth = margin * 2 + maxColumns * nodeWidth + (maxColumns - 1) * horizontalGap;
-        const allOutgoing = new Map();
-        const allIncoming = new Map();
-        const tracks = new Map();
-        const sourceTracks = new Map();
-        const targetTracks = new Map();
-        const sideIndices = new Map();
-        let nextSideIndex = 0;
-        function addTrack(depth, edge) {
-            const depthTracks = tracks.get(depth) ?? [];
-            const index = depthTracks.length;
-            depthTracks.push(edge);
-            tracks.set(depth, depthTracks);
-            return index;
-        }
-        edges.forEach(edge => {
-            allOutgoing.set(edge.from, [...(allOutgoing.get(edge.from) ?? []), edge]);
-            allIncoming.set(edge.to, [...(allIncoming.get(edge.to) ?? []), edge]);
-            const fromDepth = depths.get(edge.from);
-            const toDepth = depths.get(edge.to);
-            if (toDepth === fromDepth + 1) {
-                edge.route = "forward";
-                sourceTracks.set(edge, addTrack(fromDepth, edge));
-            } else {
-                edge.route = "side";
-                sideIndices.set(edge, nextSideIndex++);
-                sourceTracks.set(edge, addTrack(fromDepth, edge));
-                targetTracks.set(edge, addTrack(toDepth - 1, edge));
-            }
-        });
-        const graphDepth = Math.max(...depths.values());
-        const sideWidth = 32 + nextSideIndex * 18;
-        const width = contentWidth + sideWidth;
-        const depthY = new Map([[0, margin]]);
-        for (let depth = 0; depth < graphDepth; depth++) {
-            const gap = Math.max(verticalGap, nodeHeight + 20 + (tracks.get(depth)?.length ?? 0) * 8);
-            depthY.set(depth + 1, depthY.get(depth) + nodeHeight + gap);
-        }
-        const height = depthY.get(graphDepth) + nodeHeight + margin;
-        const trackY = new Map();
-        tracks.forEach((depthTracks, depth) => {
-            const bottom = depthY.get(depth) + nodeHeight;
-            const gap = depthY.get(depth + 1) - bottom;
-            depthTracks.forEach((edge, index) => {
-                trackY.set(`${depth}:${index}`, bottom + gap * (index + 1) / (depthTracks.length + 1));
-            });
-        });
-        const positions = new Map();
-        layers.forEach((layer, depth) => {
-            const layerWidth = layer.length * nodeWidth + (layer.length - 1) * horizontalGap;
-            const left = (contentWidth - layerWidth) / 2;
-            layer.forEach((id, column) => {
-                positions.set(id, {
-                    x: left + column * (nodeWidth + horizontalGap),
-                    y: depthY.get(depth)
-                });
-            });
-        });
-
-        return {
-            nodes, edges, positions, width, height, depths, contentWidth,
-            allOutgoing, allIncoming, sourceTracks, targetTracks, trackY, sideIndices
-        };
+        return {nodes, edges, entry, exit};
     }
 
-    function wrapText(text) {
-        const words = text.replace(/\s+/g, " ").split(" ");
-        const lines = [];
-        let line = "";
-        words.forEach(word => {
-            const candidate = line ? `${line} ${word}` : word;
-            if (candidate.length > 21 && line) {
-                lines.push(line);
-                line = word;
-            } else {
-                line = candidate;
-            }
-        });
-        if (line)
-            lines.push(line);
-        if (lines.length > 3) {
-            lines.length = 3;
-            lines[2] = lines[2].slice(0, 18) + "...";
-        }
-        return lines;
+    function escapeDot(text) {
+        return String(text).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\r?\n/g, "\\n");
     }
 
-    function renderGraph(body) {
-        const {
-            nodes, edges, positions, width, height, depths, contentWidth,
-            allOutgoing, allIncoming, sourceTracks, targetTracks, trackY, sideIndices
-        } = buildGraph(body);
-        const ns = "http://www.w3.org/2000/svg";
-        const svg = document.createElementNS(ns, "svg");
-        svg.setAttribute("width", String(width));
-        svg.setAttribute("height", String(height));
-        svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-
-        const defs = document.createElementNS(ns, "defs");
-        const marker = document.createElementNS(ns, "marker");
-        marker.setAttribute("id", "cfg-arrow");
-        marker.setAttribute("viewBox", "0 0 10 10");
-        marker.setAttribute("refX", "9");
-        marker.setAttribute("refY", "5");
-        marker.setAttribute("markerWidth", "6");
-        marker.setAttribute("markerHeight", "6");
-        marker.setAttribute("orient", "auto-start-reverse");
-        const arrow = document.createElementNS(ns, "path");
-        arrow.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
-        arrow.setAttribute("fill", "#718494");
-        marker.append(arrow);
-        defs.append(marker);
-        svg.append(defs);
-
-        edges.forEach(edge => {
-            const from = positions.get(edge.from);
-            const to = positions.get(edge.to);
-            const path = document.createElementNS(ns, "path");
-            let d;
-            let labelX;
-            let labelY;
-            if (edge.route === "forward") {
-                const outgoing = allOutgoing.get(edge.from);
-                const incoming = allIncoming.get(edge.to);
-                const x1 = from.x + nodeWidth * (outgoing.indexOf(edge) + 1) / (outgoing.length + 1);
-                const y1 = from.y + nodeHeight;
-                const x2 = to.x + nodeWidth * (incoming.indexOf(edge) + 1) / (incoming.length + 1);
-                const y2 = to.y;
-                const laneY = trackY.get(`${depths.get(edge.from)}:${sourceTracks.get(edge)}`);
-                d = `M ${x1} ${y1} L ${x1} ${laneY} L ${x2} ${laneY} L ${x2} ${y2}`;
-                labelX = (x1 + x2) / 2 + 4;
-                labelY = laneY - 3;
-            } else {
-                const outgoing = allOutgoing.get(edge.from);
-                const incoming = allIncoming.get(edge.to);
-                const x1 = from.x + nodeWidth * (outgoing.indexOf(edge) + 1) / (outgoing.length + 1);
-                const y1 = from.y + nodeHeight;
-                const x2 = to.x + nodeWidth * (incoming.indexOf(edge) + 1) / (incoming.length + 1);
-                const y2 = to.y;
-                const routeX = contentWidth - margin + 8 + sideIndices.get(edge) * 14;
-                const sourceLaneY = trackY.get(`${depths.get(edge.from)}:${sourceTracks.get(edge)}`);
-                const targetLaneY = trackY.get(`${depths.get(edge.to) - 1}:${targetTracks.get(edge)}`);
-                d = `M ${x1} ${y1} L ${x1} ${sourceLaneY} L ${routeX} ${sourceLaneY}` +
-                    ` L ${routeX} ${targetLaneY} L ${x2} ${targetLaneY} L ${x2} ${y2}`;
-                labelX = routeX + 4;
-                labelY = (sourceLaneY + targetLaneY) / 2 - 4;
-            }
-            path.setAttribute("d", d);
-            path.setAttribute("class", "cfg-edge");
-            path.setAttribute("marker-end", "url(#cfg-arrow)");
-            svg.append(path);
-
-            if (edge.label) {
-                const edgeLabel = document.createElementNS(ns, "text");
-                edgeLabel.setAttribute("x", String(labelX));
-                edgeLabel.setAttribute("y", String(labelY));
-                edgeLabel.setAttribute("class", "cfg-edge-label");
-                edgeLabel.textContent = edge.label;
-                svg.append(edgeLabel);
-            }
-        });
-
+    function renderGraph(body, message) {
+        const sequence = ++renderSequence;
+        const {nodes, edges, entry, exit} = buildGraph(body);
+        const lines = [
+            "digraph ControlFlow {",
+            '  graph [rankdir=TB, ranksep=0.45, nodesep=0.3, splines=ortho, bgcolor="transparent"];',
+            '  node [fontname="Arial", fontsize=10, margin="0.06,0.01", style=filled, color="#8da1b3", fillcolor="#f5f9fc"];',
+            '  edge [fontname="Arial", fontsize=9, color="#718494", fontcolor="#526879", arrowsize=0.7];'
+        ];
         nodes.forEach(node => {
-            const position = positions.get(node.id);
-            const group = document.createElementNS(ns, "g");
-            group.setAttribute("class", `cfg-node cfg-${node.kind}`);
-            const title = document.createElementNS(ns, "title");
-            title.textContent = node.text;
-            group.append(title);
-            if (node.kind === "terminal") {
-                const shape = document.createElementNS(ns, "ellipse");
-                shape.setAttribute("cx", String(position.x + nodeWidth / 2));
-                shape.setAttribute("cy", String(position.y + nodeHeight / 2));
-                shape.setAttribute("rx", String(nodeWidth / 2));
-                shape.setAttribute("ry", String(nodeHeight / 2));
-                group.append(shape);
-            } else {
-                const shape = document.createElementNS(ns, "rect");
-                shape.setAttribute("x", String(position.x));
-                shape.setAttribute("y", String(position.y));
-                shape.setAttribute("width", String(nodeWidth));
-                shape.setAttribute("height", String(nodeHeight));
-                shape.setAttribute("rx", "5");
-                group.append(shape);
-            }
-            const text = document.createElementNS(ns, "text");
-            const lines = wrapText(node.text);
-            const firstY = position.y + nodeHeight / 2 - ((lines.length - 1) * 6);
-            lines.forEach((line, index) => {
-                const tspan = document.createElementNS(ns, "tspan");
-                tspan.setAttribute("x", String(position.x + nodeWidth / 2));
-                tspan.setAttribute("y", String(firstY + index * 12));
-                tspan.textContent = line;
-                text.append(tspan);
-            });
-            group.append(text);
-            svg.append(group);
+            const shape = node.kind === "terminal" ? "oval" : "box";
+            const fill = node.kind === "terminal" ? "#e8f4eb" :
+                node.kind === "decision" ? "#fff8df" : "#f5f9fc";
+            lines.push(`  n${node.id} [label="${escapeDot(node.text)}", shape=${shape}, fillcolor="${fill}"];`);
         });
+        lines.push(`  { rank=source; n${entry}; }`);
+        lines.push(`  { rank=sink; n${exit}; }`);
+        edges.forEach(edge => {
+            const label = edge.label ? ` [xlabel="${escapeDot(edge.label)}"]` : "";
+            lines.push(`  n${edge.from} -> n${edge.to}${label};`);
+        });
+        lines.push("}");
+        graph.textContent = "Rendering control-flow graph...";
 
-        graph.replaceChildren(svg);
+        if (typeof Viz !== "function") {
+            graph.textContent = "Graphviz failed to load; check the network connection and reload.";
+            console.error("Control-flow graph requires Viz.js and its full.render.js renderer.");
+            return;
+        }
+
+        viz ??= new Viz();
+        viz.renderSVGElement(lines.join("\n"))
+            .then(svg => {
+                if (sequence !== renderSequence)
+                    return;
+                svg.classList.add("control-flow-svg");
+                graph.replaceChildren();
+                if (message) {
+                    const status = document.createElement("div");
+                    status.className = "control-flow-message";
+                    status.textContent = message;
+                    graph.append(status);
+                }
+                graph.append(svg);
+            })
+            .catch(error => {
+                if (sequence !== renderSequence)
+                    return;
+                graph.textContent = "Unable to render the control-flow graph.";
+                console.error("Control-flow graph rendering failed:", error);
+            });
     }
 
     function update() {
@@ -453,13 +240,12 @@ function controlflow_matte(editor) {
             const option = document.createElement("option");
             option.textContent = "(script)";
             select.append(option);
-            const message = document.createElement("div");
-            message.className = "control-flow-message";
-            message.textContent = compilation
-                ? "Fix the compilation error to display the control-flow graph."
-                : "Waiting for compilation.";
-            renderGraph({statements: []});
-            graph.prepend(message);
+            renderGraph(
+                {statements: []},
+                compilation
+                    ? "Fix the compilation error to display the control-flow graph."
+                    : "Waiting for compilation."
+            );
             return;
         }
 
@@ -468,7 +254,7 @@ function controlflow_matte(editor) {
             const option = document.createElement("option");
             option.textContent = "(no executable code)";
             select.append(option);
-            renderGraph({statements: []});
+            renderGraph({statements: []}, "No executable code.");
             return;
         }
 
