@@ -36,20 +36,24 @@ for( int i = 0; i != n; i++)
             data[index + 3] = 255;   // Alpha
         }
 
-        editor.addExtensionProcedure("dot", args => {
-            pixelChanges.push({x:args[0], y:args[1]})
-            return {
-                evaluation: undefined,
-                materialization: undefined,
-                extension: "dot"
-            };
-        });
+        editor.addExtensionProcedure(
+            new Matte.ExtensionProcedure(
+                args => {
+                    pixelChanges.push({x:args[0], y:args[1]})
+                    return {
+                        evaluation: undefined,
+                        materialization: undefined,
+                        extension: "dot"
+                    }
+                }, Matte.PrimitiveType.VOID, "dot")
+        );
+
         editor.beforeRunListeners.push(() => {
             pixelChanges = [];
         });
         editor.afterRunListeners.push(() => {
             imageData = ctx.createImageData(canvas.width, canvas.height);
-            pixelChanges.forEach(p => setBlack(p.x, p.y))
+            pixelChanges.forEach(p => setBlack(p.x.evaluation, p.y.evaluation));
             ctx.putImageData(imageData, 0, 0);
         });
         editor.stepListeners.push((trace, index) => {
