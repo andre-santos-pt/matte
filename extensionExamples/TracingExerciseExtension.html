@@ -11,12 +11,65 @@
 <h1>Tracing</h1>
 Extension to perform tracing exercises on scripts. Upon execution, the user inserts the sequence of variable values, which are checked against the trace.
 
-<matte-ace call="" tracing>
+<matte-ace call="" tracing title="My first tracing">
 int i;
 i = 1;
 int j = i;
 i = j * 2;
 i = i * 3;
+</matte-ace>
+
+<matte-ace call="" tracing vars="i">
+int j = 0;
+int i = 1;
+while(i < 5) {
+    i++;
+}
+j = 1;
+</matte-ace>
+
+<matte-ace call="count(5, 10)" tracing>
+int count(int min, int max) {
+    int i = min;
+    int c = 0;
+    while(i <= max) {
+        i++;
+        c++;
+    }
+    return c;
+}
+</matte-ace>
+
+<matte-ace call="count(5, 10)" tracing firstValues>
+int count(int min, int max) {
+    int i = min;
+    int c = 0;
+    while(i <= max) {
+        i++;
+        c++;
+    }
+    return c;
+}
+</matte-ace>
+
+<matte-ace call="count(5, 10)" tracing lastValues>
+int count(int min, int max) {
+    int i = min;
+    int c = 0;
+    while(i <= max) {
+        i++;
+        c++;
+    }
+    return c;
+}
+</matte-ace>
+
+<matte-ace call="iteration(0, 5)" tracing>
+void iteration(int min, int max) {
+    int i = min;
+    while(i < max)
+        i++;
+}
 </matte-ace>
 
 </body>
