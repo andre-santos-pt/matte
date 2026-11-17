@@ -23,24 +23,9 @@ export enum StaticErrorType {
     FieldNotFound = "FIELD_NOT_FOUND",
 }
 
-export class Program {
-    block?: BlockStatement;
-    procedures: Procedure[] = [];
-    typeDeclarations: TypeDeclaration[] = [];
-
-    accept(visitor: ASTVisitor): void {
-        visitor.visit(this);
-    }
-
-    constructor(block?: BlockStatement, procedures: Procedure[] = [], typeDeclarations: TypeDeclaration[] = []) {
-        this.block = block;
-        this.procedures = procedures;
-        this.typeDeclarations = typeDeclarations;
-    }
-}
-
 export abstract class ASTNode {
     range?: Range;
+    parent?: ASTNode;
 
     constructor(range?: Range) {
         this.range = range;
@@ -48,6 +33,19 @@ export abstract class ASTNode {
 
     accept(visitor: ASTVisitor): void {
         visitor.visit(this);
+    }
+}
+
+export class Program extends ASTNode {
+    block?: BlockStatement;
+    procedures: Procedure[] = [];
+    typeDeclarations: TypeDeclaration[] = [];
+
+    constructor(block?: BlockStatement, procedures: Procedure[] = [], typeDeclarations: TypeDeclaration[] = []) {
+        super();
+        this.block = block;
+        this.procedures = procedures;
+        this.typeDeclarations = typeDeclarations;
     }
 }
 
@@ -145,21 +143,18 @@ export function typeCompatibleWith(a: Type | undefined, b: Type | undefined): bo
 }
 
 
-export class TypeDeclaration {
+export class TypeDeclaration extends ASTNode {
     name: string;
     nameRange: Range;
     isRecord: boolean;
     fields: Declaration[];
 
     constructor(name: string, nameRange: Range, isRecord: boolean, fields: Declaration[]) {
+        super();
         this.name = name;
         this.nameRange = nameRange;
         this.isRecord = isRecord;
         this.fields = fields;
-    }
-
-    accept(visitor: ASTVisitor): void {
-        visitor.visit(this);
     }
 
     toString(): string {
@@ -1069,4 +1064,23 @@ export class ASTVisitor {
     visitFieldAccessExpression(expression: FieldAccessExpression): void {
         this.visitExpression(expression);
     }
+}
+
+export function setASTParents(root: ASTNode): void {
+    class ParentVisitor extends ASTVisitor {
+        private currentParent?: ASTNode;
+
+        override visit(node: ASTNode): void {
+            const previousParent = this.currentParent;
+            node.parent = previousParent;
+            this.currentParent = node;
+            try {
+                super.visit(node);
+            } finally {
+                this.currentParent = previousParent;
+            }
+        }
+    }
+
+    new ParentVisitor().visit(root);
 }

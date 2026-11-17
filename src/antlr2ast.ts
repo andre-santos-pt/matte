@@ -71,6 +71,7 @@ import {
     StaticError,
     StaticErrorType,
     StringLiteral,
+    setASTParents,
     Type,
     typeCompatibleWith,
     TypeDeclaration,
@@ -140,7 +141,9 @@ export function buildAST(source: string) {
     let unit = parser.unit()
     errorListener.checkErrors()
     const visitor = new TreeVisitor(tokens)
-    return  visitor.visitUnit(unit)
+    const program = visitor.visitUnit(unit)
+    setASTParents(program)
+    return program
 }
 
 export function getJavaCode(program: Program): string {
@@ -310,6 +313,7 @@ export function buildASTandCall(source: string, call: string): [Program, Express
     let callCtx = parser2.expLiteral();
 
     const program = visitor.visitUnit(unitCtx)
+    setASTParents(program)
 
     visitor.tokenStream = tokens2
     try {
@@ -324,6 +328,7 @@ export function buildASTandCall(source: string, call: string): [Program, Express
                 callError: "Not a valid call",
                 program: program,
             }
+        setASTParents(exp)
         exp.setLoose()
         return [program, exp]
     } catch (e: any) {

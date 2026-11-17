@@ -2,6 +2,7 @@ import {
     ASTVisitor,
     ArithmeticExpression,
     BlockStatement,
+    CallExpression,
     Declaration,
     IntLiteral,
     PrimitiveType,
@@ -14,9 +15,37 @@ import {
     WhileStatement, Assignment
 } from "../ast";
 import Range from "../Range";
-import {buildAST} from "../antlr2ast";
+import {buildAST, buildASTandCall} from "../antlr2ast";
 
 describe("ASTVisitor", () => {
+    it("sets parent links while translating source into an AST", () => {
+        const program = buildAST("int sum(int value) { return value + 1; }");
+        const procedure = program.procedures[0];
+        const parameter = procedure.parameters[0];
+        const body = procedure.body!;
+        const statement = body.statements[0] as ReturnStatement;
+        const expression = statement.expression as ArithmeticExpression;
+
+        expect(program.parent).toBeUndefined();
+        expect(procedure.parent).toBe(program);
+        expect(parameter.parent).toBe(procedure);
+        expect(body.parent).toBe(procedure);
+        expect(statement.parent).toBe(body);
+        expect(expression.parent).toBe(statement);
+        expect(expression.left.parent).toBe(expression);
+        expect(expression.right.parent).toBe(expression);
+    });
+
+    it("sets parent links for calls translated separately from the program", () => {
+        const [program, call] = buildASTandCall("int sum(int value) { return value; }", "sum(1)");
+
+        expect(program.procedures[0].parent).toBe(program);
+        expect(call.parent).toBeUndefined();
+        if (!(call instanceof CallExpression))
+            throw new Error("Expected a call expression");
+        expect(call.args[0].parent).toBe(call);
+    });
+
     it("visits while and if statements in a function parsed from source", () => {
         const program = buildAST(`
             int count(int n) {
