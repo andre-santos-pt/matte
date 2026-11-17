@@ -28,6 +28,10 @@ export class Program {
     procedures: Procedure[] = [];
     typeDeclarations: TypeDeclaration[] = [];
 
+    accept(visitor: ASTVisitor): void {
+        visitor.visit(this);
+    }
+
     constructor(block?: BlockStatement, procedures: Procedure[] = [], typeDeclarations: TypeDeclaration[] = []) {
         this.block = block;
         this.procedures = procedures;
@@ -40,6 +44,10 @@ export abstract class ASTNode {
 
     constructor(range?: Range) {
         this.range = range;
+    }
+
+    accept(visitor: ASTVisitor): void {
+        visitor.visit(this);
     }
 }
 
@@ -150,6 +158,10 @@ export class TypeDeclaration {
         this.fields = fields;
     }
 
+    accept(visitor: ASTVisitor): void {
+        visitor.visit(this);
+    }
+
     toString(): string {
         return this.name;
     }
@@ -180,7 +192,9 @@ export class ForeignType {
     }
 }
 
-export abstract class Statement extends ASTNode { }
+export abstract class Statement extends ASTNode {
+    comment?: string;
+}
 
 export class Declaration extends Statement {
     name: string;
@@ -847,5 +861,212 @@ export class FieldAccessExpression extends Expression {
 
     getChildren(): Expression[] {
         return [this.target]
+    }
+}
+
+export class ASTVisitor {
+    visit(node: Program | ASTNode | TypeDeclaration): void {
+        if (node instanceof Program)
+            this.visitProgram(node);
+        else if (node instanceof Procedure)
+            this.visitProcedure(node);
+        else if (node instanceof TypeDeclaration)
+            this.visitTypeDeclaration(node);
+        else if (node instanceof Declaration)
+            this.visitDeclaration(node);
+        else if (node instanceof Assignment)
+            this.visitAssignment(node);
+        else if (node instanceof ArrayAssignment)
+            this.visitArrayAssignment(node);
+        else if (node instanceof BlockStatement)
+            this.visitBlockStatement(node);
+        else if (node instanceof IfStatement)
+            this.visitIfStatement(node);
+        else if (node instanceof WhileStatement)
+            this.visitWhileStatement(node);
+        else if (node instanceof BreakStatement)
+            this.visitBreakStatement(node);
+        else if (node instanceof ReturnStatement)
+            this.visitReturnStatement(node);
+        else if (node instanceof CallStatement)
+            this.visitCallStatement(node);
+        else if (node instanceof IntLiteral)
+            this.visitIntLiteral(node);
+        else if (node instanceof DoubleLiteral)
+            this.visitDoubleLiteral(node);
+        else if (node instanceof BooleanLiteral)
+            this.visitBooleanLiteral(node);
+        else if (node instanceof StringLiteral)
+            this.visitStringLiteral(node);
+        else if (node instanceof NullLiteral)
+            this.visitNullLiteral(node);
+        else if (node instanceof Variable)
+            this.visitVariable(node);
+        else if (node instanceof ConditionalExpression)
+            this.visitConditionalExpression(node);
+        else if (node instanceof UnaryExpression)
+            this.visitUnaryExpression(node);
+        else if (node instanceof ArithmeticExpression)
+            this.visitArithmeticExpression(node);
+        else if (node instanceof RelationalExpression)
+            this.visitRelationalExpression(node);
+        else if (node instanceof LogicalExpression)
+            this.visitLogicalExpression(node);
+        else if (node instanceof ArrayLiteralExpression)
+            this.visitArrayLiteralExpression(node);
+        else if (node instanceof ArrayAllocationExpression)
+            this.visitArrayAllocationExpression(node);
+        else if (node instanceof ArrayElementExpression)
+            this.visitArrayElementExpression(node);
+        else if (node instanceof CallExpression)
+            this.visitCallExpression(node);
+        else if (node instanceof UnboundCallExpression)
+            this.visitUnboundCallExpression(node);
+        else if (node instanceof NewObjectExpression)
+            this.visitNewObjectExpression(node);
+        else if (node instanceof UnboundNewObjectExpression)
+            this.visitUnboundNewObjectExpression(node);
+        else if (node instanceof FieldAccessExpression)
+            this.visitFieldAccessExpression(node);
+        else
+            this.visitASTNode(node);
+    }
+
+    visitProgram(program: Program): void {
+        program.block?.accept(this);
+        program.procedures.forEach(procedure => procedure.accept(this));
+        program.typeDeclarations.forEach(typeDeclaration => typeDeclaration.accept(this));
+    }
+
+    visitASTNode(_node: ASTNode): void {}
+
+    visitProcedure(procedure: Procedure): void {
+        procedure.parameters.forEach(parameter => parameter.accept(this));
+        procedure.body?.accept(this);
+    }
+
+    visitTypeDeclaration(typeDeclaration: TypeDeclaration): void {
+        typeDeclaration.fields.forEach(field => field.accept(this));
+    }
+
+    visitDeclaration(declaration: Declaration): void {
+        declaration.initializer?.accept(this);
+    }
+
+    visitAssignment(assignment: Assignment): void {
+        assignment.expression.accept(this);
+    }
+
+    visitArrayAssignment(assignment: ArrayAssignment): void {
+        assignment.target.accept(this);
+        assignment.index.accept(this);
+        assignment.expression.accept(this);
+    }
+
+    visitBlockStatement(block: BlockStatement): void {
+        block.statements.forEach(statement => statement.accept(this));
+    }
+
+    visitIfStatement(statement: IfStatement): void {
+        statement.guard.accept(this);
+        statement.thenBranch.accept(this);
+        statement.elseBranch?.accept(this);
+    }
+
+    visitWhileStatement(statement: WhileStatement): void {
+        statement.guard.accept(this);
+        statement.body.accept(this);
+    }
+
+    visitBreakStatement(_statement: BreakStatement): void {}
+
+    visitReturnStatement(statement: ReturnStatement): void {
+        statement.expression?.accept(this);
+    }
+
+    visitCallStatement(statement: CallStatement): void {
+        statement.expression.accept(this);
+    }
+
+    visitExpression(expression: Expression): void {
+        expression.getChildren().forEach(child => child.accept(this));
+    }
+
+    visitIntLiteral(expression: IntLiteral): void {
+        this.visitExpression(expression);
+    }
+
+    visitDoubleLiteral(expression: DoubleLiteral): void {
+        this.visitExpression(expression);
+    }
+
+    visitBooleanLiteral(expression: BooleanLiteral): void {
+        this.visitExpression(expression);
+    }
+
+    visitStringLiteral(expression: StringLiteral): void {
+        this.visitExpression(expression);
+    }
+
+    visitNullLiteral(expression: NullLiteral): void {
+        this.visitExpression(expression);
+    }
+
+    visitVariable(expression: Variable): void {
+        this.visitExpression(expression);
+    }
+
+    visitConditionalExpression(expression: ConditionalExpression): void {
+        expression.condition.accept(this);
+        expression.trueCase.accept(this);
+        expression.falseCase.accept(this);
+    }
+
+    visitUnaryExpression(expression: UnaryExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitArithmeticExpression(expression: ArithmeticExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitRelationalExpression(expression: RelationalExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitLogicalExpression(expression: LogicalExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitArrayLiteralExpression(expression: ArrayLiteralExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitArrayAllocationExpression(expression: ArrayAllocationExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitArrayElementExpression(expression: ArrayElementExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitCallExpression(expression: CallExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitUnboundCallExpression(expression: UnboundCallExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitNewObjectExpression(expression: NewObjectExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitUnboundNewObjectExpression(expression: UnboundNewObjectExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitFieldAccessExpression(expression: FieldAccessExpression): void {
+        this.visitExpression(expression);
     }
 }
