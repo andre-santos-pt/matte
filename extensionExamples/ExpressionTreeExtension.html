@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Expression tree</title>
+    <style>
+        .expression-tree {
+            overflow: auto;
+            padding: 8px;
+            font-family: Arial, sans-serif;
+        }
+
+        .expression-tree ul {
+            display: flex;
+            justify-content: center;
+            position: relative;
+            margin: 0;
+            padding: 12px 0 0;
+        }
+
+        .expression-tree li {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            list-style: none;
+            padding: 10px 4px 0;
+            text-align: center;
+        }
+
+        .expression-tree li::before,
+        .expression-tree li::after {
+            position: absolute;
+            top: 0;
+            right: 50%;
+            width: 50%;
+            height: 10px;
+            border-top: 1px solid #9aa8b5;
+            content: "";
+        }
+
+        .expression-tree li::after {
+            right: auto;
+            left: 50%;
+            border-left: 1px solid #9aa8b5;
+        }
+
+        .expression-tree li:only-child::before,
+        .expression-tree li:only-child::after {
+            display: none;
+        }
+
+        .expression-tree li:only-child {
+            padding-top: 0;
+        }
+
+        .expression-tree li:first-child::before,
+        .expression-tree li:last-child::after {
+            border: 0;
+        }
+
+        .expression-tree li:last-child::before {
+            border-right: 1px solid #9aa8b5;
+            border-radius: 0 5px 0 0;
+        }
+
+        .expression-tree li:first-child::after {
+            border-radius: 5px 0 0 0;
+        }
+
+        .expression-tree ul::before {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            height: 12px;
+            border-left: 1px solid #9aa8b5;
+            content: "";
+        }
+
+        .expression-tree > ul {
+            padding-top: 0;
+        }
+
+        .expression-tree > ul::before {
+            display: none;
+        }
+
+        .expression-tree .expression-node {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            max-width: 180px;
+            padding: 5px 1px;
+            border: 1px solid #8da1b3;
+            border-radius: 2px;
+            background: #f5f9fc;
+            box-shadow: 0 2px 4px rgba(30, 55, 75, 0.12);
+        }
+
+        .expression-tree .expression-operator {
+            color: #35556f;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        .expression-tree .expression-operand {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 4px 6px;
+            border: 1px solid #c5ced6;
+            border-radius: 4px;
+            background: #fff;
+            overflow-wrap: anywhere;
+            font-family: monospace;
+            font-size: 11px;
+        }
+
+        .expression-tree .expression-type {
+            color: #687887;
+            font-size: 10px;
+        }
+
+        .expression-tree .expression-empty {
+            color: #687887;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+<script src="../dist/matte-web-ace.js" defer></script>
+<script>
+function expressiontree_matte(editor) {
+    const div = document.createElement("div");
+    div.className = "expression-tree";
+
+    let expressions = [];
+
+    function isOperation(expression) {
+        const children = expression.getChildren();
+        return typeof expression.operator === "string" &&
+            (children.length === 1 || children.length === 2);
+    }
+
+    function collectExpressions(node, visited = new WeakSet()) {
+        if (!node || typeof node !== "object" || visited.has(node))
+            return;
+        visited.add(node);
+
+        if (typeof node.getChildren === "function" && node.range) {
+            if (isOperation(node))
+                expressions.push(node);
+            node.getChildren().forEach(child => collectExpressions(child, visited));
+            return;
+        }
+
+        if (Array.isArray(node)) {
+            node.forEach(child => collectExpressions(child, visited));
+            return;
+        }
+
+        Object.entries(node).forEach(([key, value]) => {
+            if (key !== "parent" && key !== "type")
+                collectExpressions(value, visited);
+        });
+    }
+
+    function makeTree(expression) {
+        const li = document.createElement("li");
+        const range = expression.range;
+        const text = range?.text ?? (range ? editor.getValue().slice(range.start, range.end) : "?");
+        const node = document.createElement("div");
+        node.className = "expression-node";
+        const operator = document.createElement("span");
+        operator.className = "expression-operator";
+        operator.textContent = expression.operator;
+        node.append(operator);
+        if (expression.type != null) {
+            const type = document.createElement("span");
+            type.className = "expression-type";
+            type.textContent = String(expression.type);
+            node.append(type);
+        }
+        li.append(node);
+
+        const children = expression.getChildren();
+        if (children.length) {
+            const ul = document.createElement("ul");
+            children.forEach(child => {
+                if (isOperation(child)) {
+                    ul.append(makeTree(child));
+                } else {
+                    const operand = document.createElement("li");
+                    const label = document.createElement("span");
+                    label.className = "expression-operand";
+                    const childRange = child.range;
+                    const value = document.createElement("span");
+                    value.textContent = childRange?.text ??
+                        (childRange ? editor.getValue().slice(childRange.start, childRange.end) : text);
+                    label.append(value);
+                    if (child.type != null) {
+                        const type = document.createElement("span");
+                        type.className = "expression-type";
+                        type.textContent = String(child.type);
+                        label.append(type);
+                    }
+                    operand.append(label);
+                    ul.append(operand);
+                }
+            });
+            li.append(ul);
+        }
+        return li;
+    }
+
+    function update() {
+        div.replaceChildren();
+
+        const selection = editor.editor.getSelectionRange();
+        const cursor = editor.editor.selection.isEmpty();
+        const start = editor.editor.session.doc.positionToIndex(selection.start);
+        const end = editor.editor.session.doc.positionToIndex(selection.end);
+        const selected = expressions
+            .filter(expression => expression.range &&
+                (cursor
+                    ? expression.range.start <= start && start <= expression.range.end
+                    : expression.range.start <= start && expression.range.end >= end))
+            .sort((a, b) => a.range.length - b.range.length)[0];
+
+        if (!selected) {
+            div.classList.add("expression-empty");
+            div.textContent = "Place the cursor in a unary or binary operation.";
+            return;
+        }
+
+        div.classList.remove("expression-empty");
+        const ul = document.createElement("ul");
+        ul.append(makeTree(selected));
+        div.append(ul);
+    }
+
+    editor.compilationListeners.push(compilation => {
+        expressions = [];
+        if (!("type" in compilation))
+            collectExpressions(compilation);
+        update();
+    });
+
+    editor.editor.selection.on("changeCursor", update);
+    editor.editor.selection.on("changeSelection", update);
+
+    let compileTimeout;
+    editor.editor.session.on("change", () => {
+        expressions = [];
+        update();
+        window.clearTimeout(compileTimeout);
+        compileTimeout = window.setTimeout(() => editor.checkCompilation(), 200);
+    });
+
+    editor.checkCompilation();
+    return div;
+}
+</script>
+Displays unary and binary operations at the current cursor position or for the selected expression.
+
+<matte-ace call="" expressiontree>
+int sum(int[] values) {
+    return values[0] + values[1] * 2;
+}
+</matte-ace>
+</body>
+</html>

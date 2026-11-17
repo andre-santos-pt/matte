@@ -166,6 +166,7 @@ export default class MatteAceEditor {
     beforeRunListeners: Array<() => void> = [];
     afterRunListeners: Array<(result: EditorResult) => void> = [];
     stepListeners: Array<(trace: TraceEntry[], index: number) => void> = [];
+    compilationListeners: Array<(compilation: Program | StaticError) => void> = [];
     showCompilationHints = true;
     showVariableMaterialization = true;
     maxLoopIterations: number | undefined = 100;
@@ -603,6 +604,7 @@ export default class MatteAceEditor {
 
         const compilation = compile(code);
         this.lastCompilationSource = code;
+        this.compilationListeners.forEach(listener => listener(compilation));
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();
 
