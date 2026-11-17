@@ -7,7 +7,7 @@ import {
 import {
     ExtensionProcedure,
     ExtensionType,
-    Interpreter,
+    Interpreter, InterpreterResult,
     TraceEntry
 } from "./Interpreter";
 import type {Ace} from "ace-builds";
@@ -625,6 +625,10 @@ export default class MatteAceEditor {
         this.afterRunListeners.forEach(l => l(result));
     }
 
+    runParserStandalone(call: string): InterpreterResult {
+        let src = this.getCodeToCompile()
+        return this.createInterpreter().parseAndRun(src, call === "" ? undefined : call);
+    }
 
     step(index: number, cumulative = false): void {
         const lastIndex = this.trace.length - 1;

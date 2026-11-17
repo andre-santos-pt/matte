@@ -42,7 +42,7 @@ import {buildAST, buildASTandCall} from "./antlr2ast";
 import {last} from "./utils";
 
 
-interface InterpreterResult {
+export interface InterpreterResult {
     callError: string | undefined;
     error: StaticError | undefined;
     runtimeError: RuntimeError | undefined;
@@ -64,7 +64,7 @@ export interface TraceEntry {
     error?: RuntimeError
 }
 
-interface RuntimeError {
+export interface RuntimeError {
     type: RuntimeErrorType;
     message: string;
     range?: Range;

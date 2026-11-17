@@ -175,7 +175,9 @@ function initializeMatteAce(element) {
     const div = document.createElement("div");
     div.id = element.getAttribute('id');
     div.style = 'display: block;';
-    div.innerHTML = element.innerHTML.startsWith("\n") ? element.innerHTML.substring(1) : element.innerHTML;
+    const childTags = Array.from(element.children);
+    Array.from(element.children).forEach(c => c.remove());
+    div.innerHTML = (element.innerHTML.startsWith("\n") ? element.innerHTML.substring(1) : element.innerHTML).trim();
     element.innerHTML = '';
     element.append(div);
     let call = element.getAttribute("call");
@@ -189,7 +191,7 @@ function initializeMatteAce(element) {
     Array.from(element.attributes).filter(attr => attr.value === '').reverse().forEach(attr => {
         const extName = attr.name + "_matte";
         if (window[extName]) {
-            const extDiv = window[extName].call(element, editor);
+            const extDiv = window[extName].call(element, editor, childTags);
             if(extDiv instanceof HTMLDivElement) {
                 const div = document.createElement("div")
                 div.style.border = "1px solid gray";

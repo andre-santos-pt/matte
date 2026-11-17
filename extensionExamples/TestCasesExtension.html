@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+    <title>Demo tracing exercise</title>
+
+</head>
+<body>
+<script src="../dist/matte-web-ace.js" defer></script>
+<script src="./testcases-matte.js"></script>
+
+<h1>Test cases checks</h1>
+The exercise defines a set of test cases to be checked.
+
+<matte-ace call="" test="" testcases>
+int[] createArray(int n) {
+    return new int[n];
+}
+
+int next(int n) {
+    return n + 1;
+}
+    <test call="createArray(1)">[0]</test>
+    <test call="createArray(2)">[0,0]</test>
+    <test call="next(2)">3</test>
+    <test call="next(1)">2</test>
+</matte-ace>
+
+</body>
+</html>
