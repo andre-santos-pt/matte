@@ -165,7 +165,9 @@
 <p>Run the program, then use the debugger controls to step through the stack and heap.</p>
 <matte-ace call="create(2)" stackheap>
 int[] create(int n) {
-    int[] values = new int[n];
+    int[] values = null;
+    values = new int[n];
+    int[] ref = values;
     fill(values, n);
     return values;
 }
@@ -260,28 +262,59 @@ function stackheap_matte(editor) {
         }));
         frames[frames.length - 1].variables = current.stack?.variables ?? new Map();
 
-        const objectIds = new WeakMap();
+        const objectIdsByUuid = new Map();
+        const objectIdsByReference = new WeakMap();
+        const pendingObjectsByUuid = new Map();
         const pendingObjects = [];
         let nextObjectId = 1;
 
-        function targetFor(value) {
-            if (!objectIds.has(value)) {
+        function targetFor(value, uuid, frameIndex) {
+            let objectId;
+            if (uuid != null) {
+                objectId = objectIdsByUuid.get(uuid);
+                const pending = pendingObjectsByUuid.get(uuid);
+                if (pending && frameIndex >= pending.frameIndex) {
+                    pending.value = value;
+                    pending.frameIndex = frameIndex;
+                }
+            } else if (value !== null && typeof value === "object") {
+                objectId = objectIdsByReference.get(value);
+            }
+
+            if (!objectId) {
                 const id = "stack-heap-object-" + nextObjectId++;
-                objectIds.set(value, id);
-                pendingObjects.push(value);
+                objectId = id;
+                if (uuid != null)
+                    objectIdsByUuid.set(uuid, id);
+                else if (value !== null && typeof value === "object")
+                    objectIdsByReference.set(value, id);
+                const pending = {value, uuid, frameIndex};
+                pendingObjects.push(pending);
+                if (uuid != null)
+                    pendingObjectsByUuid.set(uuid, pending);
             }
             const pointer = document.createElement("span");
             pointer.className = "stack-heap-pointer";
-            pointer.dataset.target = objectIds.get(value);
+            pointer.dataset.target = objectId;
             pointer.setAttribute("aria-label", "Reference to heap object");
             return pointer;
         }
 
-        function appendValue(parent, value) {
-            if (value !== null && typeof value === "object")
-                parent.append(targetFor(value));
+        function unwrapValue(value) {
+            if (value !== null && typeof value === "object" &&
+                !Array.isArray(value) && "evaluation" in value)
+                return {value: value.evaluation, uuid: value.uuid};
+            return {value, uuid: undefined};
+        }
+
+        function appendValue(parent, value, uuid, frameIndex) {
+            const unwrapped = unwrapValue(value);
+            const resolvedValue = unwrapped.value;
+            const resolvedUuid = uuid ?? unwrapped.uuid;
+            if (resolvedValue !== null && typeof resolvedValue === "object")
+                parent.append(targetFor(resolvedValue, resolvedUuid, frameIndex));
             else
-                parent.append(document.createTextNode(displayValue(value)));
+                parent.append(document.createTextNode(displayValue(resolvedValue)));
         }
 
         function drawReferences() {
@@ -317,7 +350,7 @@ function stackheap_matte(editor) {
         heapView.replaceChildren();
         connectors.replaceChildren(definitions);
 
-        for (const {entry, variables} of frames) {
+        for (const [frameIndex, {entry, variables}] of frames.entries()) {
             const frame = document.createElement("section");
             frame.className = "stack-heap-frame";
             frame.append(element("stack-heap-frame-title", entry.materialization || "Stack frame"));
@@ -332,7 +365,7 @@ function stackheap_matte(editor) {
                 variableName.textContent = name;
                 const valueBox = document.createElement("span");
                 valueBox.className = "stack-heap-value";
-                appendValue(valueBox, variable?.evaluation);
+                appendValue(valueBox, variable?.evaluation, variable?.uuid, frameIndex);
                 item.append(variableName, valueBox);
                 variableList.append(item);
             }
@@ -343,11 +376,14 @@ function stackheap_matte(editor) {
         }
 
         while (pendingObjects.length > 0) {
-            const object = pendingObjects.shift();
+            const pending = pendingObjects.shift();
+            const object = pending.value;
             const isArray = Array.isArray(object);
             const card = document.createElement("section");
             card.className = "stack-heap-object";
-            card.id = objectIds.get(object);
+            card.id = pending.uuid != null
+                ? objectIdsByUuid.get(pending.uuid)
+                : objectIdsByReference.get(object);
 
             if (isArray) {
                 const array = document.createElement("div");
@@ -357,7 +393,7 @@ function stackheap_matte(editor) {
                     item.className = "stack-heap-array-item";
                     const cell = document.createElement("div");
                     cell.className = "stack-heap-array-cell";
-                    appendValue(cell, value);
+                    appendValue(cell, value, undefined, pending.frameIndex);
                     item.append(cell, element("stack-heap-array-index", String(arrayIndex)));
                     array.append(item);
                 });
@@ -374,7 +410,7 @@ function stackheap_matte(editor) {
                     fieldName.className = "stack-heap-name";
                     fieldName.textContent = name + " = ";
                     field.append(fieldName);
-                    appendValue(field, value);
+                    appendValue(field, value, undefined, pending.frameIndex);
                     fields.append(field);
                 }
                 if (fields.childElementCount === 0)
