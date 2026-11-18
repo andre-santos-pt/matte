@@ -1,4 +1,4 @@
-import {RuntimeErrorType} from '../Interpreter';
+import {Interpreter, RuntimeErrorType} from '../Interpreter';
 
 import {compilationError, runtimeError, script} from "./utils";
 import {StaticErrorType} from "../ast";
@@ -236,6 +236,18 @@ describe('Matte Interpreter Test Script', () => {
                 .set("c", 2)
             )
         });
+
+        it('array references', () => {
+            const code = `
+                int[] values = null;
+                values = new int[3];
+                int[] ref = values;
+            `
+            const interpreter = new Interpreter();
+            let result = interpreter.parseAndRun(code);
+            console.log(result);
+        });
+
 
         it('string', () => {
             script(`

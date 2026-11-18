@@ -421,9 +421,6 @@ export class Interpreter {
             if(!assVar)
                 throw new Error("Unresolved variable: " + s.variable.name)
 
-            assVar.evaluation = exp.evaluation
-            assVar.uuid = exp.uuid
-
             if (s.expression instanceof BinaryExpression && s.expression.left instanceof Variable && s.expression.left.declaration == s.variable) {
                 assVar.materialization = paren(assVar?.materialization) + " " + s.expression.operator + " " + this.evaluate(s.expression.right).evaluation
             }
@@ -434,6 +431,8 @@ export class Interpreter {
                 this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization, exp.uuid)
                 assVar.materialization = exp.materialization
             }
+            assVar.evaluation = exp.evaluation
+            assVar.uuid = exp.uuid
         } else if (s instanceof ArrayAssignment) {
             const arrayVal = this.evaluate(s.target).evaluation
 
