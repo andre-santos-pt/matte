@@ -172,10 +172,10 @@ int[] create(int n) {
     return values;
 }
 
-void fill(int[] values, int n) {
+void fill(int[] array, int n) {
     if (n > 0) {
-        values[n - 1] = n;
-        fill(values, n - 1);
+        array[n - 1] = n;
+        fill(array, n - 1);
     }
 }
 </matte-ace>
@@ -248,19 +248,16 @@ function stackheap_matte(editor) {
             return;
 
         const calls = [];
-        for (let entry = current; entry; entry = entry.parent) {
-            if (entry.call)
-                calls.push(entry);
+        for(let i = 0; i < index; i++) {
+           if(trace[i].call) {
+               calls.push(trace[i]);
+           }
         }
-        calls.reverse();
-        if (calls.length === 0)
-            calls.push(current);
 
-        const frames = calls.map(entry => ({
+        const frames = calls.map((entry, index) => ({
             entry,
-            variables: entry.stack?.variables ?? new Map()
+            variables: index < calls.length - 1 ? calls[index + 1].stack.variables : current.stack.variables
         }));
-        frames[frames.length - 1].variables = current.stack?.variables ?? new Map();
 
         const objectIdsByUuid = new Map();
         const objectIdsByReference = new WeakMap();

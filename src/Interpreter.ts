@@ -218,7 +218,7 @@ export class Interpreter {
     }
 
 
-    private addTraceRange(range: Range | undefined, call: boolean, returnStatement: boolean, evaluation: any, materialization?: string, uuid?: string, extension?: any) {
+    private addTraceRange(range: Range | undefined, call: boolean, returnStatement: boolean, evaluation: any, materialization?: string, uuid?: string, extension?: any) : TraceEntry {
         const entry = {
             stack: this.scope.length == 0 ? {variables:new Map()} : structuredClone(last(this.scope)),
             range,
@@ -833,10 +833,13 @@ export class Interpreter {
             else
                 mat = p.name + "(" + argValues.map(a => a?.materialization).join() + ")"
 
+
+
+        this.addTrace(call, true, isReturn, undefined, mat)
+
         this.scope.push({
             variables
         })
-        this.addTrace(call, true, isReturn, undefined, mat)
 
         try {
             p.body?.statements?.forEach(s => this.execute(s));
