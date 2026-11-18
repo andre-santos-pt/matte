@@ -168,7 +168,7 @@ int[] create(int n) {
     int[] values = null;
     values = new int[n];
     int[] ref = values;
-    fill(values, n);
+    fill(ref, n);
     return values;
 }
 
@@ -243,7 +243,7 @@ function stackheap_matte(editor) {
     }
 
     function update(trace, index) {
-        const current = trace[index];
+        const current = trace[Math.max(0, index - 1)];
         if (!current)
             return;
 
