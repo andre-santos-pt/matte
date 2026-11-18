@@ -59,6 +59,7 @@ export interface TraceEntry {
     range?: Range,
     materialization?: string,
     evaluation?: any,
+    uuid?: string,
     call?: boolean,
     returnStatement?: boolean,
     error?: RuntimeError
@@ -88,12 +89,14 @@ interface TraceVariable {
     evaluation: any;
     materialization: any;
     declaration?: Range;
+    uuid?: string;
 }
 
 interface ExpressionEval {
     evaluation?: any;
     materialization?: string;
     extension?: any;
+    uuid?: string;
 }
 
 
@@ -190,11 +193,11 @@ export class Interpreter {
         }
     }
 
-    private addTrace(node: ASTNode, call: boolean, isReturn: boolean, evaluation: any, materialization?: string, extension?: any) {
+    private addTrace(node: ASTNode, call: boolean, isReturn: boolean, evaluation: any, materialization?: string, uuid?: string, extension?: any) {
         if (!this.traceOn)
             return
 
-        const t = this.addTraceRange(node.range, call, isReturn, evaluation, materialization, extension)
+        const t = this.addTraceRange(node.range, call, isReturn, evaluation, materialization, uuid, extension)
         if (call && (node instanceof NewObjectExpression || node instanceof CallExpression)) {
             this.traceStack.push(t)
             if (!this.trace) {
@@ -211,16 +214,17 @@ export class Interpreter {
         if (this.traceStack.length > 1)
             this.traceStack.pop()
 
-        this.addTrace(call, false, false, evaluation, materialization)
+        this.addTrace(call, false, false, evaluation, materialization, undefined, undefined)
     }
 
 
-    private addTraceRange(range: Range | undefined, call: boolean, returnStatement: boolean, evaluation: any, materialization?: string, extension?: any) {
+    private addTraceRange(range: Range | undefined, call: boolean, returnStatement: boolean, evaluation: any, materialization?: string, uuid?: string, extension?: any) {
         const entry = {
             stack: this.scope.length == 0 ? {variables:new Map()} : structuredClone(last(this.scope)),
             range,
             materialization,
             evaluation: structuredClone(evaluation),
+            uuid,
             call,
             children: call ? [] : undefined,
             parent: last(this.traceStack),
@@ -392,13 +396,14 @@ export class Interpreter {
             }
             else {
                 const exp = this.evaluate(s.initializer as Expression)
-                this.addTrace(s.initializer, false, false, structuredClone(exp.evaluation), exp.materialization)
+                this.addTrace(s.initializer, false, false, exp.evaluation, exp.materialization, exp.uuid)
                 this.topScope().variables.set(s.name, {
                     name: s.name,
                     type: s.type,
                     evaluation: exp.evaluation,
                     materialization: exp.materialization,
-                    declaration: s.range
+                    declaration: s.range,
+                    uuid: exp.uuid
                 })
             }
         } else if (s instanceof Assignment) {
@@ -417,6 +422,7 @@ export class Interpreter {
                 throw new Error("Unresolved variable: " + s.variable.name)
 
             assVar.evaluation = exp.evaluation
+            assVar.uuid = exp.uuid
 
             if (s.expression instanceof BinaryExpression && s.expression.left instanceof Variable && s.expression.left.declaration == s.variable) {
                 assVar.materialization = paren(assVar?.materialization) + " " + s.expression.operator + " " + this.evaluate(s.expression.right).evaluation
@@ -425,7 +431,7 @@ export class Interpreter {
                 assVar.materialization = this.evaluate(s.expression.left).evaluation + " " + s.expression.operator + " " + paren(assVar?.materialization)
             }
             else {
-                this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization)
+                this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization, exp.uuid)
                 assVar.materialization = exp.materialization
             }
         } else if (s instanceof ArrayAssignment) {
@@ -524,11 +530,11 @@ export class Interpreter {
             //         range: exp.range,
             //         message: `Expected ${expected} arguments (not ${args.length - 1})`
             //     }
-            this.addTrace(exp, true, false, undefined, undefined)
+            this.addTrace(exp, true, false, undefined, undefined, undefined, undefined)
             let res: ExpressionEval | undefined
             try {
                 res = ext.func(args)
-                this.addTrace(exp, false, true, res.evaluation, res.materialization, res.extension)
+                this.addTrace(exp, false, true, res.evaluation, res.materialization, undefined, res.extension)
 
             } catch (error: any) {
                 this.addTraceRuntimeError(exp, {
@@ -583,7 +589,8 @@ export class Interpreter {
             let variable = this.resolveVariable(e.declaration.name)
             return {
                 evaluation: variable?.evaluation,
-                materialization: e.type == PrimitiveType.DOUBLE && Number.isInteger(variable?.evaluation) ? variable?.materialization + ".0" : variable?.materialization
+                materialization: e.type == PrimitiveType.DOUBLE && Number.isInteger(variable?.evaluation) ? variable?.materialization + ".0" : variable?.materialization,
+                uuid: variable?.uuid
             }
         } else if (e instanceof IntLiteral)
             return {
@@ -708,13 +715,14 @@ export class Interpreter {
             this.addTrace(e, true, false, obj);
             return {
                 evaluation: obj,
-                materialization: `new ${e.type.name}(${args.map(a => a.materialization || a.evaluation).join(", ")})`
+                materialization: `new ${e.type.name}(${args.map(a => a.materialization || a.evaluation).join(", ")})`,
+                uuid: crypto.randomUUID()
             }
         } else if (e instanceof UnboundNewObjectExpression) {
             const ext = this.extensionTypes.find(t => t.name == e.typeName)?.constProcedure
             if (ext) {
                 const args = e.args.map(a => this.evaluate(a).evaluation)
-                return ext.func.call(null, args)
+                return ext.func.call(null, args) // TODO uuid
             } else
                 throw {
                     compilation: StaticErrorType.MethodNotFound,
@@ -741,7 +749,8 @@ export class Interpreter {
             const array = e.elements.map(el => this.evaluate(el).evaluation)
             return {
                 evaluation: array,
-                materialization: undefined //"[" + array.join() + "]"
+                materialization: undefined, //"[" + array.join() + "]"
+                uuid: crypto.randomUUID()
             }
         } else if (e instanceof ArrayAllocationExpression) {
             const length = this.evaluate(e.dimensions[0]).evaluation // TODO multidim
@@ -752,7 +761,8 @@ export class Interpreter {
             // TODO other defaults
             return {
                 evaluation: array,
-                materialization: undefined // "[" + array.join() + "]"
+                materialization: undefined, // "[" + array.join() + "]"
+                uuid: crypto.randomUUID()
             }
         } else if (e instanceof ArrayElementExpression) {
             const arrayVal = this.evaluate(e.target).evaluation as Array<any>
@@ -802,7 +812,8 @@ export class Interpreter {
                 name: "this",
                 type: p.parameters[0].type,
                 evaluation: thisVal.evaluation,
-                materialization: thisVal.materialization
+                materialization: thisVal.materialization,
+                uuid: thisVal.uuid
             })
         }
         const argValues = args.map((e, i) => {
@@ -812,7 +823,8 @@ export class Interpreter {
                 type: p.parameters[i].type,
                 evaluation: eVal.evaluation,
                 materialization: eVal.materialization,
-                declaration: p.parameters[i].range
+                declaration: p.parameters[i].range,
+                uuid: eVal.uuid
             })
             return eVal
         })
