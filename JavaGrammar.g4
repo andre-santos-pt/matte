@@ -20,7 +20,7 @@ params: param (COMMA param)*;
 
 param: type id=ID;
 
-type: id=ID arrayDim*;
+type: id=(ID | INT_TYPE) arrayDim*;
 
 arrayDim: LBRACK RBRACK;
 
@@ -67,7 +67,8 @@ expList: exp (COMMA exp)*;
 arrayLiteral: LCURLY elements=expList? RCURLY;
 
 exp:
-    LPAREN exp RPAREN                           # bracketsExpr
+    LPAREN castType=INT_TYPE RPAREN target=exp # castExpr
+    | LPAREN exp RPAREN                           # bracketsExpr
     | newCall                                   # objectAllocExpr
     | target=exp DOT fieldId=ID                 # fieldExpr
     | target=exp LBRACK index=exp RBRACK        # arrayExpr
@@ -80,7 +81,7 @@ exp:
     | condition=exp QUESTION trueCase=exp COLON falseCase=exp # conditionalExpr
     | left=exp AND right=exp                    # andExpr
     | left=exp OR right=exp                     # orExpr
-    | NEW typeName=ID dimensions                # arrayAllocExpr
+    | NEW typeName=(ID | INT_TYPE) dimensions   # arrayAllocExpr
     | exp DOT call                              # instanceCallExpr
     | ID                                        # idExpr
     | INT                                       # intExpr
@@ -211,7 +212,9 @@ DOUBLE: [0-9]* '.' [0-9]+;
 
 CHAR: '\''.'\'';
 
-ID: [a-zA-Z][a-zA-Z0-9_]*;
+INT_TYPE: 'int' ;
+
+ID: [a-zA-Z] [a-zA-Z0-9_]* ;
 
 STRING: '"'~([\n"])*'"';
 

@@ -28,6 +28,10 @@ describe('Matte Interpreter Types', () => {
             )
         });
 
+        it('int cast rejects non-numeric expressions', () => {
+            compilationError('int value = (int) true;', StaticErrorType.TypeMismatch)
+        });
+
         it('mismatch var', () => {
             compilationError(`
         int i = 10;

@@ -12,6 +12,7 @@ import {
     BreakStatement,
     CallExpression,
     CallStatement,
+    CastExpression,
     ConditionalExpression,
     Declaration,
     DoubleLiteral,
@@ -616,6 +617,14 @@ export class Interpreter {
         else if (e instanceof ConditionalExpression) {
             const condVal = this.evaluate(e.condition);
             return condVal.evaluation ?  this.evaluate(e.trueCase) : this.evaluate(e.falseCase)
+        }
+        else if (e instanceof CastExpression) {
+            const expVal = this.evaluate(e.expression);
+            const truncated = Math.trunc(expVal.evaluation);
+            const evaluation = truncated === 0 ? 0 : truncated;
+            const materialization = `(int) ${expVal.materialization ?? this.prettyPrint(expVal.evaluation)}`;
+            this.addTrace(e, false, isReturn, evaluation, materialization);
+            return {evaluation, materialization};
         }
         else if (e instanceof UnaryExpression) {
             const expVal = this.evaluate(e.expression);

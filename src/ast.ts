@@ -508,6 +508,26 @@ export class UnaryExpression extends Expression {
     }
 }
 
+export class CastExpression extends Expression {
+    expression: Expression;
+
+    constructor(range: Range, expression: Expression) {
+        if (!isNumberType(expression.type))
+            throw {
+                message: "int cast can only be applied to numeric expressions",
+                compilation: StaticErrorType.TypeMismatch,
+                range: expression.range
+            }
+
+        super(range, PrimitiveType.INT);
+        this.expression = expression;
+    }
+
+    getChildren(): Expression[] {
+        return [this.expression]
+    }
+}
+
 export abstract class BinaryExpression extends Expression {
     operator: string;
     left: Expression;
@@ -899,6 +919,8 @@ export class ASTVisitor {
             this.visitVariable(node);
         else if (node instanceof ConditionalExpression)
             this.visitConditionalExpression(node);
+        else if (node instanceof CastExpression)
+            this.visitCastExpression(node);
         else if (node instanceof UnaryExpression)
             this.visitUnaryExpression(node);
         else if (node instanceof ArithmeticExpression)
@@ -1015,6 +1037,10 @@ export class ASTVisitor {
         expression.condition.accept(this);
         expression.trueCase.accept(this);
         expression.falseCase.accept(this);
+    }
+
+    visitCastExpression(expression: CastExpression): void {
+        this.visitExpression(expression);
     }
 
     visitUnaryExpression(expression: UnaryExpression): void {

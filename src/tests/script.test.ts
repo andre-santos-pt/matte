@@ -146,6 +146,23 @@ describe('Matte Interpreter Test Script', () => {
             runtimeError('double result = 10.0 / 0.0;', RuntimeErrorType.DivisionByZero)
         });
 
+        it('casts double values to int by truncating toward zero', () => {
+            script(`
+                int positive = (int) 3.9;
+                int negative = (int) -3.9;
+                int negativeFraction = (int) -0.9;
+                int fromExpression = (int) (1.5 + 2.8);
+                int castBeforeMultiplication = (int) 3.9 * 2;
+                int groupedSubtraction = (positive) - 1;
+            `, new Map()
+                .set("positive", 3)
+                .set("negative", -3)
+                .set("negativeFraction", 0)
+                .set("fromExpression", 4)
+                .set("castBeforeMultiplication", 6)
+                .set("groupedSubtraction", 2))
+        });
+
         it('remainder by zero', () => {
             runtimeError('int result = 10 % 0;', RuntimeErrorType.DivisionByZero)
         });

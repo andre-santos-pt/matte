@@ -13,7 +13,7 @@ import JavaGrammarParser, {
     BracketsExprContext,
     BreakContext,
     CallContext,
-    CallExprContext, CallLiteralContext, ClassContext, ConditionalExprContext,
+    CallExprContext, CallLiteralContext, CastExprContext, ClassContext, ConditionalExprContext,
     DecContext,
     DeclarationContext,
     DoubleExprContext, DoubleLiteralContext,
@@ -52,6 +52,7 @@ import {
     BreakStatement,
     CallExpression,
     CallStatement, ConditionalExpression,
+    CastExpression,
     Declaration,
     DoubleLiteral,
     Expression,
@@ -261,6 +262,8 @@ function renderExpression(expression: Expression): string {
         return expression.declaration.name
     if (expression instanceof ConditionalExpression)
         return `(${renderExpression(expression.condition)} ? ${renderExpression(expression.trueCase)} : ${renderExpression(expression.falseCase)})`
+    if (expression instanceof CastExpression)
+        return `(int) ${renderExpression(expression.expression)}`
     if (expression instanceof UnaryExpression)
         return `(${expression.operator}${renderExpression(expression.expression)})`
     if (expression instanceof ArithmeticExpression ||
@@ -967,6 +970,8 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         Expression {
         if (ctx instanceof BracketsExprContext) {
             return this.expToAST(ctx.exp())
+        } else if (ctx instanceof CastExprContext) {
+            return new CastExpression(this.rangeContext(ctx), this.expToAST(ctx._target))
         } else if (ctx instanceof IdExprContext) {
             const dec = this.varLookup(ctx.getText(), ctx.ID())
             return new Variable(this.rangeContext(ctx), dec)
@@ -1049,10 +1054,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             )
 
         else if (ctx instanceof ArrayAllocExprContext) {
-            let type: Type | undefined = this.findSingleType(ctx.ID().getText())
+            const typeName = ctx._typeName.text
+            let type: Type | undefined = this.findSingleType(typeName)
             return new ArrayAllocationExpression(
                 this.rangeContext(ctx),
-                type ? type : new ForeignType(ctx.ID().getText()),
+                type ? type : new ForeignType(typeName),
                 [this.expToAST(ctx.dimensions().exp())] // TODO multidim
             )
         } else if (ctx instanceof ArrayExprContext)
