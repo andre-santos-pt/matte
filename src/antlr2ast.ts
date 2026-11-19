@@ -795,6 +795,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         )
     }
 
+    isJavaKeyword(id: string) {
+        return [
+            "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue", "default", "do", "double", "else", "enum", "extends", "false", "final", "finally", "float", "for", "goto", "if", "implements", "import", "instanceof", "int", "interface", "long", "native", "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "true", "try", "void", "volatile", "while"
+        ].includes(id)
+    }
+
     visitDeclaration = (ctx: DeclarationContext) => {
         if (last(this.varScope).variables.has(ctx._id.text))
             throw {
@@ -809,6 +815,13 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         const exp = ctx.exp() ? this.expToAST(ctx.exp()) :
             ctx.arrayLiteral() ? this.arrayLiteralToAST(ctx.arrayLiteral()) : undefined
 
+        if(this.isJavaKeyword(ctx._id.text))
+            throw {
+                compilation: StaticErrorType.KeywordUsedAsIdentifier,
+                range: this.rangeToken(ctx._id),
+                message: `Identifier ${mark(ctx._id.text)} is a Java keyword`,
+                detail: {}
+            }
         const dec = new Declaration(
             this.rangeContext(ctx),
             ctx._id.text,
@@ -973,7 +986,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         } else if (ctx instanceof CastExprContext) {
             return new CastExpression(
                 this.rangeContext(ctx),
-                ctx._castType.text as PrimitiveType.INT | PrimitiveType.DOUBLE,
+                ctx._castType.text == "int" ? PrimitiveType.INT : PrimitiveType.DOUBLE,
                 this.expToAST(ctx._target)
             )
         } else if (ctx instanceof IdExprContext) {
