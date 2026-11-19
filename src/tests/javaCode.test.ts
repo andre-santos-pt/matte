@@ -16,10 +16,10 @@ describe("getJavaCode", () => {
         )
     });
 
-    it("renders int casts", () => {
-        const code = getJavaCode(buildAST("int value = (int) 3.9;"))
+    it("renders numeric casts", () => {
+        const code = getJavaCode(buildAST("int value = (int) 3.9; double other = (double) value;"))
 
-        expect(code).toBe("int value = (int) 3.9;")
+        expect(code).toBe("int value = (int) 3.9;\ndouble other = (double) value;")
         expect(getJavaCode(buildAST(code))).toBe(code)
     });
 

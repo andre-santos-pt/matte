@@ -509,17 +509,19 @@ export class UnaryExpression extends Expression {
 }
 
 export class CastExpression extends Expression {
+    castType: PrimitiveType.INT | PrimitiveType.DOUBLE;
     expression: Expression;
 
-    constructor(range: Range, expression: Expression) {
+    constructor(range: Range, castType: PrimitiveType.INT | PrimitiveType.DOUBLE, expression: Expression) {
         if (!isNumberType(expression.type))
             throw {
-                message: "int cast can only be applied to numeric expressions",
+                message: `${castType} cast can only be applied to numeric expressions`,
                 compilation: StaticErrorType.TypeMismatch,
                 range: expression.range
             }
 
-        super(range, PrimitiveType.INT);
+        super(range, castType);
+        this.castType = castType;
         this.expression = expression;
     }
 

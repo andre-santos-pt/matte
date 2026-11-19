@@ -620,9 +620,9 @@ export class Interpreter {
         }
         else if (e instanceof CastExpression) {
             const expVal = this.evaluate(e.expression);
-            const truncated = Math.trunc(expVal.evaluation);
-            const evaluation = truncated === 0 ? 0 : truncated;
-            const materialization = `(int) ${expVal.materialization ?? this.prettyPrint(expVal.evaluation)}`;
+            const value = e.castType === PrimitiveType.INT ? Math.trunc(expVal.evaluation) : expVal.evaluation;
+            const evaluation = value === 0 ? 0 : value;
+            const materialization = `(${e.castType}) ${expVal.materialization ?? this.prettyPrint(expVal.evaluation)}`;
             this.addTrace(e, false, isReturn, evaluation, materialization);
             return {evaluation, materialization};
         }

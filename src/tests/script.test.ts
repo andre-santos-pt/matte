@@ -163,6 +163,17 @@ describe('Matte Interpreter Test Script', () => {
                 .set("groupedSubtraction", 2))
         });
 
+        it('casts int expressions to double', () => {
+            script(`
+                double integerDivision = 3 / 2;
+                double doubleDivision = (double) 3 / 2;
+                double castFraction = (double) 3.9;
+            `, new Map()
+                .set("integerDivision", 1)
+                .set("doubleDivision", 1.5)
+                .set("castFraction", 3.9))
+        });
+
         it('remainder by zero', () => {
             runtimeError('int result = 10 % 0;', RuntimeErrorType.DivisionByZero)
         });

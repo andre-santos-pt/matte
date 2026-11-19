@@ -263,7 +263,7 @@ function renderExpression(expression: Expression): string {
     if (expression instanceof ConditionalExpression)
         return `(${renderExpression(expression.condition)} ? ${renderExpression(expression.trueCase)} : ${renderExpression(expression.falseCase)})`
     if (expression instanceof CastExpression)
-        return `(int) ${renderExpression(expression.expression)}`
+        return `(${expression.castType}) ${renderExpression(expression.expression)}`
     if (expression instanceof UnaryExpression)
         return `(${expression.operator}${renderExpression(expression.expression)})`
     if (expression instanceof ArithmeticExpression ||
@@ -971,7 +971,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         if (ctx instanceof BracketsExprContext) {
             return this.expToAST(ctx.exp())
         } else if (ctx instanceof CastExprContext) {
-            return new CastExpression(this.rangeContext(ctx), this.expToAST(ctx._target))
+            return new CastExpression(
+                this.rangeContext(ctx),
+                ctx._castType.text as PrimitiveType.INT | PrimitiveType.DOUBLE,
+                this.expToAST(ctx._target)
+            )
         } else if (ctx instanceof IdExprContext) {
             const dec = this.varLookup(ctx.getText(), ctx.ID())
             return new Variable(this.rangeContext(ctx), dec)
