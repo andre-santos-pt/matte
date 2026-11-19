@@ -13,7 +13,7 @@ import JavaGrammarParser, {
     BracketsExprContext,
     BreakContext,
     CallContext,
-    CallExprContext, CallLiteralContext, ClassContext, ConditionalExprContext,
+    CallExprContext, CallLiteralContext, CastExprContext, CharExprContext, CharLiteralContext, ClassContext, ConditionalExprContext,
     DecContext,
     DeclarationContext,
     DoubleExprContext, DoubleLiteralContext,
@@ -49,9 +49,11 @@ import {
     Assignment,
     BlockStatement,
     BooleanLiteral,
+    CharLiteral,
     BreakStatement,
     CallExpression,
     CallStatement, ConditionalExpression,
+    CastExpression,
     Declaration,
     DoubleLiteral,
     Expression,
@@ -261,6 +263,8 @@ function renderExpression(expression: Expression): string {
         return expression.declaration.name
     if (expression instanceof ConditionalExpression)
         return `(${renderExpression(expression.condition)} ? ${renderExpression(expression.trueCase)} : ${renderExpression(expression.falseCase)})`
+    if (expression instanceof CastExpression)
+        return `(${expression.castType}) ${renderExpression(expression.expression)}`
     if (expression instanceof UnaryExpression)
         return `(${expression.operator}${renderExpression(expression.expression)})`
     if (expression instanceof ArithmeticExpression ||
@@ -533,6 +537,8 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return PrimitiveType.INT
         else if (name == "double")
             return PrimitiveType.DOUBLE
+        else if (name == "char")
+            return PrimitiveType.CHAR
         else if (name == "boolean")
             return PrimitiveType.BOOLEAN
         else if (name == "String")
@@ -792,6 +798,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         )
     }
 
+    isJavaKeyword(id: string) {
+        return [
+            "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const", "continue", "default", "do", "double", "else", "enum", "extends", "false", "final", "finally", "float", "for", "goto", "if", "implements", "import", "instanceof", "int", "interface", "long", "native", "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "true", "try", "void", "volatile", "while"
+        ].includes(id)
+    }
+
     visitDeclaration = (ctx: DeclarationContext) => {
         if (last(this.varScope).variables.has(ctx._id.text))
             throw {
@@ -806,6 +818,13 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         const exp = ctx.exp() ? this.expToAST(ctx.exp()) :
             ctx.arrayLiteral() ? this.arrayLiteralToAST(ctx.arrayLiteral()) : undefined
 
+        if(this.isJavaKeyword(ctx._id.text))
+            throw {
+                compilation: StaticErrorType.KeywordUsedAsIdentifier,
+                range: this.rangeToken(ctx._id),
+                message: `Identifier ${mark(ctx._id.text)} is a Java keyword`,
+                detail: {}
+            }
         const dec = new Declaration(
             this.rangeContext(ctx),
             ctx._id.text,
@@ -967,6 +986,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         Expression {
         if (ctx instanceof BracketsExprContext) {
             return this.expToAST(ctx.exp())
+        } else if (ctx instanceof CastExprContext) {
+            return new CastExpression(
+                this.rangeContext(ctx),
+                ctx._castType.text == "int" ? PrimitiveType.INT : PrimitiveType.DOUBLE,
+                this.expToAST(ctx._target)
+            )
         } else if (ctx instanceof IdExprContext) {
             const dec = this.varLookup(ctx.getText(), ctx.ID())
             return new Variable(this.rangeContext(ctx), dec)
@@ -986,6 +1011,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return new BooleanLiteral(
                 this.rangeContext(ctx),
                 ctx.BOOLEAN().getText() == "true"
+            )
+
+        else if (ctx instanceof CharExprContext)
+            return new CharLiteral(
+                this.rangeContext(ctx),
+                ctx.CHAR().getText().substring(1, ctx.CHAR().getText().length - 1)
             )
 
         else if (ctx instanceof StringExprContext)
@@ -1049,10 +1080,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             )
 
         else if (ctx instanceof ArrayAllocExprContext) {
-            let type: Type | undefined = this.findSingleType(ctx.ID().getText())
+            const typeName = ctx._typeName.text
+            let type: Type | undefined = this.findSingleType(typeName)
             return new ArrayAllocationExpression(
                 this.rangeContext(ctx),
-                type ? type : new ForeignType(ctx.ID().getText()),
+                type ? type : new ForeignType(typeName),
                 [this.expToAST(ctx.dimensions().exp())] // TODO multidim
             )
         } else if (ctx instanceof ArrayExprContext)
@@ -1103,6 +1135,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return new BooleanLiteral(
                 this.rangeContext(ctx),
                 ctx.BOOLEAN().getText() == "true"
+            )
+
+        else if (ctx instanceof CharLiteralContext)
+            return new CharLiteral(
+                this.rangeContext(ctx),
+                ctx.CHAR().getText().substring(1, ctx.CHAR().getText().length - 1)
             )
 
         else if (ctx instanceof StringLiteralContext)

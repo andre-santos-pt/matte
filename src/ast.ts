@@ -21,6 +21,7 @@ export enum StaticErrorType {
     NumberArgumentsMismatch = "N_ARGS_MISMATCH",
     ArgumentTypesMismatch = "ARGS_TYPE_MISMATCH",
     FieldNotFound = "FIELD_NOT_FOUND",
+    KeywordUsedAsIdentifier = "KEYWORD_AS_IDENTIFIER"
 }
 
 export abstract class ASTNode {
@@ -77,6 +78,7 @@ export type Type = PrimitiveType | TypeDeclaration | ArrayType | ForeignType
 export enum PrimitiveType {
     INT = "int",
     DOUBLE = "double",
+    CHAR = "char",
     BOOLEAN = "boolean",
     STRING = "String",
     VOID = "void",
@@ -101,7 +103,7 @@ export function typeName(type?: Type): string | undefined {
 }
 
 export function isPrimitiveType(type: Type | undefined) {
-    return type == PrimitiveType.INT || type == PrimitiveType.DOUBLE || type == PrimitiveType.BOOLEAN || type == PrimitiveType.STRING
+    return type == PrimitiveType.INT || type == PrimitiveType.DOUBLE || type == PrimitiveType.CHAR || type == PrimitiveType.BOOLEAN || type == PrimitiveType.STRING
 }
 
 export function isNumberType(type?: Type) {
@@ -205,11 +207,13 @@ export class Declaration extends Statement {
 
         if (initializer && initializer.type && !typeCompatibleWith(initializer.type, type))
             throw {
-                message: "Expected an expression of type " + markType(type) + " (not " + markType(initializer.type) + ")",
+                message: "Incompatible type: expected " + markType(type) + " (not " + markType(initializer.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: initializer.range,
                 detail: {
-                    related: [typeRange]
+                    related: [typeRange],
+                    expected: type.toString(),
+                    found: initializer.type.toString()
                 }
             }
         super(range);
@@ -355,9 +359,6 @@ export class CallStatement extends Statement {
     }
 }
 
-// TODO : CharLiteral
-
-
 export abstract class Expression extends ASTNode {
     type?: Type
 
@@ -421,6 +422,15 @@ export class StringLiteral extends Literal<string> {
 
     constructor(range: Range | undefined, value: string) {
         super(range, PrimitiveType.STRING);
+        this.value = value;
+    }
+}
+
+export class CharLiteral extends Literal<string> {
+    value: string;
+
+    constructor(range: Range | undefined, value: string) {
+        super(range, PrimitiveType.CHAR);
         this.value = value;
     }
 }
@@ -501,6 +511,28 @@ export class UnaryExpression extends Expression {
         this.expression = expression;
 
         // TODO truncate
+    }
+
+    getChildren(): Expression[] {
+        return [this.expression]
+    }
+}
+
+export class CastExpression extends Expression {
+    castType: PrimitiveType.INT | PrimitiveType.DOUBLE;
+    expression: Expression;
+
+    constructor(range: Range, castType: PrimitiveType.INT | PrimitiveType.DOUBLE, expression: Expression) {
+        if (!isNumberType(expression.type))
+            throw {
+                message: `${castType} cast can only be applied to numeric expressions`,
+                compilation: StaticErrorType.TypeMismatch,
+                range: expression.range
+            }
+
+        super(range, castType);
+        this.castType = castType;
+        this.expression = expression;
     }
 
     getChildren(): Expression[] {
@@ -899,6 +931,8 @@ export class ASTVisitor {
             this.visitVariable(node);
         else if (node instanceof ConditionalExpression)
             this.visitConditionalExpression(node);
+        else if (node instanceof CastExpression)
+            this.visitCastExpression(node);
         else if (node instanceof UnaryExpression)
             this.visitUnaryExpression(node);
         else if (node instanceof ArithmeticExpression)
@@ -1015,6 +1049,10 @@ export class ASTVisitor {
         expression.condition.accept(this);
         expression.trueCase.accept(this);
         expression.falseCase.accept(this);
+    }
+
+    visitCastExpression(expression: CastExpression): void {
+        this.visitExpression(expression);
     }
 
     visitUnaryExpression(expression: UnaryExpression): void {

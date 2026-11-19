@@ -16,6 +16,13 @@ describe("getJavaCode", () => {
         )
     });
 
+    it("renders numeric casts", () => {
+        const code = getJavaCode(buildAST("int value = (int) 3.9; double other = (double) value;"))
+
+        expect(code).toBe("int value = (int) 3.9;\ndouble other = (double) value;")
+        expect(getJavaCode(buildAST(code))).toBe(code)
+    });
+
     it("renders class and record declarations with their instance methods", () => {
         const program = buildAST(`
             class Box {

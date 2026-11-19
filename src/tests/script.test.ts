@@ -138,6 +138,46 @@ describe('Matte Interpreter Test Script', () => {
         `, RuntimeErrorType.MaxIterationsReached)
         });
 
+        it('integer division by zero', () => {
+            runtimeError('int result = 10 / 0;', RuntimeErrorType.DivisionByZero)
+        });
+
+        it('double division by zero', () => {
+            runtimeError('double result = 10.0 / 0.0;', RuntimeErrorType.DivisionByZero)
+        });
+
+        it('casts double values to int by truncating toward zero', () => {
+            script(`
+                int positive = (int) 3.9;
+                int negative = (int) -3.9;
+                int negativeFraction = (int) -0.9;
+                int fromExpression = (int) (1.5 + 2.8);
+                int castBeforeMultiplication = (int) 3.9 * 2;
+                int groupedSubtraction = (positive) - 1;
+            `, new Map()
+                .set("positive", 3)
+                .set("negative", -3)
+                .set("negativeFraction", 0)
+                .set("fromExpression", 4)
+                .set("castBeforeMultiplication", 6)
+                .set("groupedSubtraction", 2))
+        });
+
+        it('casts int expressions to double', () => {
+            script(`
+                double integerDivision = 3 / 2;
+                double doubleDivision = (double) 3 / 2;
+                double castFraction = (double) 3.9;
+            `, new Map()
+                .set("integerDivision", 1)
+                .set("doubleDivision", 1.5)
+                .set("castFraction", 3.9))
+        });
+
+        it('remainder by zero', () => {
+            runtimeError('int result = 10 % 0;', RuntimeErrorType.DivisionByZero)
+        });
+
 
         it('inc while', () => {
             script(`

@@ -7,7 +7,7 @@ import {
 import {
     ExtensionProcedure,
     ExtensionType,
-    Interpreter, InterpreterResult,
+    Interpreter, InterpreterResult, RuntimeError,
     TraceEntry
 } from "./Interpreter";
 import type {Ace} from "ace-builds";
@@ -28,6 +28,15 @@ interface PopupPosition {
     message: string;
     top: boolean;
 }
+
+export interface ErrorMessageHandler {
+    transform(error: StaticError): StaticError;
+}
+
+class NullErrorMessageHandler implements ErrorMessageHandler {
+    transform(error: StaticError): StaticError { return error}
+}
+
 
 const styleCss =
     `.compilation-error {
@@ -174,6 +183,7 @@ export default class MatteAceEditor {
     trace: TraceEntry[] = [];
     cumulativeMode = false;
     private _resizeTimeout: number | null = null;
+    errorMessageHandler = new NullErrorMessageHandler();
 
     constructor(
         container: HTMLElement,
@@ -310,7 +320,7 @@ export default class MatteAceEditor {
         this.editor.selection.on("changeCursor", () => {
             this.popups.forEach(p => p.hide(undefined))
             this.clearSecondaryMarkers()
-            const compilationError = this.compilationError ?? this.result?.error;
+            const compilationError = this.compilationError ? this.errorMessageHandler.transform(this.compilationError) :  this.result?.error;
             const err = compilationError ?? this.result?.runtimeError;
             const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
             if (err?.range && index >= err.range.start && index <= err.range.end) {
@@ -745,15 +755,16 @@ export default class MatteAceEditor {
     }
 
     markCompilationError(e: StaticError): void {
+        const eTrans = this.errorMessageHandler.transform(e)
         this.editor.session.addMarker(
-            this.range2Ace(e.range),
+            this.range2Ace(eTrans.range),
             "compilation-error",
             "text"
         );
         this.editor.session.setAnnotations([{
-            row: e.range.line - 1, // 0-index
+            row: eTrans.range.line - 1, // 0-index
             column: 0,
-            text: e.message,
+            text: eTrans.message,
             type: "error" // Options: "error", "warning", or "info"
         }]);
     }
@@ -798,7 +809,7 @@ export default class MatteAceEditor {
             this.editor.session.removeMarker(this.highlightedRange);
     }
 
-    markRuntimeError(e: NonNullable<EditorResult["runtimeError"]>): void {
+    markRuntimeError(e: RuntimeError): void {
         if (!e.range)
             return;
         this.editor.session.addMarker(
