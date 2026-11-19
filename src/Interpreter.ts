@@ -71,7 +71,7 @@ export interface RuntimeError {
 }
 
 export enum RuntimeErrorType {
-    DivisionByZero, // TODO division by zero
+    DivisionByZero,
     ArrayIndexOutOfBounds,
     NullPointer,
     StackOverflow,
@@ -651,11 +651,19 @@ export class Interpreter {
                 if (e.operator == '+' && (typeof leftVal.evaluation === "string" || typeof rightVal.evaluation === "string"))
                     evaluation = leftVal.evaluation.toString() + rightVal.evaluation.toString()
 
-                else if (ArithmeticExpression.validOperator(e.operator))
+                else if (ArithmeticExpression.validOperator(e.operator)) {
+                    if ((e.operator == '/' || e.operator == '%') && rightVal.evaluation === 0)
+                        this.addTraceRuntimeError(e, {
+                            type: RuntimeErrorType.DivisionByZero,
+                            message: "Division by zero",
+                            range: e.range
+                        })
+
                     evaluation = this.handleArithmetic(
                         e.left, leftVal,
                         e.right, rightVal,
                         e.operator);
+                }
 
                 else if (RelationalExpression.validOperator(e.operator))
                     evaluation = this.handleComparison(
@@ -752,7 +760,8 @@ export class Interpreter {
             // TODO other defaults
             return {
                 evaluation: array,
-                materialization: undefined // "[" + array.join() + "]"
+                materialization: undefined,
+                //identity: ""
             }
         } else if (e instanceof ArrayElementExpression) {
             const arrayVal = this.evaluate(e.target).evaluation as Array<any>
@@ -961,4 +970,3 @@ export class Interpreter {
             };
     }
 }
-

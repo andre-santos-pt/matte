@@ -138,6 +138,18 @@ describe('Matte Interpreter Test Script', () => {
         `, RuntimeErrorType.MaxIterationsReached)
         });
 
+        it('integer division by zero', () => {
+            runtimeError('int result = 10 / 0;', RuntimeErrorType.DivisionByZero)
+        });
+
+        it('double division by zero', () => {
+            runtimeError('double result = 10.0 / 0.0;', RuntimeErrorType.DivisionByZero)
+        });
+
+        it('remainder by zero', () => {
+            runtimeError('int result = 10 % 0;', RuntimeErrorType.DivisionByZero)
+        });
+
 
         it('inc while', () => {
             script(`
