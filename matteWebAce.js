@@ -13,6 +13,7 @@ import {
     RuntimeErrorType
 } from "./src/Interpreter.ts";
 import {PrimitiveType} from "./src/ast.ts";
+import {ErrorMessagesPt} from "./src/error-messages-pt.ts";
 
 window.flatTrace = (trace) => {
     if(trace.children)
@@ -205,6 +206,9 @@ function initializeMatteAce(element) {
     });
     if(element.hasAttribute("disable-compilation-hints")) {
         editor.disableCompilationHints();
+    }
+    if(element.hasAttribute("pt")) {
+        editor.errorMessageHandler = new ErrorMessagesPt()
     }
     editor.runPreprocessors()
 }

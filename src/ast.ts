@@ -207,11 +207,13 @@ export class Declaration extends Statement {
 
         if (initializer && initializer.type && !typeCompatibleWith(initializer.type, type))
             throw {
-                message: "Expected an expression of type " + markType(type) + " (not " + markType(initializer.type) + ")",
+                message: "Incompatible type: expected " + markType(type) + " (not " + markType(initializer.type) + ")",
                 compilation: StaticErrorType.TypeMismatch,
                 range: initializer.range,
                 detail: {
-                    related: [typeRange]
+                    related: [typeRange],
+                    expected: type.toString(),
+                    found: initializer.type.toString()
                 }
             }
         super(range);
