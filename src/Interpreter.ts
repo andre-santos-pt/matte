@@ -77,6 +77,7 @@ export enum RuntimeErrorType {
     NullPointer,
     StackOverflow,
     MaxIterationsReached,
+    NumberOverflow
 }
 
 interface StackFrame {
@@ -672,6 +673,13 @@ export class Interpreter {
                         e.left, leftVal,
                         e.right, rightVal,
                         e.operator);
+
+                    if(evaluation > 2147483647 || evaluation < -2147483648)
+                        this.addTraceRuntimeError(e, {
+                            type: RuntimeErrorType.NumberOverflow,
+                            message: "Number overflow",
+                            range: e.range
+                        })
                 }
 
                 else if (RelationalExpression.validOperator(e.operator))
