@@ -87,7 +87,7 @@ exp:
     | INT                                       # intExpr
     | DOUBLE                                    # doubleExpr
     | BOOLEAN                                   # boolExpr
-   // | CHAR                                      # charExpr
+    | CHAR                                      # charExpr
     | NULL                                      # nullExpr
     | STRING                                    # stringExpr
 ;
@@ -127,7 +127,7 @@ id=ID LPAREN args=expLiteralList? RPAREN                    # callLiteral
 | MINUS? INT                                                # intLiteral
 | MINUS? DOUBLE                                             # doubleLiteral
 | BOOLEAN                                                   # boolLiteral
-//| CHAR                                                      # charLiteral
+| CHAR                                                      # charLiteral
 | NULL                                                      # nullLiteral
 | STRING                                                    # stringLiteral
 ;

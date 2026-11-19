@@ -78,6 +78,7 @@ export type Type = PrimitiveType | TypeDeclaration | ArrayType | ForeignType
 export enum PrimitiveType {
     INT = "int",
     DOUBLE = "double",
+    CHAR = "char",
     BOOLEAN = "boolean",
     STRING = "String",
     VOID = "void",
@@ -102,7 +103,7 @@ export function typeName(type?: Type): string | undefined {
 }
 
 export function isPrimitiveType(type: Type | undefined) {
-    return type == PrimitiveType.INT || type == PrimitiveType.DOUBLE || type == PrimitiveType.BOOLEAN || type == PrimitiveType.STRING
+    return type == PrimitiveType.INT || type == PrimitiveType.DOUBLE || type == PrimitiveType.CHAR || type == PrimitiveType.BOOLEAN || type == PrimitiveType.STRING
 }
 
 export function isNumberType(type?: Type) {
@@ -356,9 +357,6 @@ export class CallStatement extends Statement {
     }
 }
 
-// TODO : CharLiteral
-
-
 export abstract class Expression extends ASTNode {
     type?: Type
 
@@ -422,6 +420,15 @@ export class StringLiteral extends Literal<string> {
 
     constructor(range: Range | undefined, value: string) {
         super(range, PrimitiveType.STRING);
+        this.value = value;
+    }
+}
+
+export class CharLiteral extends Literal<string> {
+    value: string;
+
+    constructor(range: Range | undefined, value: string) {
+        super(range, PrimitiveType.CHAR);
         this.value = value;
     }
 }

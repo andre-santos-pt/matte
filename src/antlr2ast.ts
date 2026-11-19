@@ -13,7 +13,7 @@ import JavaGrammarParser, {
     BracketsExprContext,
     BreakContext,
     CallContext,
-    CallExprContext, CallLiteralContext, CastExprContext, ClassContext, ConditionalExprContext,
+    CallExprContext, CallLiteralContext, CastExprContext, CharExprContext, CharLiteralContext, ClassContext, ConditionalExprContext,
     DecContext,
     DeclarationContext,
     DoubleExprContext, DoubleLiteralContext,
@@ -49,6 +49,7 @@ import {
     Assignment,
     BlockStatement,
     BooleanLiteral,
+    CharLiteral,
     BreakStatement,
     CallExpression,
     CallStatement, ConditionalExpression,
@@ -536,6 +537,8 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return PrimitiveType.INT
         else if (name == "double")
             return PrimitiveType.DOUBLE
+        else if (name == "char")
+            return PrimitiveType.CHAR
         else if (name == "boolean")
             return PrimitiveType.BOOLEAN
         else if (name == "String")
@@ -1010,6 +1013,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 ctx.BOOLEAN().getText() == "true"
             )
 
+        else if (ctx instanceof CharExprContext)
+            return new CharLiteral(
+                this.rangeContext(ctx),
+                ctx.CHAR().getText().substring(1, ctx.CHAR().getText().length - 1)
+            )
+
         else if (ctx instanceof StringExprContext)
             return new StringLiteral(
                 this.rangeContext(ctx),
@@ -1126,6 +1135,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return new BooleanLiteral(
                 this.rangeContext(ctx),
                 ctx.BOOLEAN().getText() == "true"
+            )
+
+        else if (ctx instanceof CharLiteralContext)
+            return new CharLiteral(
+                this.rangeContext(ctx),
+                ctx.CHAR().getText().substring(1, ctx.CHAR().getText().length - 1)
             )
 
         else if (ctx instanceof StringLiteralContext)

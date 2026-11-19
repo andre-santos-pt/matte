@@ -12,6 +12,23 @@ describe('Matte Interpreter Types', () => {
             `)
         });
 
+        it('char primitive and literals', () => {
+            cases(`
+                char getChar() {
+                    char first = 'a';
+                    char[] letters = {'b', 'c'};
+                    return 'z';
+                }
+                char echo(char value) {
+                    return value;
+                }
+            `, ["getChar()", "z"], ["echo('q')", "q"])
+        });
+
+        it('rejects assigning char to String', () => {
+            compilationError("String text = 'a';", StaticErrorType.TypeMismatch)
+        });
+
 
         it('mismatch binary', () => {
             compilationError(`

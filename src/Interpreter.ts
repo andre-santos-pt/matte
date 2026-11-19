@@ -13,6 +13,7 @@ import {
     CallExpression,
     CallStatement,
     CastExpression,
+    CharLiteral,
     ConditionalExpression,
     Declaration,
     DoubleLiteral,
@@ -603,6 +604,11 @@ export class Interpreter {
             return {
                 evaluation: e.value,
                 materialization: e.value.toString()
+            }
+        else if (e instanceof CharLiteral)
+            return {
+                evaluation: e.value,
+                materialization: `'${e.value}'`
             }
         else if (e instanceof StringLiteral)
             return {
