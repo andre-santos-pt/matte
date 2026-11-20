@@ -243,6 +243,7 @@ function stackheap_matte(editor) {
     }
 
     function update(trace, index) {
+        console.log(trace, index);
         const current = trace[index];
         if (!current)
             return;
@@ -251,6 +252,9 @@ function stackheap_matte(editor) {
         for(let i = 0; i < index; i++) {
            if(trace[i].call) {
                calls.push(trace[i]);
+           }
+           else if(trace[i].returnStatement) {
+               calls.pop();
            }
         }
 
