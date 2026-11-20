@@ -1,0 +1,153 @@
+.stack-heap-visualization {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.4fr);
+    gap: 16px;
+    padding: 12px;
+    color: #222;
+    font: 14px/1.4 monospace;
+}
+
+.stack-heap-panel {
+    min-width: 0;
+}
+
+.stack-heap-heading {
+    margin: 0 0 8px;
+    font: bold 14px/1.4 sans-serif;
+}
+
+.stack-heap-stack,
+.stack-heap-objects {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.stack-heap-frame,
+.stack-heap-object {
+    border: 2px solid #82b366;
+    border-radius: 5px;
+    background: #f3f9f2;
+    padding: 8px;
+    overflow-wrap: anywhere;
+}
+
+.stack-heap-frame-title {
+    margin-bottom: 6px;
+    font-weight: bold;
+}
+
+.stack-heap-variables,
+.stack-heap-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.stack-heap-variables {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.stack-heap-variable,
+.stack-heap-field {
+    border: 1px solid #6c8ebf;
+    border-radius: 3px;
+    background: #dae8fc;
+    padding: 4px 6px;
+}
+
+.stack-heap-variable {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border: 0;
+    background: transparent;
+    padding: 0;
+}
+
+.stack-heap-name {
+    font-weight: bold;
+}
+
+.stack-heap-value {
+    min-width: 24px;
+    border: 1px solid #6c8ebf;
+    border-radius: 3px;
+    background: #dae8fc;
+    padding: 4px 6px;
+}
+
+.stack-heap-pointer {
+    display: inline-block;
+    width: 24px;
+    height: 1em;
+    vertical-align: middle;
+}
+
+.stack-heap-connectors {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.stack-heap-panel {
+    position: relative;
+    z-index: 2;
+}
+
+.stack-heap-object {
+    border-color: #d6b656;
+    background: #fff8df;
+}
+
+.stack-heap-array {
+    display: flex;
+    gap: 3px;
+    overflow-x: auto;
+    padding: 2px;
+}
+
+.stack-heap-array-cell {
+    box-sizing: border-box;
+    display: flex;
+    flex: 0 0 58px;
+    width: 58px;
+    height: 58px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #888;
+    background: white;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+.stack-heap-array-item {
+    display: flex;
+    flex: 0 0 58px;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stack-heap-array-index {
+    color: #666;
+    font-size: 10px;
+}
+
+.stack-heap-empty {
+    color: #666;
+    font-style: italic;
+}
+
+@media (max-width: 600px) {
+    .stack-heap-visualization {
+        grid-template-columns: 1fr;
+    }
+}
