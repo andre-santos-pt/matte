@@ -1,3 +1,4 @@
+
 function tracing_matte(editor) {
     function collectDistinctSequenceOfValues(trace, varName) {
         const values = [];
@@ -17,7 +18,7 @@ function tracing_matte(editor) {
         div.append(document.createElement("br"));
     }
 
-    editor.disableVariableMaterialization()
+    editor.disable("variablematerialization");
 
     let div = document.createElement("div");
     div.style = "margin-top: .5em; margin-bottom: .5em; margin-left: .5em; margin-right: .5em;";

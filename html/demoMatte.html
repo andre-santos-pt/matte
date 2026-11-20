@@ -7,7 +7,7 @@
 <script src="../dist/matte-web-ace.js" defer></script>
 
 <h1>Script mode</h1>
-<matte-ace disable-compilation-hints>
+<matte-ace disable-compilationHints>
 int i = 0;
 while(i != 10) {
     i = i + 1;
@@ -80,7 +80,7 @@ boolean isNotDigit(int n) {
 <hr>
 
 <h1>Recursive Function</h1>
-<matte-ace call="factorial(5)" callstack sysout  >
+<matte-ace call="factorial(5)" callstack>
 int factorial(int n) {
     if (n == 0) return 1;
     else return n * factorial(n - 1);
@@ -90,7 +90,7 @@ int factorial(int n) {
 <hr>
 
 <h1>Procedure (side-effects)</h1>
-<matte-ace id="ex4" width="500" height="300" call="addOne([1,2,3])">
+<matte-ace call="addOne([1,2,3])">
 void addOne(int[] array) {
     int i = 0;
     while(i < array.length) {

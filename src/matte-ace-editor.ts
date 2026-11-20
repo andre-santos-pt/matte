@@ -144,6 +144,22 @@ const styleCss =
             }
            `;
 
+export enum SettingProperty {
+    CompilationHints = "compilationhints",
+    VariableMaterialization = "variablematerialization",
+    CumulativeMode = "cumulativemode",
+    MaxLoopIterations = "maxLoopIterations",
+    MaxCallStack = "maxCallStack"
+}
+
+export class Settings {
+    [SettingProperty.CompilationHints]: boolean = true;
+    [SettingProperty.VariableMaterialization]: boolean = true;
+    [SettingProperty.CumulativeMode]: boolean = true;
+    [SettingProperty.MaxLoopIterations]: number | undefined = 100;
+    [SettingProperty.MaxCallStack]: number | undefined = 100;
+}
+
 export default class MatteAceEditor {
     container!: HTMLElement;
     editor!: Ace.Editor;
@@ -168,7 +184,7 @@ export default class MatteAceEditor {
     popups: AceTooltip[] = [];
     popupPositions = new WeakMap<AceTooltip, PopupPosition>();
     secondaryMarkers: number[] = [];
-    repositionPopups!: () => void;
+    repositionPopups: () => void;
     extensionProcedures: ExtensionProcedure[] = [];
     extensionTypes: ExtensionType[] = [];
     preprocessors: ((p: Program) => void)[] = [];
@@ -176,12 +192,8 @@ export default class MatteAceEditor {
     afterRunListeners: Array<(result: EditorResult) => void> = [];
     stepListeners: Array<(trace: TraceEntry[], index: number) => void> = [];
     compilationListeners: Array<(compilation: Program | StaticError) => void> = [];
-    showCompilationHints = true;
-    showVariableMaterialization = true;
-    maxLoopIterations: number | undefined = 100;
-    maxCallStack: number | undefined = 100;
+    settings = new Settings();
     trace: TraceEntry[] = [];
-    cumulativeMode = false;
     private _resizeTimeout: number | null = null;
     errorMessageHandler = new NullErrorMessageHandler();
 
@@ -263,10 +275,7 @@ export default class MatteAceEditor {
         this.afterRunListeners = [];
         this.stepListeners = [];
 
-        this.showCompilationHints = true;
-
-        this.maxLoopIterations = 100;
-        this.maxCallStack = 100;
+        this.settings = new Settings();
 
         this.addSettingsMenu();
 
@@ -303,11 +312,6 @@ export default class MatteAceEditor {
         })
     }
 
-    // addExtensionProcedure(name: string, func: (args: any[]) => any): void {
-    //     this.extensions.push(new ExtensionProcedure(func, undefined, name));
-    //     console.log(this.extensions)
-    // }
-
     addExtensionProcedure(ext: ExtensionProcedure) {
         this.extensionProcedures.push(ext);
     }
@@ -327,10 +331,10 @@ export default class MatteAceEditor {
 
                 let message = err.message;
                 if (compilationError?.detail) {
-                    if (this.showCompilationHints && compilationError.detail.related) {
+                    if (this.settings.compilationhints && compilationError.detail.related) {
                         compilationError.detail.related.forEach((range: MatteRange) => this.markSecondaryHighlights(range))
                     }
-                    if (this.showCompilationHints && compilationError.detail.hint)
+                    if (this.settings.compilationhints && compilationError.detail.hint)
                         message += "<hr><small>" + compilationError.detail.hint + "</small>"
 
                 }
@@ -434,7 +438,6 @@ export default class MatteAceEditor {
             this.resultLabel.style.visibility = "hidden";
         });
 
-        this.cumulativeMode = false;
         this.editor.container.addEventListener('keydown', (event) => {
             if (event.key !== 'Enter' && event.key !== 'Backspace' && event.key !== 'Delete' && (!this.editor.getReadOnly() || event.key.length !== 1 ||
                 event.ctrlKey || event.metaKey || event.altKey || event.isComposing))
@@ -468,6 +471,7 @@ export default class MatteAceEditor {
                 const finalVariables = last(trace.children).stack.variables;
                 for (const [key, value] of trace.stack.variables) {
                     const lastValue = finalVariables.get(key);
+                    // TODO broken feature because of trace on root with no variables (see stackheap extension)
                     if (lastValue && JSON.stringify(value.evaluation) !== JSON.stringify(lastValue.evaluation)) {
                         const map = new Map();
                         map.set(key, lastValue);
@@ -486,6 +490,7 @@ export default class MatteAceEditor {
         this.debugBox = document.createElement('div');
         this.debugBox.style = "display: flex; align-items: center; gap: 10px; margin-top: 5px; margin-bottom: 5px";
         this.runBar.after(this.debugBox);
+
         this.debugBtn = document.createElement('button');
         this.debugBtn.innerHTML = "&#128269;";
         this.debugBtn.onclick = () => {
@@ -493,7 +498,7 @@ export default class MatteAceEditor {
         }
         this.debugBtn.hidden = true;
         this.debugBtn.title = "Debug the last call";
-        this.debugBox.append(this.debugBtn);
+        this.resultLabel?.after(this.debugBtn);
 
         this.slider = document.createElement('input');
         this.slider.type = "range";
@@ -502,7 +507,7 @@ export default class MatteAceEditor {
         this.slider.hidden = true;
         this.slider.addEventListener('input', () => {
             const index = Number(this.slider.value);
-            this.step(index, this.cumulativeMode);
+            this.step(index, this.settings.cumulativemode);
             this.updateDebugNavigation();
         });
         this.debugBtn.after(this.slider);
@@ -539,12 +544,12 @@ export default class MatteAceEditor {
         this.cumulative.setAttribute('aria-pressed', 'false');
         this.cumulative.style.cursor = 'pointer';
         this.cumulative.onclick = () => {
-            this.cumulativeMode = !this.cumulativeMode;
-            this.cumulative.setAttribute('aria-pressed', this.cumulativeMode.toString());
-            this.cumulative.title = `Cumulative view: ${this.cumulativeMode ? 'on' : 'off'}`;
-            this.cumulative.style.backgroundColor = this.cumulativeMode ? '#cfe8ff' : '';
-            this.cumulative.style.borderColor = this.cumulativeMode ? '#4586bd' : '';
-            this.step(Number(this.slider.value), this.cumulativeMode);
+            this.settings.cumulativemode = !this.settings.cumulativemode;
+            this.cumulative.setAttribute('aria-pressed', this.settings.cumulativemode.toString());
+            this.cumulative.title = `Cumulative view: ${this.settings.cumulativemode ? 'on' : 'off'}`;
+            this.cumulative.style.backgroundColor = this.settings.cumulativemode ? '#cfe8ff' : '';
+            this.cumulative.style.borderColor = this.settings.cumulativemode ? '#4586bd' : '';
+            this.step(Number(this.slider.value), this.settings.cumulativemode);
         };
         this.cumulative.hidden = true;
         this.backBtn.before(this.cumulative);
@@ -575,7 +580,7 @@ export default class MatteAceEditor {
         if (on) {
             this.getAceScroller().style.backgroundColor = '#e8e8e8';
             this.resultLabel.style.visibility = "hidden";
-            this.step(0, this.cumulativeMode);
+            this.step(0, this.settings.cumulativemode);
             this.updateDebugNavigation();
             this.clearErrorMarkers();
             this.editor.session.clearAnnotations();
@@ -593,7 +598,7 @@ export default class MatteAceEditor {
             Math.min(Number(this.slider.value) + delta, Number(this.slider.max))
         );
         this.slider.value = index.toString();
-        this.step(index, this.cumulativeMode);
+        this.step(index, this.settings.cumulativemode);
         this.updateDebugNavigation();
     }
 
@@ -636,7 +641,7 @@ export default class MatteAceEditor {
 
 
     createInterpreter(): Interpreter {
-        const interpreter = new Interpreter(this.maxLoopIterations, this.maxCallStack);
+        const interpreter = new Interpreter(this.settings.maxLoopIterations, this.settings.maxCallStack);
         this.extensionProcedures.forEach((extension) => {
             interpreter.addExtensionProcedure(extension);
         });
@@ -848,7 +853,7 @@ export default class MatteAceEditor {
     }
 
     createScopePopups(dataMap?: TraceVariables): void {
-        if (dataMap === undefined || !this.showVariableMaterialization)
+        if (dataMap === undefined || !this.settings.variablematerialization)
             return
 
         for (const [key, value] of dataMap) {
@@ -1022,27 +1027,46 @@ export default class MatteAceEditor {
 
         panel.append(document.createElement("hr"));
 
-        addPositiveNumber("Maximum loop iterations", this.maxLoopIterations?.toString() ?? "", v => this.maxLoopIterations = v);
+        //addPositiveNumber("Maximum loop iterations", this.settings.maxLoopIterations?.toString() ?? "", v => this.settings.maxLoopIterations = v);
 
-        addPositiveNumber("Maximum call stack size", this.maxCallStack?.toString() ?? "", v => this.maxCallStack = v);
+        //addPositiveNumber("Maximum call stack size", this.settings.maxCallStack?.toString() ?? "", v => this.settings.maxCallStack = v);
 
-        addCheckbox("compilation-hints", "Show compilation hints", this.showCompilationHints, show => this.showCompilationHints = show);
+        //addCheckbox("compilation-hints", "Show compilation hints", this.settings.compilationHints, show => this.settings.compilationHints = show);
 
-        addCheckbox("variable-materialization", "Show variable materialization", this.showVariableMaterialization, show => this.showVariableMaterialization = show);
+        //addCheckbox("variable-materialization", "Show variable materialization", this.settings.showVariableMaterialization, show => this.settings.showVariableMaterialization = show);
+
+        Object.values(SettingProperty).forEach(key => {
+            const value = this.settings[key];
+            if(typeof value === "boolean")
+                { // @ts-ignore
+                    addCheckbox(key, key, value, show => this.settings[key]  = show);
+                }
+            else if (typeof value === "number")
+                { // @ts-ignore
+                    addPositiveNumber(key, value?.toString() ?? "", v => this.settings[key] = v);
+                }
+
+            //console.log(this.settings[key])
+        })
 
         host.append(details);
     }
 
-    disableCompilationHints(): void {
-        this.showCompilationHints = false;
-        const checkbox = document.getElementById("compilation-hints") as HTMLInputElement | null;
+    enable(key: string): void {
+        // @ts-ignore
+        this.settings[key] = true;
+        const checkbox = document.getElementById(key) as HTMLInputElement | null;
         if (checkbox)
-            checkbox.checked = false;
+            checkbox.checked = true;
     }
 
-    disableVariableMaterialization(): void {
-        this.showVariableMaterialization = false;
-        const checkbox = document.getElementById("variable-materialization") as HTMLInputElement | null;
+    disable(key: string): void {
+        // @ts-ignore
+        if(this.settings[key] === undefined)
+            console.error(`Setting '${key}' does not exist in MatteAceEditor settings.`);
+        // @ts-ignore
+        this.settings[key] = false;
+        const checkbox = document.getElementById(key) as HTMLInputElement | null;
         if (checkbox)
             checkbox.checked = false;
     }

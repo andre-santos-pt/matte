@@ -7,11 +7,12 @@ export class ErrorMessagesPt implements ErrorMessageHandler {
     transform(error: StaticError): StaticError {
         let message = error.message
         let detail = error.detail
-        if(error.type == StaticErrorType.DuplicateVariable)
+        if(error.type == StaticErrorType.DuplicateVariable) {
             message = "Nome de variável duplicado"
+        }
         else if(error.type == StaticErrorType.UndeclaredVariable) {
             message = "Variável não declarada"
-            detail.hint = "??"
+            //detail.hint = "??"
         }
         else if(error.type == StaticErrorType.TypeMismatch) {
             message = "Tipo incompatível"

@@ -69,9 +69,20 @@ function initializeMatteAce(element) {
         if(window[attr.name + "_matte_include"])
             editor.include = window[attr.name + "_matte_include"]
     });
-    if(element.hasAttribute("disable-compilation-hints")) {
-        editor.disableCompilationHints();
+    Array.from(element.attributes).forEach(attr => {
+        if(attr.name.startsWith("disable-"))
+            editor.disable(attr.name.substring("disable-".length))
+    });
+
+    Array.from(element.attributes).forEach(attr => {
+        if(attr.name.startsWith("enable-"))
+            editor.enable(attr.name.substring("enable-".length))
+    });
+
+    if(element.hasAttribute("readonly")) {
+        editor.setReadOnly(true)
     }
+
     if(element.hasAttribute("pt")) {
         editor.errorMessageHandler = new ErrorMessagesPt()
     }
