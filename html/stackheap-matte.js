@@ -1,0 +1,247 @@
+function stackheap_matte(editor) {
+    const container = document.createElement("div");
+    container.className = "stack-heap-visualization";
+
+    const stackPanel = document.createElement("section");
+    stackPanel.className = "stack-heap-panel";
+    // const stackHeading = document.createElement("h2");
+    // stackHeading.className = "stack-heap-heading";
+    // stackHeading.textContent = "Call stack";
+    const stackView = document.createElement("div");
+    stackView.className = "stack-heap-stack";
+    stackPanel.append(stackView);
+
+    const heapPanel = document.createElement("section");
+    heapPanel.className = "stack-heap-panel";
+    // const heapHeading = document.createElement("h2");
+    // heapHeading.className = "stack-heap-heading";
+    // heapHeading.textContent = "Heap";
+    const heapView = document.createElement("div");
+    heapView.className = "stack-heap-objects";
+    heapPanel.append(heapView);
+
+    const connectors = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    connectors.classList.add("stack-heap-connectors");
+    const marker = document.createElementNS("http://www.w3.org/2000/svg", "marker");
+    marker.id = "stack-heap-arrow-" + Math.random().toString(36).slice(2);
+    marker.setAttribute("viewBox", "0 0 10 10");
+    marker.setAttribute("refX", "9");
+    marker.setAttribute("refY", "5");
+    marker.setAttribute("markerWidth", "6");
+    marker.setAttribute("markerHeight", "6");
+    marker.setAttribute("orient", "auto");
+    const arrowHead = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    arrowHead.setAttribute("d", "M 0 0 L 10 5 L 0 10 z");
+    arrowHead.setAttribute("fill", "#145da0");
+    marker.append(arrowHead);
+    const definitions = document.createElementNS("http://www.w3.org/2000/svg", "defs");
+    definitions.append(marker);
+    connectors.append(definitions);
+    container.append(stackPanel, heapPanel, connectors);
+    let redrawReferences = () => {};
+
+    function displayValue(value) {
+        if (typeof value === "string")
+            return JSON.stringify(value);
+        if (value === undefined)
+            return "undefined";
+        if (value === null)
+            return "null";
+        if (typeof value === "bigint")
+            return value.toString() + "n";
+        return String(value);
+    }
+
+    function element(className, text) {
+        const node = document.createElement("div");
+        node.className = className;
+        node.textContent = text;
+        return node;
+    }
+
+    function update(trace, index) {
+        const current = trace[index];
+        if (!current)
+            return;
+
+        const calls = [];
+        for(let i = 0; i < index; i++) {
+           if(trace[i].call) {
+               calls.push(trace[i]);
+           }
+           else if(trace[i].returnStatement) {
+               calls.pop();
+           }
+        }
+
+        const frames = calls.map((entry, index) => ({
+            entry,
+            variables: index < calls.length - 1 ? calls[index + 1].stack.variables : current.stack.variables
+        }));
+
+        const objectIdsByUuid = new Map();
+        const objectIdsByReference = new WeakMap();
+        const pendingObjectsByUuid = new Map();
+        const pendingObjects = [];
+        let nextObjectId = 1;
+
+        function targetFor(value, uuid, frameIndex) {
+            let objectId;
+            if (uuid != null) {
+                objectId = objectIdsByUuid.get(uuid);
+                const pending = pendingObjectsByUuid.get(uuid);
+                if (pending && frameIndex >= pending.frameIndex) {
+                    pending.value = value;
+                    pending.frameIndex = frameIndex;
+                }
+            } else if (value !== null && typeof value === "object") {
+                objectId = objectIdsByReference.get(value);
+            }
+
+            if (!objectId) {
+                const id = "stack-heap-object-" + nextObjectId++;
+                objectId = id;
+                if (uuid != null)
+                    objectIdsByUuid.set(uuid, id);
+                else if (value !== null && typeof value === "object")
+                    objectIdsByReference.set(value, id);
+                const pending = {value, uuid, frameIndex};
+                pendingObjects.push(pending);
+                if (uuid != null)
+                    pendingObjectsByUuid.set(uuid, pending);
+            }
+            const pointer = document.createElement("span");
+            pointer.className = "stack-heap-pointer";
+            pointer.dataset.target = objectId;
+            pointer.setAttribute("aria-label", "Reference to heap object");
+            return pointer;
+        }
+
+        function unwrapValue(value) {
+            if (value !== null && typeof value === "object" &&
+                !Array.isArray(value) && "evaluation" in value)
+                return {value: value.evaluation, uuid: value.uuid};
+            return {value, uuid: undefined};
+        }
+
+        function appendValue(parent, value, uuid, frameIndex) {
+            const unwrapped = unwrapValue(value);
+            const resolvedValue = unwrapped.value;
+            const resolvedUuid = uuid ?? unwrapped.uuid;
+            if (resolvedValue !== null && typeof resolvedValue === "object")
+                parent.append(targetFor(resolvedValue, resolvedUuid, frameIndex));
+            else
+                parent.append(document.createTextNode(displayValue(resolvedValue)));
+        }
+
+        function drawReferences() {
+            connectors.replaceChildren(definitions);
+            const bounds = container.getBoundingClientRect();
+            connectors.setAttribute("viewBox", `0 0 ${bounds.width} ${bounds.height}`);
+
+            for (const pointer of container.querySelectorAll(".stack-heap-pointer")) {
+                const target = container.querySelector("#" + pointer.dataset.target);
+                if (!target)
+                    continue;
+
+                const sourceBounds = pointer.getBoundingClientRect();
+                const targetBounds = target.getBoundingClientRect();
+                const startX = sourceBounds.right - bounds.left;
+                const startY = sourceBounds.top + sourceBounds.height / 2 - bounds.top;
+                const endX = targetBounds.left - bounds.left;
+                const endY = targetBounds.top + targetBounds.height / 2 - bounds.top;
+                const bend = Math.max(24, Math.abs(endX - startX) / 2);
+                const direction = endX >= startX ? 1 : -1;
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", `M ${startX} ${startY} C ${startX + bend * direction} ${startY}, ${endX - bend * direction} ${endY}, ${endX} ${endY}`);
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke", "#145da0");
+                path.setAttribute("stroke-width", "1.5");
+                path.setAttribute("marker-end", `url(#${marker.id})`);
+                connectors.append(path);
+            }
+        }
+        redrawReferences = drawReferences;
+
+        stackView.replaceChildren();
+        heapView.replaceChildren();
+        connectors.replaceChildren(definitions);
+
+        for (const [frameIndex, {entry, variables}] of frames.entries()) {
+            const frame = document.createElement("section");
+            frame.className = "stack-heap-frame";
+            frame.append(element("stack-heap-frame-title", entry.materialization || "Stack frame"));
+
+            const variableList = document.createElement("div");
+            variableList.className = "stack-heap-variables";
+            for (const [name, variable] of variables) {
+                const item = document.createElement("div");
+                item.className = "stack-heap-variable";
+                const variableName = document.createElement("span");
+                variableName.className = "stack-heap-name";
+                variableName.textContent = name;
+                const valueBox = document.createElement("span");
+                valueBox.className = "stack-heap-value";
+                appendValue(valueBox, variable?.evaluation, variable?.uuid, frameIndex);
+                item.append(variableName, valueBox);
+                variableList.append(item);
+            }
+            if (variableList.childElementCount === 0)
+                variableList.append(element("stack-heap-empty", "no local variables"));
+            frame.append(variableList);
+            stackView.append(frame);
+        }
+
+        while (pendingObjects.length > 0) {
+            const pending = pendingObjects.shift();
+            const object = pending.value;
+            const isArray = Array.isArray(object);
+            const card = document.createElement("section");
+            card.className = "stack-heap-object";
+            card.id = pending.uuid != null
+                ? objectIdsByUuid.get(pending.uuid)
+                : objectIdsByReference.get(object);
+
+            if (isArray) {
+                const array = document.createElement("div");
+                array.className = "stack-heap-array";
+                object.forEach((value, arrayIndex) => {
+                    const item = document.createElement("div");
+                    item.className = "stack-heap-array-item";
+                    const cell = document.createElement("div");
+                    cell.className = "stack-heap-array-cell";
+                    appendValue(cell, value, undefined, pending.frameIndex);
+                    item.append(cell, element("stack-heap-array-index", String(arrayIndex)));
+                    array.append(item);
+                });
+                if (object.length === 0)
+                    array.append(element("stack-heap-empty", "empty array"));
+                card.append(array);
+            } else {
+                const fields = document.createElement("div");
+                fields.className = "stack-heap-fields";
+                for (const [name, value] of Object.entries(object).filter(([key]) => key !== "$type")) {
+                    const field = document.createElement("div");
+                    field.className = "stack-heap-field";
+                    const fieldName = document.createElement("span");
+                    fieldName.className = "stack-heap-name";
+                    fieldName.textContent = name + " = ";
+                    field.append(fieldName);
+                    appendValue(field, value, undefined, pending.frameIndex);
+                    fields.append(field);
+                }
+                if (fields.childElementCount === 0)
+                    fields.append(element("stack-heap-empty", "no fields"));
+                card.append(fields);
+            }
+            heapView.append(card);
+        }
+
+        drawReferences();
+    }
+
+    editor.stepListeners.push(update);
+    if (typeof ResizeObserver !== "undefined")
+        new ResizeObserver(() => redrawReferences()).observe(container);
+    return container;
+}

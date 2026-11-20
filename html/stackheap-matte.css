@@ -109,17 +109,17 @@
 
 .stack-heap-array {
     display: flex;
-    gap: 3px;
+    gap: 1px;
     overflow-x: auto;
-    padding: 2px;
+    padding: 1px;
 }
 
 .stack-heap-array-cell {
     box-sizing: border-box;
     display: flex;
-    flex: 0 0 58px;
-    width: 58px;
-    height: 58px;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -131,7 +131,7 @@
 
 .stack-heap-array-item {
     display: flex;
-    flex: 0 0 58px;
+    flex: 0 0 30px;
     flex-direction: column;
     align-items: center;
 }
