@@ -197,7 +197,9 @@ function stackheap_matte(editor) {
             const object = pending.value;
             const isArray = Array.isArray(object);
             const card = document.createElement("section");
-            card.className = "stack-heap-object";
+            card.className = isArray
+                ? "stack-heap-object stack-heap-array-object"
+                : "stack-heap-object";
             card.id = pending.uuid != null
                 ? objectIdsByUuid.get(pending.uuid)
                 : objectIdsByReference.get(object);

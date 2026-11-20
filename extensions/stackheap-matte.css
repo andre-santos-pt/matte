@@ -107,9 +107,16 @@
     background: #fff8df;
 }
 
+.stack-heap-array-object {
+    align-self: flex-start;
+    width: max-content;
+}
+
 .stack-heap-array {
     display: flex;
-    gap: 1px;
+    align-self: flex-start;
+    gap: 5px;
+    width: max-content;
     overflow-x: auto;
     padding: 1px;
 }
