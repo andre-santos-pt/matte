@@ -15,6 +15,10 @@ import {
 import {PrimitiveType} from "./src/ast.ts";
 import {ErrorMessagesPt} from "./src/error-messages-pt.ts";
 
+import {callstack_matte} from "./src/callstack-matte.ts";
+
+window.callstack_matte = callstack_matte;
+
 window.flatTrace = (trace) => {
     if(trace.children)
         return [trace, ... trace.children.flatMap(t => window.flatTrace(t))]
@@ -76,92 +80,8 @@ window.sysout_matte = (editor) => {
     return consoleDiv;
 }
 
-window.callstack_matte = (editor) => {
-    function stack(n) {
-        if(!n.parent)
-            return [];
-        else
-            return [...stack(n.parent), n.parent]
-    }
 
-    function getDifferenceRange(strA, strB) {
-        let start = 0;
 
-        // 1. Scan from the left to find the first differing character
-        while (start < strA.length && start < strB.length && strA[start] === strB[start]) {
-            start++;
-        }
-
-        // If strings are completely identical
-        if (start === strA.length && start === strB.length) {
-            return null;
-        }
-
-        let endA = strA.length - 1;
-        let endB = strB.length - 1;
-
-        // 2. Scan from the right to find the last differing character
-        while (endA >= start && endB >= start && strA[endA] === strB[endB]) {
-            endA--;
-            endB--;
-        }
-
-        return { start, end: endA };
-    }
-
-    function highlightDiffInHtml(str, range) {
-        function escapeHtml(text) {
-            return text
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/"/g, "&quot;")
-                .replace(/'/g, "&#039;");
-        }
-        // If there are no differences, just return the safe HTML string
-        if (!range) {
-            return escapeHtml(str);
-        }
-
-        const { start, end } = range;
-
-        // Validate range bounds
-        if (start < 0 || end >= str.length || start > end) {
-            return escapeHtml(str);
-        }
-
-        // Split the string into three parts: before, the difference, and after
-        const before = str.slice(0, start);
-        const diffPart = str.slice(start, end + 1); // +1 because 'end' is inclusive
-        const after = str.slice(end + 1);
-
-        // Reassemble with the <mark> tag around the difference
-        return `${escapeHtml(before)}<mark>${escapeHtml(diffPart)}</mark>${escapeHtml(after)}`;
-    }
-
-    const div = document.createElement('div');
-    div.style.cssText = 'padding: 5px; min-height: 10px; font-family: monospace; color: black; background-color: lightgray;';
-    editor.stepListeners.push((t, i) => {
-        let html = ""
-        const s = stack(t[i])
-        for(let j = 0; j < s.length; j++) {
-            html += "<span style='font-family: monospace'>"
-            for (let d = j; d !== 0; d--)
-                html += "&nbsp;&nbsp;&nbsp;&nbsp;"
-            html += "&#8627;&nbsp;" + s[j].materialization
-
-            for (let r = i; r >= 0; r--)
-                if (t[r].returnStatement && t[r].parent === s[j]) {
-                    html += " \u279c " + t[r].materialization
-                    break
-                }
-            html += "</span><br>"
-        }
-        div.replaceChildren()
-        div.innerHTML = html
-    })
-    return div
-}
 
 const matteDivs = new Set();
 
