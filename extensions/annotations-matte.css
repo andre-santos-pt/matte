@@ -1,0 +1,5 @@
+.range-highlight {
+    position: absolute;
+    background-color: rgba(255, 235, 59, 0.45);
+    z-index: 20;
+}

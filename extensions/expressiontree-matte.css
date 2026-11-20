@@ -1,0 +1,26 @@
+.expression-tree {
+    overflow: auto;
+    padding: 8px;
+    font-family: Arial, sans-serif;
+}
+
+.expression-message {
+    padding: 2px;
+    color: #687887;
+    font-size: 13px;
+}
+
+.expression-tree svg {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    font-family: Arial, sans-serif;
+}
+
+.expression-tree .expression-active > polygon,
+.expression-tree .expression-active > ellipse,
+.expression-tree .expression-active > path {
+    fill: #ffe0b2;
+    stroke: #e87916;
+    stroke-width: 2.5px;
+}

@@ -1,41 +1,3 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Expression tree</title>
-    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js"></script>
-    <style>
-        .expression-tree {
-            overflow: auto;
-            padding: 8px;
-            font-family: Arial, sans-serif;
-        }
-
-        .expression-message {
-            padding: 2px;
-            color: #687887;
-            font-size: 13px;
-        }
-
-        .expression-tree svg {
-            display: block;
-            max-width: 100%;
-            height: auto;
-            font-family: Arial, sans-serif;
-        }
-
-        .expression-tree .expression-active > polygon,
-        .expression-tree .expression-active > ellipse,
-        .expression-tree .expression-active > path {
-            fill: #ffe0b2;
-            stroke: #e87916;
-            stroke-width: 2.5px;
-        }
-    </style>
-</head>
-<body>
-<script src="../dist/matte-web-ace.js" defer></script>
-<script>
 function expressiontree_matte(editor) {
     const root = document.createElement("div");
     root.className = "expression-tree";
@@ -240,13 +202,3 @@ function expressiontree_matte(editor) {
     editor.checkCompilation();
     return root;
 }
-</script>
-Displays unary and binary operations at the current cursor position or for the selected expression.
-
-<matte-ace call="" expressiontree>
-int sum(int[] values) {
-    return values[0] + values[1] * 2;
-}
-</matte-ace>
-</body>
-</html>

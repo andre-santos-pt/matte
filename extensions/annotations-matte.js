@@ -1,18 +1,3 @@
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/html">
-<head>
-    <title>Demo program annotations</title>
-    <style>
-        .range-highlight {
-            position: absolute;
-            background-color: rgba(255, 235, 59, 0.45);
-            z-index: 20;
-        }
-    </style>
-</head>
-<body>
-<script src="../dist/matte-web-ace.js" defer></script>
-<script>
 function annotations_matte(editor) {
     const div = document.createElement("div");
     editor.setReadOnly(true);
@@ -70,22 +55,3 @@ function annotations_matte(editor) {
     });
     return div;
 }
-</script>
-
-<h1>Annotations</h1>
-Extension to add annotations to code.
-
-<matte-ace call="sum([1,2,3])" annotations>
-int sum(int[] a) {
-    int i = 0; //* Declaration of iterator variable for accessing array indexes
-    int s = 0; //* Declaration of accumulator variable for holding the sum parcels
-    while(i < a.length) {  //* Loop to iterate the valid array indexes left-to-right
-        s = s + a[i]; //* Value of variable gets accumulated
-        i++; //* Iterator variable moves forward
-    }
-    return s; //* The value of the accumulation is returned
-}
-</matte-ace>
-
-</body>
-</html>

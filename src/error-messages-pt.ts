@@ -17,7 +17,6 @@ export class ErrorMessagesPt implements ErrorMessageHandler {
             message = "Tipo incompatível"
             if(error.detail.found && error.detail.expected)
                 message += `: esta expressão é do tipo ${mark(error.detail.found)}, mas o esperado é ${mark(error.detail.expected)}`
-
         }
         return {
             ...error,
