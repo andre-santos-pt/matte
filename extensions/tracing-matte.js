@@ -34,7 +34,7 @@ function tracing_matte(editor) {
     editor.afterRunListeners.push((r) => {
         addHeader(this.getAttribute("title") || "Tracing");
         if (att === null || att === undefined || att.trim() === "")
-            varNames = Array.from(new Set(r.trace.children.map(t => t.stack.variables.keys().toArray()).flat()));
+            varNames = Array.from(new Set(r.trace.children.map(t => Array.from(t.stack.variables.keys())).flat()));
         else
             varNames = this.getAttribute("vars").split(",").map(v => v.trim());
 
