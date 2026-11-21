@@ -552,6 +552,7 @@ export default class MatteAceEditor {
     }
 
     runParser(call: string): void {
+        this.clearPopups();
         let src = this.getCodeToCompile()
         this.beforeRunListeners.forEach(l => l());
         this.lastCompilationSource = src;
@@ -742,7 +743,8 @@ export default class MatteAceEditor {
     }
 
     clearPopups(): void {
-        this.popups.forEach(p => p.hide(undefined));
+        this.popups.forEach(p => p.destroy());
+        this.popups = [];
     }
 
     clearErrorMarkers(): void {
