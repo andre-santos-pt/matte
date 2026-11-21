@@ -14,7 +14,7 @@ import type {Ace} from "ace-builds";
 import {Program, StaticError, Type} from "./ast";
 import MatteRange from "./Range";
 import {Marker} from "ace-builds-internal/layer/marker";
-import {SettingProperty, Settings, settingsConf} from "./settings";
+import {SettingProperty, Settings} from "./settings";
 //import {isDeepStrictEqual} from "assert/build/internal/util/comparisons.js";
 
 //const {Range} = ace.require("ace/range");
@@ -181,7 +181,7 @@ export default class MatteAceEditor {
     afterRunListeners: Array<(result: EditorResult) => void> = [];
     stepListeners: Array<(trace: TraceEntry[], index: number) => void> = [];
     compilationListeners: Array<(compilation: Program | StaticError) => void> = [];
-    settings = new Settings();
+    settings: Settings;
     trace: TraceEntry[] = [];
     private _resizeTimeout: number | null = null;
     errorMessageHandler = new NullErrorMessageHandler();
@@ -189,7 +189,13 @@ export default class MatteAceEditor {
     readonly: boolean = false;
     norun: boolean = false;
 
-    containerGenId: string = Math.random().toString(36).substring(2, 15);
+    enable(key: string): void {
+        this.settings.enable(key);
+    }
+
+    disable(key: string): void {
+        this.settings.disable(key);
+    }
 
     constructor(
         container: HTMLElement,
@@ -199,6 +205,7 @@ export default class MatteAceEditor {
         readonly? : boolean,
         norun? : boolean
     ) {
+
         this.readonly = readonly ?? false;
         this.norun = norun ?? false;
 
@@ -218,6 +225,10 @@ export default class MatteAceEditor {
             this.container.style.height = "50px";
         }
         this.container.style.display = "block"
+
+        this.settings = new Settings(this);
+
+
         this.editor = ace.edit(this.container);
         this.editorBackgroundColor = this.getAceScroller().style.backgroundColor;
         this.editor.setTheme(this.settings[SettingProperty.Theme]);
@@ -232,6 +243,8 @@ export default class MatteAceEditor {
             highlightSelectedWord: false
         });
         this.editor.setHighlightActiveLine(false);
+
+        this.settings.createSettingsMenu();
 
         this.runBar = document.createElement('div');
         this.runBar.style = "display: flex; align-items: center; gap: 10px; margin-top: 5px; margin-bottom: 5px";
@@ -261,10 +274,6 @@ export default class MatteAceEditor {
         this.beforeRunListeners = [];
         this.afterRunListeners = [];
         this.stepListeners = [];
-
-        this.settings = new Settings();
-
-        this.addSettingsMenu();
 
         this.afterRunListeners.push(result => {
             console.log(result)
@@ -913,149 +922,34 @@ export default class MatteAceEditor {
             return value.toString();
     }
 
-    addSettingsMenu(): void {
-        const host = this.container.parentElement;
-        if (!host)
-            return;
-        host.style.display = "block";
-        if (window.getComputedStyle(host).position === "static")
-            host.style.position = "relative";
 
-        const details = document.createElement("details");
-        details.className = "matte-ace-settings";
 
-        const summary = document.createElement("summary");
-        summary.textContent = "\u2630";
-        summary.title = "Editor settings";
-        summary.setAttribute("aria-label", "Editor settings");
-        details.append(summary);
-
-        const panel = document.createElement("div");
-        panel.className = "matte-ace-settings-panel";
-        details.append(panel);
-
-        const addSelect = (
-            labelText: string,
-            values: Array<[string, string]>,
-            selectedValue: string,
-            onChange: (value: string) => void
-        ): void => {
-            const label = document.createElement("label");
-            label.append(document.createTextNode(labelText));
-            const select = document.createElement("select");
-            for (const [value, text] of values) {
-                const option = document.createElement("option");
-                option.value = value;
-                option.textContent = text;
-                select.append(option);
-            }
-            select.value = selectedValue;
-            select.addEventListener("change", () => onChange(select.value));
-            label.append(select);
-            panel.append(label);
-        };
-
-        const addPositiveNumber = (
-            settingsKey: string,
-            labelText: string,
-            value: string,
-            onChange: (value: number | undefined) => void
-        ): void => {
-            const label = document.createElement("label");
-            label.append(document.createTextNode(labelText));
-            const input = document.createElement("input");
-            input.id = this.containerGenId + "-" + settingsKey;
-            input.type = "number";
-            input.min = "0";
-            input.step = "any";
-            input.value = value;
-            input.addEventListener("change", () => {
-                const number = input.valueAsNumber;
-                if (input.value.trim().length === 0)
-                    onChange(undefined);
-                else if (Number.isFinite(number) && number > 0)
-                    onChange(number);
-                else
-                    input.value = value;
-            });
-            label.append(input);
-            panel.append(label);
-        };
-
-        const addCheckbox = (
-            settingId: string,
-            labelText: string,
-            checked: boolean,
-            onChange: (checked: boolean) => void
-        ): void => {
-            const label = document.createElement("label");
-            label.append(document.createTextNode(labelText));
-            const input = document.createElement("input");
-            input.id = this.containerGenId + "-" + settingId;
-            input.type = "checkbox";
-            input.checked = checked;
-            input.addEventListener("change", () => onChange(input.checked));
-            label.append(input);
-            panel.append(label);
-        };
-
-        Object.values(SettingProperty).forEach(key => {
-            const value = this.settings[key];
-            const callback = (show: any) => {
-                const action = settingsConf[key].action
-                if(action)
-                    action.call(null, this, show)
-                else
-                { // @ts-ignore
-                    this.settings[key] = show
-                }
-            };
-            if(settingsConf[key]?.options) {
-                addSelect(
-                    settingsConf[key].label,
-                    settingsConf[key].options!.map(option => [option.value, option.label || option.value]),
-                    value?.toString() ?? "N/A",
-                    callback
-                );
-            }
-            else if(typeof value === "boolean")
-                { // @ts-ignore
-                    addCheckbox(key, settingsConf[key]?.label || key, value, callback);
-                }
-            else if (typeof value === "number")
-                { // @ts-ignore
-                    addPositiveNumber(key, settingsConf[key]?.label || key, value, callback);
-                }
-        })
-        host.append(details);
-    }
-
-    enable(key: string): void {
-        // @ts-ignore
-        this.settings[key] = true;
-        const checkbox = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null; // TODO Bug: This will not work if the checkbox is not in the DOM yet. Consider storing a reference to the checkbox when creating it.
-        if (checkbox)
-            checkbox.checked = true;
-
-        // @ts-ignore
-        const action = settingsConf[key]?.action
-        if(action)
-            action.call(null, this, true)
-    }
-
-    disable(key: string): void {
-        // @ts-ignore
-        if(this.settings[key] === undefined)
-            console.error(`Setting '${key}' does not exist in MatteAceEditor settings.`);
-        // @ts-ignore
-        this.settings[key] = false;
-        const checkbox = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null; // TODO Bug: This will not work if the checkbox is not in the DOM yet. Consider storing a reference to the checkbox when creating it.
-        if (checkbox)
-            checkbox.checked = false;
-
-        // @ts-ignore
-        const action = settingsConf[key]?.action
-        if(action)
-            action.call(null, this, false)
-    }
+    // enable(key: string): void {
+    //     // @ts-ignore
+    //     this.settings[key] = true;
+    //     const checkbox = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null; // TODO Bug: This will not work if the checkbox is not in the DOM yet. Consider storing a reference to the checkbox when creating it.
+    //     if (checkbox)
+    //         checkbox.checked = true;
+    //
+    //     // @ts-ignore
+    //     const action = settingsConf[key]?.action
+    //     if(action)
+    //         action.call(null, this, true)
+    // }
+    //
+    // disable(key: string): void {
+    //     // @ts-ignore
+    //     if(this.settings[key] === undefined)
+    //         console.error(`Setting '${key}' does not exist in MatteAceEditor settings.`);
+    //     // @ts-ignore
+    //     this.settings[key] = false;
+    //     const checkbox = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null; // TODO Bug: This will not work if the checkbox is not in the DOM yet. Consider storing a reference to the checkbox when creating it.
+    //     if (checkbox)
+    //         checkbox.checked = false;
+    //
+    //     // @ts-ignore
+    //     const action = settingsConf[key]?.action
+    //     if(action)
+    //         action.call(null, this, false)
+    // }
 }
