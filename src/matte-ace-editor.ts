@@ -170,6 +170,7 @@ export default class MatteAceEditor {
 
         this.afterRunListeners.push(result => {
             console.log(result)
+            this.clearPopups();
             this.clearErrorMarkers();
             this.editor.session.clearAnnotations();
             if(result.callError) {

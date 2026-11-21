@@ -28,5 +28,15 @@ void fill(int[] array, int n) {
 </matte-ace>
 
 
+<matte-ace call="create(3)" stackheap>
+int[][] create(int n) {
+    int[][] values = new int[n][n];
+    for(int i = 0; i < n; i++) {
+        values[i] = new int[n*2];
+    }
+    return  values;
+}
+</matte-ace>
+
 </body>
 </html>
