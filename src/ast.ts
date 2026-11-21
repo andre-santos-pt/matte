@@ -591,10 +591,9 @@ export class ArrayAllocationExpression extends Expression {
     dimensions: Expression[];
 
     constructor(range: Range, componentType: Type, dimensions: Expression[]) {
-        super(range, new ArrayType(componentType)); // TODO type
+        super(range, dimensions.reduce<Type>(type => new ArrayType(type), componentType));
         this.componentType = componentType;
         this.dimensions = dimensions;
-        // TODO dimensions > 1  positive int
     }
 
     getChildren(): Expression[] {

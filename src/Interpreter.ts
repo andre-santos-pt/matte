@@ -574,9 +574,9 @@ export class Interpreter {
         }
     }
 
-    private prettyPrint(value: any) {
+    private prettyPrint(value: any): string {
         if(Array.isArray(value))
-            return "[" + value.join(", ") + "]"
+            return "[" + value.map(e => this.prettyPrint(e)).join(", ") + "]"
         else if(typeof value == "object")
                 return JSON.stringify(value)
         else if(value == null)
@@ -783,12 +783,17 @@ export class Interpreter {
                 uuid: crypto.randomUUID()
             }
         } else if (e instanceof ArrayAllocationExpression) {
-            const length = this.evaluate(e.dimensions[0]).evaluation // TODO multidim
-            const array = Array.from({length})
-            if (e.componentType == PrimitiveType.INT)
-                for (let i = 0; i != length; i++)
-                    array[i] = 0
-            // TODO other defaults
+            const lengths = e.dimensions.map(dimension => this.evaluate(dimension).evaluation as number)
+            const allocate = (dimension: number): any[] => {
+                const array = Array.from({length: lengths[dimension]})
+                if (dimension + 1 < lengths.length)
+                    for (let i = 0; i < array.length; i++)
+                        array[i] = allocate(dimension + 1)
+                else if (e.componentType == PrimitiveType.INT)
+                    array.fill(0)
+                return array
+            }
+            const array = allocate(0)
             return {
                 evaluation: array,
                 materialization: undefined, // "[" + array.join() + "]"

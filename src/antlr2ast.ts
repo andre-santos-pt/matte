@@ -794,7 +794,11 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     arrayLiteralToAST(ctx: ArrayLiteralContext): ArrayLiteralExpression {
         return new ArrayLiteralExpression(this.rangeContext(ctx),
-            ctx.expList() ? ctx.expList().exp_list().map(e => this.expToAST(e)) : []
+            ctx.arrayLiteralElement_list().map(element =>
+                element.arrayLiteral()
+                    ? this.arrayLiteralToAST(element.arrayLiteral()!)
+                    : this.expToAST(element.exp()!)
+            )
         )
     }
 
@@ -1098,7 +1102,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             return new ArrayAllocationExpression(
                 this.rangeContext(ctx),
                 type ? type : new ForeignType(typeName),
-                [this.expToAST(ctx.dimensions().exp())] // TODO multidim
+                ctx.dimensions().exp_list().map(dimension => this.expToAST(dimension))
             )
         } else if (ctx instanceof ArrayExprContext)
             return new ArrayElementExpression(

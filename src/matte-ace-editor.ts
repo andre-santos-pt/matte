@@ -802,7 +802,7 @@ export default class MatteAceEditor {
         if (value === null || value === undefined)
             return "null";
         else if (Array.isArray(value))
-            return "[" + value.join(",&nbsp;") + "]";
+            return "[" + value.map(e => this.prettyPrint(e)).join(",&nbsp;") + "]";
         else if (typeof value === "object")
             return prettyPrintObject(value)
         else if (typeof value === "number" && Number.isFinite(value) && !Number.isInteger(value) && !noRounding)

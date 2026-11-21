@@ -27,6 +27,27 @@ describe('Matte Interpreter Test Arrays', () => {
             )
         });
 
+        it('multi-dimensional array allocation, access, and write', () => {
+            script(`
+        int[][] array = new int[2][3];
+        array[1][2] = 7;
+        int value = array[1][2];
+        `, new Map()
+                .set("array", [[0, 0, 0], [0, 0, 7]])
+                .set("value", 7)
+            )
+        });
+
+        it('multi-dimensional array initializer', () => {
+            script(`
+        int[][] array = {{1, 2}, {3, 4}};
+        int value = array[1][0];
+        `, new Map()
+                .set("array", [[1, 2], [3, 4]])
+                .set("value", 3)
+            )
+        });
+
         it('array length', () => {
             script(`
         int[] a = {5,6,7};

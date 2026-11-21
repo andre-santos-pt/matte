@@ -64,7 +64,9 @@ break: BREAK;
 
 expList: exp (COMMA exp)*;
 
-arrayLiteral: LCURLY elements=expList? RCURLY;
+arrayLiteral: LCURLY (arrayLiteralElement (COMMA arrayLiteralElement)*)? RCURLY;
+
+arrayLiteralElement: exp | arrayLiteral;
 
 exp:
     LPAREN castType=ID RPAREN target=exp # castExpr
@@ -99,7 +101,7 @@ instanceCallStatement:
     exp DOT call;
 
 dimensions:
-    LBRACK exp? RBRACK
+    (LBRACK exp RBRACK)+
 ;
 
 uop: NOT | MINUS;
