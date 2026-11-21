@@ -197,6 +197,10 @@ export default class MatteAceEditor {
         this.settings.disable(key);
     }
 
+    setProperty(key: string, value: any): void {
+        this.settings.set(key, value);
+    }
+
     constructor(
         container: HTMLElement,
         width?: number | string | null,

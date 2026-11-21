@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/html">
+<head>
+<title>MatteJ examples</title>
+</head>
+<body>
+<script src="../dist/matte-web-ace.js" defer></script>
+
+<h1>Script mode default auto compile</h1>
+<matte-ace>
+    int x = 0;
+    while(i != 10) {
+    i = i + 1;
+    }
+</matte-ace>
+
+<h1>Script mode no auto compile</h1>
+<matte-ace disable-autocompile disable-compilationHints set-fontsize="20" set-theme="ace/theme/monokai">
+int x = 0;
+while(i != 10) {
+    i = i + 1;
+}
+</matte-ace>
+
+<h1>Line numbers and line highlight</h1>
+<matte-ace enable-linenumbers enable-linehighlight>
+    int i = 0;
+    while(i != 10) {
+    i = i + 1;
+    }
+</matte-ace>
+
+
+
+</body>
+</html>

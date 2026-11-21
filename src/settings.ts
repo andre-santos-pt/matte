@@ -2,7 +2,7 @@ import MatteAceEditor from "./matte-ace-editor";
 
 export enum SettingProperty {
     Theme = "theme",
-    FontSize = "fontSize",
+    FontSize = "fontsize",
     LineNumbers = "linenumbers",
     HighlightActiveLine = "linehighlight",
     AutoCompile = "autocompile",
@@ -124,6 +124,7 @@ export class Settings {
         details.append(panel);
 
         const addSelect = (
+            settingsKey: string,
             labelText: string,
             values: Array<[string, string]>,
             selectedValue: string,
@@ -132,6 +133,7 @@ export class Settings {
             const label = document.createElement("label");
             label.append(document.createTextNode(labelText));
             const select = document.createElement("select");
+            select.id = this.containerGenId + "-" + settingsKey;
             for (const [value, text] of values) {
                 const option = document.createElement("option");
                 option.value = value;
@@ -201,6 +203,7 @@ export class Settings {
             };
             if(settingsConf[key]?.options) {
                 addSelect(
+                    key,
                     settingsConf[key].label,
                     settingsConf[key].options!.map(option => [option.value, option.label || option.value]),
                     value?.toString() ?? "N/A",
@@ -223,7 +226,7 @@ export class Settings {
     enable(key: string): void {
         // @ts-ignore
         this[key] = true;
-        const checkbox = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null; // TODO Bug: This will not work if the checkbox is not in the DOM yet. Consider storing a reference to the checkbox when creating it.
+        const checkbox = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null;
         if (checkbox)
             checkbox.checked = true;
 
@@ -239,7 +242,7 @@ export class Settings {
             console.error(`Setting '${key}' does not exist in MatteAceEditor settings.`);
         // @ts-ignore
         this[key] = false;
-        const checkbox = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null; // TODO Bug: This will not work if the checkbox is not in the DOM yet. Consider storing a reference to the checkbox when creating it.
+        const checkbox = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null;
         if (checkbox)
             checkbox.checked = false;
 
@@ -249,6 +252,20 @@ export class Settings {
             action.call(null, this.editor, false)
     }
 
+    set(key: string, value: any) {
+        // @ts-ignore
+        if(this[key] === undefined)
+            console.error(`Setting '${key}' does not exist in MatteAceEditor settings.`);
+        // @ts-ignore
+        this[key] = value;
+        const input = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null;
+        if (input)
+            input.value = value;
+        // @ts-ignore
+        const action = settingsConf[key]?.action
+        if(action)
+            action.call(null, this.editor, value)
+    }
 }
 
 

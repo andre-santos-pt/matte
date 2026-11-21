@@ -79,16 +79,15 @@ function initializeMatteAce(element) {
     Array.from(element.attributes).forEach(attr => {
         if(attr.name.startsWith("disable-"))
             editor.disable(attr.name.substring("disable-".length))
-    });
-
-    Array.from(element.attributes).forEach(attr => {
-        if(attr.name.startsWith("enable-"))
+        else if(attr.name.startsWith("enable-"))
             editor.enable(attr.name.substring("enable-".length))
+        else if(attr.name.startsWith("set-"))
+            editor.setProperty(attr.name.substring("set-".length), attr.value)
     });
 
-    if(element.hasAttribute("pt")) {
+    if(element.hasAttribute("pt"))
         editor.errorMessageHandler = new ErrorMessagesPt()
-    }
+
     editor.runPreprocessors()
 }
 
