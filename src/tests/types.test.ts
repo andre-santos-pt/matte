@@ -1,6 +1,6 @@
 import {cases, compilationError} from "./utils";
 import {compile} from "../antlr2ast";
-import {ArrayType, PrimitiveType, Program, StaticErrorType} from "../ast";
+import {ArrayType, Declaration, PrimitiveType, Program, StaticErrorType} from "../ast";
 import assert from "assert";
 
 describe('Matte Interpreter Types', () => {
@@ -43,6 +43,32 @@ describe('Matte Interpreter Types', () => {
         boolean i = 10;
         `, StaticErrorType.TypeMismatch
             )
+        });
+
+        it('infers var declaration types from initializers', () => {
+            const p = compile(`
+                var count = 10;
+                var enabled = true;
+                var values = {1, 2, 3};
+            `) as Program
+
+            const declarations = p.block?.statements as Declaration[]
+            assert.equal(declarations[0].type, PrimitiveType.INT)
+            assert.equal(declarations[1].type, PrimitiveType.BOOLEAN)
+            assert.deepEqual(declarations[2].type, new ArrayType(PrimitiveType.INT))
+        });
+
+        it('requires an initializer for var declarations', () => {
+            compilationError("var count;", StaticErrorType.CannotInferType)
+        });
+
+        it('checks assignments against the inferred var type', () => {
+            compilationError("var count = 10; count = 1.5;", StaticErrorType.TypeMismatch)
+        });
+
+        it('rejects var initializers without an inferable type', () => {
+            compilationError("var value = null;", StaticErrorType.CannotInferType)
+            compilationError("var values = {};", StaticErrorType.CannotInferType)
         });
 
         it('int cast rejects non-numeric expressions', () => {

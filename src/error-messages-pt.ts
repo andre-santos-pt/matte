@@ -19,6 +19,9 @@ export class ErrorMessagesPt implements ErrorMessageHandler {
             if(error.detail.found && error.detail.expected)
                 message += `: esta expressão é do tipo ${mark(error.detail.found)}, mas o esperado é ${mark(error.detail.expected)}`
         }
+        else if(error.type == StaticErrorType.CannotInferType) {
+            message = "Não é possível inferir o tipo da variável"
+        }
         return {
             ...error,
             message,

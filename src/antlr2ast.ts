@@ -814,9 +814,22 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     related: [last(this.varScope).variables.get(ctx._id.text)?.nameRange]
                 }
             }
-        let type: Type | undefined = this.findType(ctx.type_())
+        const inferred = ctx.VAR() != null
         const exp = ctx.exp() ? this.expToAST(ctx.exp()) :
             ctx.arrayLiteral() ? this.arrayLiteralToAST(ctx.arrayLiteral()) : undefined
+        let type: Type | undefined = inferred ? exp?.type : this.findType(ctx.type_())
+
+        if (inferred && (!exp || !type || type == PrimitiveType.NULL ||
+            type instanceof ArrayType && !type.componentType)) {
+            throw {
+                compilation: StaticErrorType.CannotInferType,
+                range: this.rangeContext(ctx),
+                message: exp
+                    ? "Cannot infer a variable type from this initializer"
+                    : "A variable declared with 'var' must have an initializer",
+                detail: {}
+            }
+        }
 
         if(this.isJavaKeyword(ctx._id.text))
             throw {
@@ -831,7 +844,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             this.rangeToken(ctx._id),
             false,
             type ? type : new ForeignType(ctx.type_().getText()),
-            this.rangeContext(ctx.type_()),
+            inferred ? this.rangeTerminal(ctx.VAR()!) : this.rangeContext(ctx.type_()),
             exp
         )
         this.topScope().set(dec.name, dec)

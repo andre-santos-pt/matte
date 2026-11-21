@@ -21,7 +21,8 @@ export enum StaticErrorType {
     NumberArgumentsMismatch = "N_ARGS_MISMATCH",
     ArgumentTypesMismatch = "ARGS_TYPE_MISMATCH",
     FieldNotFound = "FIELD_NOT_FOUND",
-    KeywordUsedAsIdentifier = "KEYWORD_AS_IDENTIFIER"
+    KeywordUsedAsIdentifier = "KEYWORD_AS_IDENTIFIER",
+    CannotInferType = "CANNOT_INFER_TYPE"
 }
 
 export abstract class ASTNode {

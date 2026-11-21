@@ -42,7 +42,7 @@ for: FOR LPAREN declaration? TERM expression=exp? TERM forProgress? RPAREN body=
 
 forProgress: assignment|inc|dec;
 
-declaration: type id=ID (ASSIGN (expression=exp | arrayInitializer=arrayLiteral))?;
+declaration: (type | VAR) id=ID (ASSIGN (expression=exp | arrayInitializer=arrayLiteral))?;
 
 assignment: id=compId ASSIGN expression=exp; // TODO field set (classes)
 
@@ -184,6 +184,8 @@ DOT: '.';
 BOOLEAN: 'true'|'false';
 
 CLASS: 'class';
+
+VAR: 'var';
 
 RECORD: 'record';
 
