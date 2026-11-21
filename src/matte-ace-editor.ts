@@ -1,19 +1,17 @@
 import {flatTrace, last} from "./utils";
 import {compile, getJavaCode} from "./antlr2ast";
-import {
-    simplifyExpression,
-    variableMaterialization
-} from "./expSimplification";
+import {variableMaterialization} from "./expSimplification";
 import {
     ExtensionProcedure,
     ExtensionType,
-    Interpreter, InterpreterResult, RuntimeError,
+    Interpreter,
+    InterpreterResult,
+    RuntimeError,
     TraceEntry
 } from "./Interpreter";
 import type {Ace} from "ace-builds";
 import {Program, StaticError, Type} from "./ast";
 import MatteRange from "./Range";
-import {Marker} from "ace-builds-internal/layer/marker";
 import {SettingProperty, Settings} from "./settings";
 import styleCss from "./matte-ace-editor.css";
 //import {isDeepStrictEqual} from "assert/build/internal/util/comparisons.js";
@@ -154,7 +152,7 @@ export default class MatteAceEditor {
         this.editor.session.on('change', () => {
             this.lastCompilationSource = null;
         });
-        this.compilationCheckInterval = window.setInterval(() => this.checkCompilation(), 2000); // TODO to autocompile
+        this.compilationCheckInterval = window.setInterval(() => this.checkCompilation(), 1000);
         this.popups = [];
         this.popupPositions = new WeakMap();
         this.secondaryMarkers = [];
@@ -536,8 +534,8 @@ export default class MatteAceEditor {
                 this.runBtn.disabled = false;
             this.clearPopups();
             this.clearSecondaryMarkers();
-            // if (compilation.block)
-            //     this.runParser(this.getEditorCode(), "");
+            if (this.settings.autorun)
+                this.runParser(this.callBox?.value ?? "");
         }
     }
 

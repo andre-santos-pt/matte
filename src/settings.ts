@@ -5,6 +5,7 @@ export enum SettingProperty {
     FontSize = "fontsize",
     LineNumbers = "linenumbers",
     HighlightActiveLine = "linehighlight",
+    AutoRun = "autorun",
     AutoCompile = "autocompile",
     CompilationHints = "compilationhints",
     VariableMaterialization = "variablematerialization",
@@ -63,6 +64,9 @@ const settingsConf: Record<SettingProperty, SettingsConf> = {
             editor.editor.setOption("highlightActiveLine", value);
         }
     },
+    [SettingProperty.AutoRun]: {
+        label: "Auto run"
+    },
     [SettingProperty.AutoCompile]: {
         label: "Auto compile"
     },
@@ -88,6 +92,7 @@ export class Settings {
     [SettingProperty.FontSize]: number = 14;
     [SettingProperty.LineNumbers]: boolean = false;
     [SettingProperty.HighlightActiveLine]: boolean = false;
+    [SettingProperty.AutoRun]: boolean = false;
     [SettingProperty.AutoCompile]: boolean = true;
     [SettingProperty.CompilationHints]: boolean = true;
     [SettingProperty.VariableMaterialization]: boolean = true;
@@ -198,7 +203,7 @@ export class Settings {
                     action.call(null, this.editor, show)
                 else
                 { // @ts-ignore
-                    this.settings[key] = show
+                    this[key] = show
                 }
             };
             if(settingsConf[key]?.options) {

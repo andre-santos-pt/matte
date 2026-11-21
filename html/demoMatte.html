@@ -11,6 +11,13 @@
 int i = 0;
 </matte-ace>
 
+<h1>Read only mode / auto run</h1>
+<matte-ace readonly enable-autorun>
+    int i = 4;
+    int j = i * 2;
+    int w = j * 2;
+</matte-ace>
+
 <h1>Script mode</h1>
 <matte-ace disable-compilationHints>
 int i = 0;
@@ -47,7 +54,7 @@ double avg(int[] array) {
 }
 </matte-ace>
 
-<matte-ace call="sum([15.1, 20.2, 25.3])" callstack>
+<matte-ace call="sum([15.1, 20.2, 25.3])" enable-autorun>
 double sum(double[] a) {
     double s = 0;
     int i = 0;
