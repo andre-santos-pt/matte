@@ -616,8 +616,8 @@ export default class MatteAceEditor {
         if (style)
             tip.getElement().classList.add(style);
         tip.setHtml(message.replace(/'(.*?)'/g, '<b>$1</b>'));
-        this.positionPopup(tip, offset, message, top);
         tip.show()
+        this.positionPopup(tip, offset, message, top);
         return tip;
     }
 
@@ -626,10 +626,21 @@ export default class MatteAceEditor {
         const y = pos.row;
         const x = top ? pos.column - 1 : this.editor.session.getLine(pos.row).length; // end of line
         const canvasPos = this.editor.renderer.textToScreenCoordinates(y, x);
-        if (top)
+        let stackedWidth = 0;
+        for (const popup of this.popups) {
+            if (popup === tip)
+                break;
+            const position = this.popupPositions.get(popup);
+            if (popup.isOpen && position?.top === top &&
+                this.editor.session.doc.indexToPosition(position.offset).row === y)
+                stackedWidth += popup.getWidth() + 4;
+        }
+        canvasPos.pageX += stackedWidth;
+        if (top) {
             canvasPos.pageY -= 25 * (1 + (message.split('\n').length - 1));
-        else
+        } else {
             canvasPos.pageX += 10;
+        }
         tip.setPosition(canvasPos.pageX, canvasPos.pageY)
     }
 

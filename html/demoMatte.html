@@ -70,11 +70,8 @@ double sum(double[] a) {
 <matte-ace call="nats(5)" callstack>
 int[] nats(int n) {
     int[] arr = new int[n];
-    int i = 0;
-    while(i < arr.length) {
+    for(int i = 0; i < arr.length; i++)
         arr[i] = i + 1;
-        i++;
-    }
     return arr;
 }
 </matte-ace>
