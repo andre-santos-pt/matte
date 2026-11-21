@@ -1,0 +1,106 @@
+.compilation-error {
+    position: absolute;
+    /* Increased height to 6px and stroke-width to 1.5 for better visibility */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='6'%3E%3Cpath d='M0 5c1 0 2-3 4-3s3 3 4 3' fill='none' stroke='%23ff3333' stroke-width='1.5'/%3E%3C/svg%3E");
+    background-repeat: repeat-x;
+    background-position: bottom;
+    z-index: 20;
+    /* Optional: add a slight vertical offset if it's too close to the text */
+    margin-bottom: 1px;
+}
+
+.runtime-error {
+    position: absolute;
+    background-color: rgba(255, 0, 0, 0.3);
+    border-bottom: 2px wavy red;
+    z-index: 20;
+}
+
+.secondary-mark {
+    position: absolute;
+    background-color: rgba(255, 255, 150, 1.0);
+    border-bottom: 2px wavy red;
+    z-index: 20;
+}
+
+.popup {
+    background: rgba(235, 235, 235, 1);
+    color: rgba(148, 148, 148, 1);
+    border: 0px solid #111111;
+    border-radius: 2px;
+    padding: 1px;
+    font-family: 'Monaco', 'Menlo', monospace;
+    /* font-size: 10pt !important; */
+    white-space: pre-wrap;
+}
+
+.error-popup {
+    background-color: rgba(255, 0, 0, 0.2);
+}
+
+.materialization {
+    font-size: x-small;
+    font-color: #aaaaaa
+}
+
+.materialization-popup {
+    background-color: rgb(218, 234, 255, 1)
+}
+
+.popup b {
+    color: black;
+    font-weight: bold;
+}
+
+.matte-ace-settings {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    z-index: 10;
+    color: #222;
+    font: 13px Arial, sans-serif;
+}
+
+.matte-ace-settings summary {
+    box-sizing: border-box;
+    width: 20px;
+    height: 20px;
+    padding: 1px;
+    z-index: 20;
+    border: 0px solid #c8c8c8;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.95);
+    cursor: pointer;
+    list-style: none;
+    text-align: center;
+}
+
+.matte-ace-settings summary::-webkit-details-marker {
+    display: none;
+}
+
+.matte-ace-settings-panel {
+    position: absolute;
+    top: 2px;
+    z-index: 30;
+    right: 20px;
+    display: grid;
+    min-width: 250px;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #c8c8c8;
+    border-radius: 5px;
+    background: #eee;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.matte-ace-settings-panel label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.matte-ace-settings-panel select {
+    max-width: 120px;
+}
