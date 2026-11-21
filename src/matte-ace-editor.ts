@@ -93,8 +93,8 @@ const styleCss =
 
             .matte-ace-settings {
                 position: absolute;
-                top: 10px;
-                right: 10px;
+                top: 2px;
+                right: 2px;
                 z-index: 10;
                 color: #222;
                 font: 13px Arial, sans-serif;
@@ -102,10 +102,11 @@ const styleCss =
 
             .matte-ace-settings summary {
                 box-sizing: border-box;
-                width: 30px;
-                height: 28px;
-                padding: 5px;
-                border: 1px solid #c8c8c8;
+                width: 20px;
+                height: 20px;
+                padding: 1px;
+                z-index: 20;
+                border: 0px solid #c8c8c8;
                 border-radius: 4px;
                 background: rgba(255, 255, 255, 0.95);
                 cursor: pointer;
@@ -119,9 +120,9 @@ const styleCss =
 
             .matte-ace-settings-panel {
                 position: absolute;
-                top: 32px;
-                z-index: 20;
-                right: 0;
+                top: 2px;
+                z-index: 30;
+                right: 20px;
                 display: grid;
                 min-width: 250px;
                 gap: 10px;
@@ -144,20 +145,66 @@ const styleCss =
             }
            `;
 
+
 export enum SettingProperty {
+    LineNumbers = "linenumbers",
+    HighlightActiveLine = "linehighlight",
+    AutoCompile = "autocompile",
     CompilationHints = "compilationhints",
     VariableMaterialization = "variablematerialization",
-    CumulativeMode = "cumulativemode",
+    CumulativeTrace = "cumulativetrace",
     MaxLoopIterations = "maxLoopIterations",
     MaxCallStack = "maxCallStack"
 }
 
 export class Settings {
+    [SettingProperty.LineNumbers]: boolean = false;
+    [SettingProperty.HighlightActiveLine]: boolean = false;
+    [SettingProperty.AutoCompile]: boolean = true;
     [SettingProperty.CompilationHints]: boolean = true;
     [SettingProperty.VariableMaterialization]: boolean = true;
-    [SettingProperty.CumulativeMode]: boolean = true;
+    [SettingProperty.CumulativeTrace]: boolean = true;
     [SettingProperty.MaxLoopIterations]: number | undefined = 100;
     [SettingProperty.MaxCallStack]: number | undefined = 100;
+}
+
+interface SettingsConf {
+    label: string;
+    action?: (editor: MatteAceEditor, value: any) => void;
+}
+
+const settingsConf: Record<SettingProperty, SettingsConf> = {
+    [SettingProperty.LineNumbers]: {
+        label: "Line numbers",
+        action: (editor, value) => {
+            editor.editor.setOption("showLineNumbers", value);
+            editor.editor.setOption("showGutter", value);
+        }
+    },
+    [SettingProperty.HighlightActiveLine]: {
+        label: "Highlight active line",
+        action: (editor, value) => {
+            editor.editor.setOption("highlightActiveLine", value);
+        }
+    },
+    [SettingProperty.AutoCompile]: {
+        label: "Auto compile"
+    },
+    [SettingProperty.CompilationHints]: {
+        label: "Compilation hints",
+    },
+    [SettingProperty.VariableMaterialization]: {
+        label: "Variable materialization",
+    },
+    [SettingProperty.CumulativeTrace]: {
+        label: "Cumulative trace",
+    },
+    [SettingProperty.MaxLoopIterations]: {
+        label: "Max loop iterations",
+    },
+    [SettingProperty.MaxCallStack]: {
+        label: "Max call stack",
+    }
 }
 
 export default class MatteAceEditor {
@@ -197,12 +244,22 @@ export default class MatteAceEditor {
     private _resizeTimeout: number | null = null;
     errorMessageHandler = new NullErrorMessageHandler();
 
+    readonly: boolean = false;
+    norun: boolean = false;
+
+    containerGenId: string = Math.random().toString(36).substring(2, 15);
+
     constructor(
         container: HTMLElement,
         width?: number | string | null,
         height?: number | string | null,
-        call?: string | null
+        call?: string | null,
+        readonly? : boolean,
+        norun? : boolean
     ) {
+        this.readonly = readonly ?? false;
+        this.norun = norun ?? false;
+
         this.container = container;
         this.container.style.marginTop = "25px";
         this.container.style.border = "1px solid #d0d0d0";
@@ -223,7 +280,9 @@ export default class MatteAceEditor {
         this.editorBackgroundColor = this.getAceScroller().style.backgroundColor;
         this.editor.setTheme("ace/theme/textmate");
         this.editor.session.setMode("ace/mode/java");
+
         this.editor.setFontSize(14);
+
         this.editor.renderer.setPadding(5);
         this.editor.renderer.setScrollMargin(5, 0, 0, 0);
         this.editor.renderer.setShowGutter(false);
@@ -237,21 +296,9 @@ export default class MatteAceEditor {
         this.runBar = document.createElement('div');
         this.runBar.style = "display: flex; align-items: center; gap: 10px; margin-top: 5px; margin-bottom: 5px";
 
-        this.runBtn = document.createElement('button');
-        this.runBtn.innerHTML = "▶";
-        this.runBtn.title = "Evaluate call";
-        this.runBtn.style = "cursor: pointer; border: solid 1px; padding: 2px 10px; border-radius: 3px; font-weight: bold;";
-        this.runBtn.onclick = () => {
-            this.runParser(this.callBox?.value ?? "");
-        }
-        this.runBar.append(this.runBtn);
+        if(!this.norun)
+            this.addRunButton();
 
-        const parent = this.container.parentElement;
-        if (parent) {
-            parent.insertBefore(this.runBar, this.container.nextSibling);
-        } else {
-            this.editor.container.append(this.runBar);
-        }
         this.init();
 
         this.result = null;
@@ -297,9 +344,29 @@ export default class MatteAceEditor {
         }
         });
 
-        this.addCallBox(call);
+        if(!norun)
+            this.addCallBox(call);
 
+        if(readonly)
+            this.setReadOnly(true);
+    }
 
+    private addRunButton() {
+        this.runBtn = document.createElement('button');
+        this.runBtn.innerHTML = "▶";
+        this.runBtn.title = "Evaluate call";
+        this.runBtn.style = "cursor: pointer; border: solid 1px; padding: 2px 10px; border-radius: 3px; font-weight: bold;";
+        this.runBtn.onclick = () => {
+            this.runParser(this.callBox?.value ?? "");
+        }
+        this.runBar.append(this.runBtn);
+
+        const parent = this.container.parentElement;
+        if (parent) {
+            parent.insertBefore(this.runBar, this.container.nextSibling);
+        } else {
+            this.editor.container.append(this.runBar);
+        }
     }
 
     runPreprocessors() {
@@ -398,7 +465,7 @@ export default class MatteAceEditor {
             const lineHeight = (this.editor.renderer && this.editor.renderer.lineHeight) ? this.editor.renderer.lineHeight : 20;
             const padding = 8; // small padding for aesthetics
             const maxHeight = 1200; // avoid growing unbounded
-            const minHeight = 50;
+            const minHeight = 25;
             let newHeight = Math.max(minHeight, Math.ceil(lines * lineHeight) + padding);
             if (newHeight > maxHeight) newHeight = maxHeight;
             this.container.style.height = newHeight + 'px';
@@ -507,7 +574,7 @@ export default class MatteAceEditor {
         this.slider.hidden = true;
         this.slider.addEventListener('input', () => {
             const index = Number(this.slider.value);
-            this.step(index, this.settings.cumulativemode);
+            this.step(index, this.settings.cumulativetrace);
             this.updateDebugNavigation();
         });
         this.debugBtn.after(this.slider);
@@ -536,23 +603,6 @@ export default class MatteAceEditor {
         this.closeDebugBtn.onclick = () => this.setDebugMode(false);
         this.forwardBtn.after(this.closeDebugBtn);
 
-        this.cumulative = document.createElement('button');
-        this.cumulative.type = 'button';
-        this.cumulative.textContent = '☰';
-        this.cumulative.title = 'Show a cumulative trace of expressions';
-        this.cumulative.setAttribute('aria-label', 'Cumulative view');
-        this.cumulative.setAttribute('aria-pressed', 'false');
-        this.cumulative.style.cursor = 'pointer';
-        this.cumulative.onclick = () => {
-            this.settings.cumulativemode = !this.settings.cumulativemode;
-            this.cumulative.setAttribute('aria-pressed', this.settings.cumulativemode.toString());
-            this.cumulative.title = `Cumulative view: ${this.settings.cumulativemode ? 'on' : 'off'}`;
-            this.cumulative.style.backgroundColor = this.settings.cumulativemode ? '#cfe8ff' : '';
-            this.cumulative.style.borderColor = this.settings.cumulativemode ? '#4586bd' : '';
-            this.step(Number(this.slider.value), this.settings.cumulativemode);
-        };
-        this.cumulative.hidden = true;
-        this.backBtn.before(this.cumulative);
         this.afterRunListeners.push(result => {
             this.debugBtn.style.visibility = !result.callError && !result.error ? "visible" : "hidden";
             if(!result.callError && !result.error)
@@ -562,17 +612,20 @@ export default class MatteAceEditor {
 
     setReadOnly(value: boolean) {
         this.editor.setReadOnly(value);
+        if (value)
+            this.editor.renderer.hideCursor();
+        else
+            this.editor.renderer.showCursor();
+
+        this.editor.renderer.updateCursor();
     }
 
     setDebugMode(on: boolean): void {
         this.debugBtn.hidden = on;
-        this.editor.setReadOnly(on);
-
         this.slider.hidden = !on;
         this.backBtn.hidden = !on;
         this.forwardBtn.hidden = !on;
         this.closeDebugBtn.hidden = !on;
-        this.cumulative.hidden = !on;
 
         this.slider.max = Math.max(0, this.trace.length - 1).toString();
         this.slider.value = "0";
@@ -580,15 +633,17 @@ export default class MatteAceEditor {
         if (on) {
             this.getAceScroller().style.backgroundColor = '#e8e8e8';
             this.resultLabel.style.visibility = "hidden";
-            this.step(0, this.settings.cumulativemode);
+            this.step(0, this.settings.cumulativetrace);
             this.updateDebugNavigation();
             this.clearErrorMarkers();
             this.editor.session.clearAnnotations();
+            this.setReadOnly(true);
         } else {
             this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
             this.getAceScroller().style.backgroundColor = this.editorBackgroundColor;
            // this.clearPopups()
             this.editor.clearSelection();
+            this.setReadOnly(this.readonly);
         }
     }
 
@@ -598,7 +653,7 @@ export default class MatteAceEditor {
             Math.min(Number(this.slider.value) + delta, Number(this.slider.max))
         );
         this.slider.value = index.toString();
-        this.step(index, this.settings.cumulativemode);
+        this.step(index, this.settings.cumulativetrace);
         this.updateDebugNavigation();
     }
 
@@ -613,6 +668,9 @@ export default class MatteAceEditor {
     }
 
     checkCompilation(): void {
+        if(!this.settings.autocompile)
+            return;
+
         const code = this.getCodeToCompile()
         if (code === this.lastCompilationSource)
             return;
@@ -927,7 +985,7 @@ export default class MatteAceEditor {
         details.className = "matte-ace-settings";
 
         const summary = document.createElement("summary");
-        summary.textContent = "\u2699";
+        summary.textContent = "\u2630";
         summary.title = "Editor settings";
         summary.setAttribute("aria-label", "Editor settings");
         details.append(summary);
@@ -958,6 +1016,7 @@ export default class MatteAceEditor {
         };
 
         const addPositiveNumber = (
+            settingsKey: string,
             labelText: string,
             value: string,
             onChange: (value: number | undefined) => void
@@ -965,6 +1024,7 @@ export default class MatteAceEditor {
             const label = document.createElement("label");
             label.append(document.createTextNode(labelText));
             const input = document.createElement("input");
+            input.id = this.containerGenId + "-" + settingsKey;
             input.type = "number";
             input.min = "0";
             input.step = "any";
@@ -983,7 +1043,7 @@ export default class MatteAceEditor {
         };
 
         const addCheckbox = (
-            id: string,
+            settingId: string,
             labelText: string,
             checked: boolean,
             onChange: (checked: boolean) => void
@@ -991,8 +1051,8 @@ export default class MatteAceEditor {
             const label = document.createElement("label");
             label.append(document.createTextNode(labelText));
             const input = document.createElement("input");
+            input.id = this.containerGenId + "-" + settingId;
             input.type = "checkbox";
-            input.id = id;
             input.checked = checked;
             input.addEventListener("change", () => onChange(input.checked));
             label.append(input);
@@ -1017,36 +1077,34 @@ export default class MatteAceEditor {
             "ace/theme/textmate",
             theme => this.editor.setTheme(theme)
         );
-        addCheckbox("line-numbers", "Line numbers", false, show => {
-            this.editor.setOption("showLineNumbers", show);
-            this.editor.setOption("showGutter", show);
-        });
+        // addCheckbox("linenumbers","Line numbers", false, show => {
+        //     this.editor.setOption("showLineNumbers", show);
+        //     this.editor.setOption("showGutter", show);
+        // });
         //addCheckbox("word-wrap", "Word wrap", false, wrap => this.editor.session.setUseWrapMode(wrap));
-        addCheckbox("line-highlight", "Highlight active line", false, highlight => this.editor.setHighlightActiveLine(highlight));
+        //addCheckbox("highlightline","Highlight active line", false, highlight => this.editor.setHighlightActiveLine(highlight));
         //addCheckbox("Show invisibles", false, show => this.editor.setShowInvisibles(show));
 
-        panel.append(document.createElement("hr"));
-
-        //addPositiveNumber("Maximum loop iterations", this.settings.maxLoopIterations?.toString() ?? "", v => this.settings.maxLoopIterations = v);
-
-        //addPositiveNumber("Maximum call stack size", this.settings.maxCallStack?.toString() ?? "", v => this.settings.maxCallStack = v);
-
-        //addCheckbox("compilation-hints", "Show compilation hints", this.settings.compilationHints, show => this.settings.compilationHints = show);
-
-        //addCheckbox("variable-materialization", "Show variable materialization", this.settings.showVariableMaterialization, show => this.settings.showVariableMaterialization = show);
+        //panel.append(document.createElement("hr"));
 
         Object.values(SettingProperty).forEach(key => {
             const value = this.settings[key];
             if(typeof value === "boolean")
                 { // @ts-ignore
-                    addCheckbox(key, key, value, show => this.settings[key]  = show);
+                    addCheckbox(key, settingsConf[key]?.label || key, value, show => {
+                        const action = settingsConf[key].action
+                        if(action)
+                            action.call(null, this, show)
+                        else
+                            { // @ts-ignore
+                                this.settings[key] = show
+                            }
+                    });
                 }
             else if (typeof value === "number")
                 { // @ts-ignore
-                    addPositiveNumber(key, value?.toString() ?? "", v => this.settings[key] = v);
+                    addPositiveNumber(key, settingsConf[key]?.label || key, value, v => this.settings[key] = v);
                 }
-
-            //console.log(this.settings[key])
         })
 
         host.append(details);
@@ -1055,9 +1113,14 @@ export default class MatteAceEditor {
     enable(key: string): void {
         // @ts-ignore
         this.settings[key] = true;
-        const checkbox = document.getElementById(key) as HTMLInputElement | null;
+        const checkbox = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null; // TODO Bug: This will not work if the checkbox is not in the DOM yet. Consider storing a reference to the checkbox when creating it.
         if (checkbox)
             checkbox.checked = true;
+
+        // @ts-ignore
+        const action = settingsConf[key]?.action
+        if(action)
+            action.call(null, this, true)
     }
 
     disable(key: string): void {
@@ -1066,8 +1129,13 @@ export default class MatteAceEditor {
             console.error(`Setting '${key}' does not exist in MatteAceEditor settings.`);
         // @ts-ignore
         this.settings[key] = false;
-        const checkbox = document.getElementById(key) as HTMLInputElement | null;
+        const checkbox = document.getElementById(this.containerGenId + "-" + key) as HTMLInputElement | null; // TODO Bug: This will not work if the checkbox is not in the DOM yet. Consider storing a reference to the checkbox when creating it.
         if (checkbox)
             checkbox.checked = false;
+
+        // @ts-ignore
+        const action = settingsConf[key]?.action
+        if(action)
+            action.call(null, this, false)
     }
 }

@@ -6,6 +6,11 @@
 <body>
 <script src="../dist/matte-web-ace.js" defer></script>
 
+<h1>Read only mode / no run</h1>
+<matte-ace readonly norun>
+int i = 0;
+</matte-ace>
+
 <h1>Script mode</h1>
 <matte-ace disable-compilationHints>
 int i = 0;
@@ -13,6 +18,15 @@ while(i != 10) {
     i = i + 1;
 }
 </matte-ace>
+
+<h1>Script mode no auto compile</h1>
+<matte-ace disable-autocompile>
+int x = 0;
+while(i != 10) {
+    i = i + 1;
+}
+</matte-ace>
+
 
 <hr>
 <h1>Independent Function</h1>

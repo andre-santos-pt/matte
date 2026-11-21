@@ -49,7 +49,14 @@ function initializeMatteAce(element) {
     let call = element.getAttribute("call");
     if(!call)
         call = element.getAttribute("data-call");
-    const editor = new MatteAceEditor(div, element.getAttribute("width"), element.getAttribute("height"), call);
+    const editor = new MatteAceEditor(
+        div,
+        element.getAttribute("width"),
+        element.getAttribute("height"),
+        call,
+        element.hasAttribute("readonly"),
+        element.hasAttribute("norun")
+    );
     element.editor = editor;
     if (element instanceof HTMLDivElement)
         matteDivs.add(element);
@@ -78,10 +85,6 @@ function initializeMatteAce(element) {
         if(attr.name.startsWith("enable-"))
             editor.enable(attr.name.substring("enable-".length))
     });
-
-    if(element.hasAttribute("readonly")) {
-        editor.setReadOnly(true)
-    }
 
     if(element.hasAttribute("pt")) {
         editor.errorMessageHandler = new ErrorMessagesPt()
