@@ -14,6 +14,7 @@ import type {Ace} from "ace-builds";
 import {Program, StaticError, Type} from "./ast";
 import MatteRange from "./Range";
 import {Marker} from "ace-builds-internal/layer/marker";
+import {SettingProperty, Settings, settingsConf} from "./settings";
 //import {isDeepStrictEqual} from "assert/build/internal/util/comparisons.js";
 
 //const {Range} = ace.require("ace/range");
@@ -146,66 +147,7 @@ const styleCss =
            `;
 
 
-export enum SettingProperty {
-    LineNumbers = "linenumbers",
-    HighlightActiveLine = "linehighlight",
-    AutoCompile = "autocompile",
-    CompilationHints = "compilationhints",
-    VariableMaterialization = "variablematerialization",
-    CumulativeTrace = "cumulativetrace",
-    MaxLoopIterations = "maxLoopIterations",
-    MaxCallStack = "maxCallStack"
-}
 
-export class Settings {
-    [SettingProperty.LineNumbers]: boolean = false;
-    [SettingProperty.HighlightActiveLine]: boolean = false;
-    [SettingProperty.AutoCompile]: boolean = true;
-    [SettingProperty.CompilationHints]: boolean = true;
-    [SettingProperty.VariableMaterialization]: boolean = true;
-    [SettingProperty.CumulativeTrace]: boolean = true;
-    [SettingProperty.MaxLoopIterations]: number | undefined = 100;
-    [SettingProperty.MaxCallStack]: number | undefined = 100;
-}
-
-interface SettingsConf {
-    label: string;
-    action?: (editor: MatteAceEditor, value: any) => void;
-}
-
-const settingsConf: Record<SettingProperty, SettingsConf> = {
-    [SettingProperty.LineNumbers]: {
-        label: "Line numbers",
-        action: (editor, value) => {
-            editor.editor.setOption("showLineNumbers", value);
-            editor.editor.setOption("showGutter", value);
-        }
-    },
-    [SettingProperty.HighlightActiveLine]: {
-        label: "Highlight active line",
-        action: (editor, value) => {
-            editor.editor.setOption("highlightActiveLine", value);
-        }
-    },
-    [SettingProperty.AutoCompile]: {
-        label: "Auto compile"
-    },
-    [SettingProperty.CompilationHints]: {
-        label: "Compilation hints",
-    },
-    [SettingProperty.VariableMaterialization]: {
-        label: "Variable materialization",
-    },
-    [SettingProperty.CumulativeTrace]: {
-        label: "Cumulative trace",
-    },
-    [SettingProperty.MaxLoopIterations]: {
-        label: "Max loop iterations",
-    },
-    [SettingProperty.MaxCallStack]: {
-        label: "Max call stack",
-    }
-}
 
 export default class MatteAceEditor {
     container!: HTMLElement;
@@ -278,11 +220,9 @@ export default class MatteAceEditor {
         this.container.style.display = "block"
         this.editor = ace.edit(this.container);
         this.editorBackgroundColor = this.getAceScroller().style.backgroundColor;
-        this.editor.setTheme("ace/theme/textmate");
+        this.editor.setTheme(this.settings[SettingProperty.Theme]);
         this.editor.session.setMode("ace/mode/java");
-
-        this.editor.setFontSize(14);
-
+        this.editor.setFontSize(this.settings[SettingProperty.FontSize]);
         this.editor.renderer.setPadding(5);
         this.editor.renderer.setScrollMargin(5, 0, 0, 0);
         this.editor.renderer.setShowGutter(false);
@@ -1059,54 +999,34 @@ export default class MatteAceEditor {
             panel.append(label);
         };
 
-        addSelect(
-            "Font size",
-            [12, 14, 16, 18, 20, 24, 28].map(size => [String(size), `${size}px`]),
-            "20",
-            size => this.editor.setFontSize(Number(size))
-        );
-        addSelect(
-            "Theme",
-            [
-                ["ace/theme/textmate", "TextMate"],
-                ["ace/theme/monokai", "Monokai"],
-                ["ace/theme/github", "GitHub"],
-                ["ace/theme/solarized_light", "Solarized Light"],
-                ["ace/theme/solarized_dark", "Solarized Dark"]
-            ],
-            "ace/theme/textmate",
-            theme => this.editor.setTheme(theme)
-        );
-        // addCheckbox("linenumbers","Line numbers", false, show => {
-        //     this.editor.setOption("showLineNumbers", show);
-        //     this.editor.setOption("showGutter", show);
-        // });
-        //addCheckbox("word-wrap", "Word wrap", false, wrap => this.editor.session.setUseWrapMode(wrap));
-        //addCheckbox("highlightline","Highlight active line", false, highlight => this.editor.setHighlightActiveLine(highlight));
-        //addCheckbox("Show invisibles", false, show => this.editor.setShowInvisibles(show));
-
-        //panel.append(document.createElement("hr"));
-
         Object.values(SettingProperty).forEach(key => {
             const value = this.settings[key];
-            if(typeof value === "boolean")
+            const callback = (show: any) => {
+                const action = settingsConf[key].action
+                if(action)
+                    action.call(null, this, show)
+                else
                 { // @ts-ignore
-                    addCheckbox(key, settingsConf[key]?.label || key, value, show => {
-                        const action = settingsConf[key].action
-                        if(action)
-                            action.call(null, this, show)
-                        else
-                            { // @ts-ignore
-                                this.settings[key] = show
-                            }
-                    });
+                    this.settings[key] = show
+                }
+            };
+            if(settingsConf[key]?.options) {
+                addSelect(
+                    settingsConf[key].label,
+                    settingsConf[key].options!.map(option => [option.value, option.label || option.value]),
+                    value?.toString() ?? "N/A",
+                    callback
+                );
+            }
+            else if(typeof value === "boolean")
+                { // @ts-ignore
+                    addCheckbox(key, settingsConf[key]?.label || key, value, callback);
                 }
             else if (typeof value === "number")
                 { // @ts-ignore
-                    addPositiveNumber(key, settingsConf[key]?.label || key, value, v => this.settings[key] = v);
+                    addPositiveNumber(key, settingsConf[key]?.label || key, value, callback);
                 }
         })
-
         host.append(details);
     }
 
