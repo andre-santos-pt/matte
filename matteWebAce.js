@@ -17,9 +17,12 @@ import {ErrorMessagesPt} from "./src/error-messages-pt.ts";
 
 import {callstack_matte} from "./src/callstack-matte.ts";
 import {sysout_matte} from "./src/sysout-matte.ts";
+import {compile} from "./src/antlr2ast.ts";
 
 window.callstack_matte = callstack_matte;
 window.sysout_matte = sysout_matte;
+
+window.compile = compile;
 
 window.flatTrace = (trace) => {
     if(trace.children)

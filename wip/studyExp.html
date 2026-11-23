@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="UTF-8">
+    <title>Study</title>
+    <style>
+        body {
+            max-width: 760px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+            font: 16px/1.5 system-ui, sans-serif;
+        }
+
+        .slide[hidden] {
+            display: none;
+        }
+
+        .slide-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .slide-controls input {
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+<script src="../dist/matte-web-ace.js" defer></script>
+
+<h1 id="title">Estudo: erros de programação</h1>
+
+<main>
+    <div class="slide" role="group" aria-label="Instruções">
+       Serão apresentados 10 cenários com código Java que tem um erro de compilação marcado com um sublinhado vermelho, tal como no exemplo em baixo.
+        <matte-ace norun study>
+            int i = 10$;
+        </matte-ace>
+
+        <ul>
+            <li>Ao colocar o cursor na região sublinhada é possível ver a mensagem de erro; experimenta no código acima.</li>
+            <li>O erro deve-se ao símbolo '$' não ser válido; corrige o erro, e verás que o sublinhado desaparece.</li>
+        </ul>
+
+        Este primeiro cenário foi de aquecimento. Para começar as tarefas, indica se terminaste com sucesso ou se não conseguiste.
+    </div>
+
+    <div class="slide" role="group" aria-label="Step 1">
+        Função obter o número absoluto de um inteiro.
+        <matte-ace norun study>
+            int abs(int n) {
+                if(n < 0) {
+                    return -n;
+                }
+                else {
+                    return n;
+                }
+        </matte-ace>
+    </div>
+
+    <div class="slide" role="group" aria-label="Step 1">
+        <matte-ace norun study>
+            int average(double[] array) {
+                double sum = 0;
+                for (int i = 0; i < array.length; i++) {
+                    sum = sum + array[i];
+                }
+                return sum / array.length;
+            }
+        </matte-ace>
+    </div>
+
+    <!--
+    <div class="slide" role="group" aria-label="Step 2" hidden>
+        <matte-ace norun study>
+            int abs(int N) {
+                if(n < 0)
+                    return -n;
+                else
+                    return n;
+            }
+        </matte-ace>
+    </div>
+
+    <div class="slide" role="group" aria-label="Step 3" hidden>
+        <h2>Step 2: Assigning a value</h2>
+        <p>Here, <code>b</code> is assigned a value before it has been declared.
+            Add a declaration for <code>b</code>.</p>
+        <matte-ace>
+            int average(double[] array) {
+                double sum = 0;
+                i = 0;
+                while (i < array.length) {
+                    sum = sum + array[i];
+                    i++;
+                }
+                return sum;
+            }
+        </matte-ace>
+    </div>
+
+    <div class="slide" role="group" aria-label="Step 4" hidden>
+        <matte-ace norun study>
+            int round(double value) {
+                return (int) value + .5;
+            }
+        </matte-ace>
+    </div>
+
+    <div class="slide" role="group" aria-label="Step 4" hidden>
+        <matte-ace norun study>
+            void invert(int[] array) {
+                int[] inv = new int[array];
+                for(int i = 0; i < array.length; i++)
+                    inv[i] = array[array.length - 1 - i];
+                return inv;
+            }
+        </matte-ace>
+    </div>
+    -->
+</main>
+
+<fieldset>
+    <legend>Resultado</legend>
+    <label>
+        <input type="radio" name="res" value="ok">
+        Consegui corrigir
+    </label>
+    <label>
+        <input type="radio" name="res" value="nok">
+        Desisto
+    </label>
+</fieldset>
+
+<nav class="slide-controls" aria-label="Study steps">
+  <!--<button id="previous" type="button" aria-label="Previous step">Anterior
+    </button>
+    <label for="step-slider">Step <span id="step-number">1</span> of <span
+            id="step-count"></span></label>
+    <input id="step-slider" type="range" min="1" value="1" step="1"
+           aria-label="Choose a study step">
+           -->
+    <button id="next" type="button" aria-label="Next step">Próximo</button>
+    <button id="finish" type="button" aria-label="Terminar" hidden>Terminar</button>
+</nav>
+
+
+
+<script>
+    let editors = [];
+    function study_matte(editor) {
+        editors.push(editor);
+        console.log(editor)
+    }
+    const condition = Math.random() < .5;
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    console.log(slides.length)
+    console.log(condition);
+    const total = slides.length - 1;
+    let current = 0; // TODO 0
+    let startTime = new Date().getTime();
+    let tasksRecord = [];
+
+    const next = document.querySelector("#next");
+    const finish = document.querySelector("#finish");
+    const obrigado = document.querySelector("#obrigado");
+
+    const answers = Array.from(document.querySelectorAll('input[name="res"]'));
+
+    function updateNext() {
+        next.disabled = current === total || !answers.some(answer => answer.checked);
+        if(answers.some(answer => answer.checked) && current === total)
+            document.getElementById("finish").hidden = false
+
+    }
+    answers.forEach(answer => answer.addEventListener("change", updateNext));
+
+    function showStep(s) {
+        const index = Number(s);
+        slides.forEach((slide, slideIndex) => {
+            slide.hidden = slideIndex !== index;
+        });
+        answers.forEach(answer => {
+            answer.checked = false;
+        });
+        current = s
+        updateNext();
+        if(current !== 0)
+            document.getElementById("title").innerText = "Tarefa " + current + "/" + total;
+    }
+
+    function recordTask() {
+        const taskTime = new Date().getTime();
+        const code = editors[current].getCodeToCompile();
+        const compilation = compile(code);
+        tasksRecord.push({
+            step: current,
+            code,
+            compileError: compilation.type ? compilation : undefined,
+            ok: answers.find(answer => answer.checked).value === "ok",
+            time: taskTime
+        })
+    }
+
+    next.addEventListener("click", () => {
+        recordTask();
+        showStep(current+1)
+    });
+    finish.addEventListener("click", () => {
+        recordTask();
+        const endTime = new Date().getTime();
+        const result = {
+            startTime,
+            endTime,
+            tasks: tasksRecord
+        }
+        console.log(result);
+        slides[current].hidden = true;
+        document.querySelector("fieldset").hidden = true;
+        finish.disabled = true;
+        document.getElementById("title").innerText = "Obrigado pela participação!";
+    });
+    showStep(current);
+</script>
+</body>
+</html>
