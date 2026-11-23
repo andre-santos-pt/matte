@@ -30,6 +30,22 @@ window.flatTrace = (trace) => {
 
 const matteDivs = new Set();
 
+function trimIndent(text) {
+    const lines = text.replace(/\r\n?/g, "\n").split("\n");
+
+    while (lines.length && lines[0].trim() === "")
+        lines.shift();
+    while (lines.length && lines[lines.length - 1].trim() === "")
+        lines.pop();
+
+    const indents = lines
+        .filter(line => line.trim() !== "")
+        .map(line => (line.match(/^[\t ]*/) ?? [""])[0].length);
+    const indent = indents.length ? Math.min(...indents) : 0;
+
+    return lines.map(line => line.trim() === "" ? "" : line.substring(indent)).join("\n");
+}
+
 function initializeMatteAce(element) {
     if (element.editor) {
         requestAnimationFrame(() => {
@@ -43,7 +59,7 @@ function initializeMatteAce(element) {
     div.style = 'display: block;';
     const childTags = Array.from(element.children);
     Array.from(element.children).forEach(c => c.remove());
-    div.innerHTML = (element.innerHTML.startsWith("\n") ? element.innerHTML.substring(1) : element.innerHTML).trim();
+    div.textContent = trimIndent(element.textContent ?? "");
     element.innerHTML = '';
     element.append(div);
     let call = element.getAttribute("call");
