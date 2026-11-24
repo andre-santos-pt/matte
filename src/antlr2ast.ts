@@ -122,13 +122,7 @@ function getTokenStreamAndParser(input: string): [CommonTokenStream, MatteErrorL
     lexer.removeErrorListeners()
     lexer.addErrorListener(errorListener)
     const tokens = new CommonTokenStream(lexer);
-    const bracketErrors = checkBracketMatching(tokens)
     const parser = new JavaGrammarParser(tokens);
-    // if (bracketErrors) {
-    //     // A bracket mismatch suggests missing/inserted tokens; fail fast instead of
-    //     // letting the parser recover and silently fabricate a broken tree.
-    //     parser._errHandler = new BailErrorStrategy()
-    // }
     parser.removeErrorListeners()
     parser.addErrorListener(errorListener)
     return [tokens, errorListener, parser];
@@ -137,6 +131,12 @@ function getTokenStreamAndParser(input: string): [CommonTokenStream, MatteErrorL
 
 export function buildAST(source: string): CompilationResult {
     const [tokens, errorListener, parser] = getTokenStreamAndParser(source)
+    const bracketErrors = checkBracketMatching(tokens)
+    if(bracketErrors.length != 0)
+        return {
+            errors: bracketErrors
+        }
+
     let unit = parser.unit()
     if (errorListener.errors.length != 0)
         return {
@@ -154,7 +154,6 @@ export function buildAST(source: string): CompilationResult {
 export function buildASTandCall(source: string, call: string): [CompilationResult, Expression] {
     const [tokens, errorListener, parser] = getTokenStreamAndParser(source)
     let unitCtx = parser.unit();
-    //errorListener.checkErrors()
     const visitor = new TreeVisitor(tokens);
     const chars2 = CharStreams.fromString(call);
     const lexer2 = new JavaGrammarLexer(chars2);
@@ -763,7 +762,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitBreak = (ctx: BreakContext) =>
-        new BreakStatement()
+        new BreakStatement(this.rangeContext(ctx))
 
     visitReturn = (ctx: ReturnContext) =>
         new ReturnStatement(

@@ -5,20 +5,24 @@ import {
 import assert from "assert";
 import {last, lastTrace} from "../utils";
 import {Program, StaticErrorType} from "../ast";
+import {compile} from "../antlr2ast";
 
 export function compilationError(code: string, expected: StaticErrorType, call?: string) {
     const interpreter = new Interpreter();
-    const result = interpreter.parseAndRun(code, call);
-    if(result.error == undefined)
-        assert.fail( "expected a compilation error")
-    assert.equal(result.error.type, expected);
+    const result = compile(code)
+    if(result.errors.length != 1) {
+        console.log(result.errors)
+        assert.fail( "expected a single compilation error")
+    }
+
+    assert.equal(result.errors[0].type, expected);
 }
 
 export function runtimeError(code: string, expected: RuntimeErrorType, call?: string, interpreter = new Interpreter()) {
     const result = interpreter.parseAndRun(code, call);
-    if(result.error != undefined) {
-        console.table(result.error)
-        assert.fail(`Compilation error: ${result.error.message}`)
+    if(result.compilationErrors.length != 0) {
+        console.table(result.compilationErrors[0])
+        assert.fail(`Compilation error: ${result.compilationErrors[0].message}`)
     }
     if(result.callError)
         assert.fail(result.callError)
@@ -35,9 +39,9 @@ export function cases(code: string, ...tests: [string, any][]) {
         if(result.callError != undefined) {
             assert.fail(`Call error: ${t[0]}`)
         }
-        if(result.error != undefined) {
-            console.table(result.error)
-            assert.fail(`Compilation error: ${result.error.message}`)
+        if(result.compilationErrors.length != 0) {
+            console.table(result.compilationErrors[0])
+            assert.fail(`Compilation error: ${result.compilationErrors[0].message}`)
         }
         if(result.runtimeError) {
             assert.fail(`Runtime error ${result.runtimeError.message}`)
@@ -49,16 +53,15 @@ export function cases(code: string, ...tests: [string, any][]) {
 export function script(code: string, cases: Map<string, any>): Program | undefined {
     const interpreter = new Interpreter();
     let result = interpreter.parseAndRun(code);
-    if(result.error != undefined) {
-        console.table(result.error)
-        assert.fail("error: " + result.error.message)
+    if(result.compilationErrors.length != 0) {
+        console.table(result.compilationErrors[0])
+        assert.fail(`Compilation error: ${result.compilationErrors[0].message}`)
     }
     if(!result.trace)
         assert.fail(`No trace`)
     if (lastTrace(result.trace)?.error)
         assert.fail(lastTrace(result.trace)?.error?.message)
     else {
-
         const mapToObj = (m:Map<any, any>) =>
             Object.fromEntries([...m.entries()]);
 

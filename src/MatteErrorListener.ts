@@ -212,12 +212,12 @@ export function checkBracketMatching(tokens: CommonTokenStream): StaticError[] {
         });
     }
 
-    if (errors.length != 0)
-        throw {
-            compilation: errors[0].type,
-            range: errors[0].range,
-            message: errors[0].message
-        }
+    // if (errors.length != 0)
+    //     throw {
+    //         compilation: errors[0].type,
+    //         range: errors[0].range,
+    //         message: errors[0].message
+    //     }
 
     return errors;
 }

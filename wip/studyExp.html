@@ -44,7 +44,9 @@
             <li>O erro deve-se ao símbolo '$' não ser válido; corrige o erro, e verás que o sublinhado desaparece.</li>
         </ul>
 
-        Este primeiro cenário foi de aquecimento. Para começar as tarefas, indica se terminaste com sucesso ou se não conseguiste.
+        Este primeiro cenário foi de aquecimento. Antes de começar as tarefas, indica por favor o teu número de estudante, e se realizaste a tarefa de aquecimento com sucesso ou se não conseguiste.
+        <br><br>
+        <b>Número de estudante:</b> <input id="studentid" type="text"/><br><br>
     </div>
 
     <div class="slide" role="group" aria-label="Step 1">
@@ -127,10 +129,10 @@
     <label>
         <input type="radio" name="res" value="ok">
         Consegui corrigir
-    </label>
+    </label><br>
     <label>
         <input type="radio" name="res" value="nok">
-        Desisto
+        <i>Não</i> consegui corrigir
     </label>
 </fieldset>
 
@@ -146,9 +148,29 @@
     <button id="finish" type="button" aria-label="Terminar" hidden>Terminar</button>
 </nav>
 
-
-
 <script>
+    const ENDPOINT = "https://script.google.com/macros/s/AKfycbzysHZpV7q73g7Bhb6tiEz-Q4m6s8-PAyDof9t56fPlHiwUV6ePefy5G3qCQko-aH5J/exec";
+
+    function sendResult(result) {
+        fetch(ENDPOINT, {
+            method: "POST",
+            headers: {
+                "Content-Type": "text/plain;charset=utf-8"
+            },
+            body: JSON.stringify(result)
+        }).then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        }).catch(error => {
+            console.error("Could not submit study result:", error);
+            triggerDownload(result);
+            const msg = document.createElement("h2");
+            msg.innerHTML = "Não foi possível enviar o resultado automaticamente. Pedimos para enviares o ficheiro .json descarregado para <a href='mailto:andre.santos@iscte-iul.pt'>andre.santos@iscte-iul.pt</a>";
+            document.getElementById("title").after(msg)
+        });
+    }
+
     let editors = [];
     function study_matte(editor) {
         editors.push(editor);
@@ -162,6 +184,14 @@
     let current = 0; // TODO 0
     let startTime = new Date().getTime();
     let tasksRecord = [];
+    let studyFinished = false;
+
+    window.addEventListener("beforeunload", event => {
+        if (!studyFinished) {
+            event.preventDefault();
+            event.returnValue = "";
+        }
+    });
 
     const next = document.querySelector("#next");
     const finish = document.querySelector("#finish");
@@ -208,19 +238,37 @@
         recordTask();
         showStep(current+1)
     });
+
+    function triggerDownload(result) {
+        const file = new Blob([JSON.stringify(result, null, 2)], {
+            type: "application/json"
+        });
+        const downloadUrl = URL.createObjectURL(file);
+        const downloadLink = document.createElement("a");
+        downloadLink.href = downloadUrl;
+        downloadLink.download = "study-result.json";
+        downloadLink.click();
+        setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+    }
+
     finish.addEventListener("click", () => {
         recordTask();
         const endTime = new Date().getTime();
+        const studentId = document.getElementById("studentid").value;
         const result = {
+            studentId,
             startTime,
             endTime,
             tasks: tasksRecord
         }
         console.log(result);
+        studyFinished = true;
+        sendResult(result);
         slides[current].hidden = true;
         document.querySelector("fieldset").hidden = true;
         finish.disabled = true;
         document.getElementById("title").innerText = "Obrigado pela participação!";
+
     });
     showStep(current);
 </script>

@@ -31,7 +31,9 @@ export enum StaticErrorType {
     ArgumentTypesMismatch = "ARGS_TYPE_MISMATCH",
     FieldNotFound = "FIELD_NOT_FOUND",
     KeywordUsedAsIdentifier = "KEYWORD_AS_IDENTIFIER",
-    CannotInferType = "CANNOT_INFER_TYPE"
+    CannotInferType = "CANNOT_INFER_TYPE",
+    BreakOutsideLoop = "BREAK_OUTSIDE_LOOP"
+
 }
 
 export type Type = PrimitiveType | TypeDeclaration | ArrayType | ForeignType
@@ -244,7 +246,7 @@ export class Procedure extends ASTNode {
                                 related: [procedure.returnTypeRange]
                             }
                         })
-                    if (!typeCompatibleWith((statement.expression as Expression).type, procedure.returnType)) {
+                    else if (!typeCompatibleWith((statement.expression as Expression).type, procedure.returnType)) {
                         errors.push({
                             type: StaticErrorType.TypeMismatch,
                             range: statement.expression.range as Range,
@@ -407,15 +409,6 @@ export class BlockStatement extends Statement {
     }
 }
 
-function checkGuardType(condition: Expression) {
-    if (condition.type !== PrimitiveType.BOOLEAN)
-        throw {
-            message: "Expected boolean expression (not " + markType(condition.type) + ")",
-            compilation: StaticErrorType.TypeMismatch,
-            range: condition.range
-        }
-}
-
 export class IfStatement extends Statement {
     guard: Expression;
     thenBranch: Statement;
@@ -459,7 +452,20 @@ export class WhileStatement extends Statement {
 }
 
 export class BreakStatement extends Statement {
-    // TODO break location check
+
+    validate(errors: StaticError[]) {
+        let parent = this.parent
+        while(parent != null && !(parent instanceof Procedure)) {
+            if(parent instanceof WhileStatement)
+                return
+            parent = parent?.parent
+        }
+        errors.push({
+            message: "Break statement outside a loop",
+            type: StaticErrorType.BreakOutsideLoop,
+            range: this.range as Range
+        })
+    }
 }
 
 export class ReturnStatement extends Statement {
@@ -604,7 +610,7 @@ export class ConditionalExpression extends Expression {
                 range: this.condition.range as Range
             })
 
-        if (!isSameType(this.trueCase.type, this.falseCase.type))
+        else if (!isSameType(this.trueCase.type, this.falseCase.type))
             errors.push({
                 message: "The type of this expression (" + markType(this.falseCase) + ") is not the same as the other alternative expression (" + markType(this.trueCase.type) + ")",
                 type: StaticErrorType.TypeMismatch,
@@ -637,7 +643,7 @@ export class UnaryExpression extends Expression {
                 detail: "The expression " + mark(this.expression.range?.text ?? "") + " is of type " + markType(this.expression.type)
             })
 
-        if (this.operator == "!" && this.expression.type !== PrimitiveType.BOOLEAN)
+        else if (this.operator == "!" && this.expression.type !== PrimitiveType.BOOLEAN)
             errors.push({
                 message: "Unary operator - can only be applied to boolean expressions",
                 type: StaticErrorType.TypeMismatch,

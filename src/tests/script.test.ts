@@ -2,6 +2,7 @@ import {Interpreter, RuntimeErrorType} from '../Interpreter';
 
 import {compilationError, runtimeError, script} from "./utils";
 import {StaticErrorType} from "../ast";
+import {buildAST} from "../antlr2ast";
 
 describe('Matte Interpreter Test Script', () => {
     describe('Script', () => {
@@ -51,6 +52,21 @@ describe('Matte Interpreter Test Script', () => {
         while(i != 10) {
             i = i + 1;
             `, StaticErrorType.SyntaxError)
+        })
+
+        it('break outside a loop is a static error', () => {
+            const result = buildAST('break;')
+            expect(result.errors.some(error => error.type === StaticErrorType.BreakOutsideLoop)).toBe(true)
+        })
+
+        it('break inside a loop is valid', () => {
+            const result = buildAST('while(true) { break; }')
+            expect(result.errors.some(error => error.type === StaticErrorType.BreakOutsideLoop)).toBe(false)
+        })
+
+        it('break inside a loop is valid', () => {
+            const result = buildAST('while(true) { if(true) break; }')
+            expect(result.errors.some(error => error.type === StaticErrorType.BreakOutsideLoop)).toBe(false)
         })
 
 
