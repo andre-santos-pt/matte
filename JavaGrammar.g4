@@ -83,7 +83,7 @@ exp:
     | condition=exp QUESTION trueCase=exp COLON falseCase=exp # conditionalExpr
     | left=exp AND right=exp                    # andExpr
     | left=exp OR right=exp                     # orExpr
-    | NEW typeName=ID dimensions              # arrayAllocExpr
+    | NEW typeName=(ID|INT_TYPE|DOUBLE_TYPE) dimensions              # arrayAllocExpr
     | exp DOT call                              # instanceCallExpr
     | ID                                        # idExpr
     | INT                                       # intExpr
