@@ -148,10 +148,10 @@ describe('Matte Interpreter Test Script', () => {
         it('while loop max', () => {
             runtimeError(`
         int i = 0;
-        while(i != 101) {
+        while(i != 100) {
             i = i + 1;
         }
-        `, RuntimeErrorType.MaxIterationsReached)
+        `, RuntimeErrorType.MaxIterationsReached, undefined, new Interpreter(100))
         });
 
         it('integer division by zero', () => {
