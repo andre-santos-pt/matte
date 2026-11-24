@@ -1,5 +1,5 @@
 import {flatTrace, last} from "./utils";
-import {compile, getJavaCode} from "./antlr2ast";
+import {CompilationResult, compile} from "./antlr2ast";
 import {variableMaterialization} from "./expSimplification";
 import {
     ExtensionProcedure,
@@ -14,12 +14,10 @@ import {Program, StaticError, Type} from "./ast";
 import MatteRange from "./Range";
 import {SettingProperty, Settings} from "./settings";
 import styleCss from "./matte-ace-editor.css";
-//import {isDeepStrictEqual} from "assert/build/internal/util/comparisons.js";
+import {getJavaCode} from "./ast2java";
 
-//const {Range} = ace.require("ace/range");
 declare const ace: typeof import("ace-builds");
 
-type EditorResult = ReturnType<Interpreter["parseAndRun"]>;
 type TraceVariables = TraceEntry["stack"]["variables"];
 type AceTooltip = Ace.Tooltip;
 
@@ -34,7 +32,9 @@ export interface ErrorMessageHandler {
 }
 
 class NullErrorMessageHandler implements ErrorMessageHandler {
-    transform(error: StaticError): StaticError { return error}
+    transform(error: StaticError): StaticError {
+        return error
+    }
 }
 
 
@@ -52,12 +52,11 @@ export default class MatteAceEditor {
     backBtn!: HTMLButtonElement;
     forwardBtn!: HTMLButtonElement;
     closeDebugBtn!: HTMLButtonElement;
-    cumulative!: HTMLButtonElement;
     autoHeight!: boolean;
     include?: string | null;
-    result: EditorResult | null = null;
+    result: InterpreterResult | null = null;
     lastCompilationSource: string | null = null;
-    compilationError: StaticError | null = null;
+    compilationErrors: StaticError[] = [];
     compilationCheckInterval!: number;
     popups: AceTooltip[] = [];
     popupPositions = new WeakMap<AceTooltip, PopupPosition>();
@@ -67,9 +66,9 @@ export default class MatteAceEditor {
     extensionTypes: ExtensionType[] = [];
     preprocessors: ((p: Program) => void)[] = [];
     beforeRunListeners: Array<() => void> = [];
-    afterRunListeners: Array<(result: EditorResult) => void> = [];
+    afterRunListeners: Array<(result: InterpreterResult) => void> = [];
     stepListeners: Array<(trace: TraceEntry[], index: number) => void> = [];
-    compilationListeners: Array<(compilation: Program | StaticError) => void> = [];
+    compilationListeners: Array<(compilation: CompilationResult) => void> = [];
     settings: Settings;
     trace: TraceEntry[] = [];
     private _resizeTimeout: number | null = null;
@@ -95,8 +94,8 @@ export default class MatteAceEditor {
         width?: number | string | null,
         height?: number | string | null,
         call?: string | null,
-        readonly? : boolean,
-        norun? : boolean
+        readonly?: boolean,
+        norun?: boolean
     ) {
 
         this.readonly = readonly ?? false;
@@ -142,7 +141,7 @@ export default class MatteAceEditor {
         this.runBar = document.createElement('div');
         this.runBar.style = "display: flex; align-items: center; gap: 10px; margin-top: 5px; margin-bottom: 5px";
 
-        if(!this.norun)
+        if (!this.norun)
             this.addRunButton();
 
         this.init();
@@ -173,24 +172,23 @@ export default class MatteAceEditor {
             this.clearPopups();
             this.clearErrorMarkers();
             this.editor.session.clearAnnotations();
-            if(result.callError) {
-            }
-            else if(result.error)
-                this.markCompilationError(result.error);
+            if (result.callError) {
+            } else if (result.compilationErrors.length != 0)
+                result.compilationErrors.forEach(e => this.markCompilationError(e))
             else {
-            if (result.trace)
-                this.trace = flatTrace(result.trace).filter(e => e.range && e.range.end < this.editor.getValue().length)
-            if (result.runtimeError)
-                this.markRuntimeError(result.runtimeError);
-            else if (result.program?.block && result.trace?.children?.length)
-                this.createScopePopups(last(result.trace.children).stack.variables);
-        }
+                if (result.trace)
+                    this.trace = flatTrace(result.trace).filter(e => e.range && e.range.end < this.editor.getValue().length)
+                if (result.runtimeError)
+                    this.markRuntimeError(result.runtimeError);
+                else if (result.program?.block && result.trace?.children?.length)
+                    this.createScopePopups(last(result.trace.children).stack.variables);
+            }
         });
 
-        if(!norun)
+        if (!norun)
             this.addCallBox(call);
 
-        if(readonly)
+        if (readonly)
             this.setReadOnly(true);
     }
 
@@ -215,9 +213,9 @@ export default class MatteAceEditor {
     runPreprocessors() {
         this.preprocessors.forEach((pp: (p: Program) => void) => {
             const compilation = compile(this.getCodeToCompile());
-            if(compilation instanceof Program) {
-                pp(compilation);
-                this.editor.setValue(getJavaCode(compilation))
+            if (compilation.program instanceof Program) {
+                pp(compilation.program);
+                this.editor.setValue(getJavaCode(compilation.program))
             }
         })
     }
@@ -230,26 +228,38 @@ export default class MatteAceEditor {
         this.extensionTypes.push(type);
     }
 
+    updatePopupsAtCursor(): void {
+        this.popups.forEach(p => p.hide(undefined))
+        this.clearSecondaryMarkers()
+        const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
+        let compilationError = this.compilationErrors.find(err =>
+            err?.range && index >= err.range.start && index <= err.range.end)
+
+        if (!compilationError)
+            compilationError = this.result?.compilationErrors.find(err =>
+                err?.range && index >= err.range.start && index <= err.range.end)
+
+        if (compilationError) {
+            compilationError =  this.errorMessageHandler.transform(compilationError)
+            let message = compilationError.message;
+            if (compilationError.detail) {
+                if (this.settings.compilationhints && compilationError.detail.related) {
+                    compilationError.detail.related.forEach((range: MatteRange) => this.markSecondaryHighlights(range))
+                }
+                if (this.settings.compilationhints && compilationError.detail.hint)
+                    message += "<hr><small>" + compilationError.detail.hint + "</small>"
+            }
+            this.popup(compilationError.range.start, message);
+        } else {
+            const err = compilationError ?? this.result?.runtimeError;
+            if (err?.range && index >= err.range.start && index <= err.range.end)
+                this.popup(err.range.start, err.message);
+        }
+    }
+
     init(): void {
         this.editor.selection.on("changeCursor", () => {
-            this.popups.forEach(p => p.hide(undefined))
-            this.clearSecondaryMarkers()
-            const compilationError = this.compilationError ? this.errorMessageHandler.transform(this.compilationError) :  this.result?.error;
-            const err = compilationError ?? this.result?.runtimeError;
-            const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
-            if (err?.range && index >= err.range.start && index <= err.range.end) {
-
-                let message = err.message;
-                if (compilationError?.detail) {
-                    if (this.settings.compilationhints && compilationError.detail.related) {
-                        compilationError.detail.related.forEach((range: MatteRange) => this.markSecondaryHighlights(range))
-                    }
-                    if (this.settings.compilationhints && compilationError.detail.hint)
-                        message += "<hr><small>" + compilationError.detail.hint + "</small>"
-
-                }
-                this.popup(err.range.start, message);
-            }
+            this.updatePopupsAtCursor()
         });
 
         if (!Array.from(document.head.querySelectorAll('style')).some(style => style.id === 'matte-ace-editor-style')) {
@@ -365,12 +375,12 @@ export default class MatteAceEditor {
         this.createDebugBox();
     }
 
-    updateCallBar(result: EditorResult): void {
+    updateCallBar(result: InterpreterResult): void {
         this.resultLabel.style.visibility = result.callError || result.result?.evaluation !== undefined ? "visible" : "hidden";
 
         if (result.callError)
             this.resultLabel.innerHTML = "<span style='color: #a19f9f; font-style: italic'>" + result.callError + "</span>";
-        else if (!result.error && !result.runtimeError) {
+        else if (result.compilationErrors.length == 0 && !result.runtimeError) {
             this.resultLabel.innerHTML = '';
             if (result.result?.evaluation !== undefined)
                 this.resultLabel.innerHTML = ' = ' + this.prettyPrint(result.result.evaluation, result.call?.type, true);
@@ -447,8 +457,8 @@ export default class MatteAceEditor {
         this.forwardBtn.after(this.closeDebugBtn);
 
         this.afterRunListeners.push(result => {
-            this.debugBtn.style.visibility = !result.callError && !result.error ? "visible" : "hidden";
-            if(!result.callError && !result.error)
+            this.debugBtn.style.visibility = !result.callError && result.compilationErrors.length == 0 ? "visible" : "hidden";
+            if (!result.callError && result.compilationErrors.length == 0)
                 this.setDebugMode(false);
         })
     }
@@ -484,7 +494,7 @@ export default class MatteAceEditor {
         } else {
             this.resultLabel.style.visibility = this.result?.result?.evaluation !== undefined ? "visible" : "hidden";
             this.getAceScroller().style.backgroundColor = this.editorBackgroundColor;
-           // this.clearPopups()
+            // this.clearPopups()
             this.editor.clearSelection();
             this.setReadOnly(this.readonly);
         }
@@ -511,7 +521,7 @@ export default class MatteAceEditor {
     }
 
     checkCompilation(): void {
-        if(!this.settings.autocompile)
+        if (!this.settings.autocompile)
             return;
 
         const code = this.getCodeToCompile()
@@ -524,13 +534,17 @@ export default class MatteAceEditor {
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();
 
-        if ("type" in compilation) {
-            this.compilationError = compilation;
-            this.markCompilationError(compilation);
+        compilation.errors.forEach(e => {
+            this.markCompilationError(e);
             if (this.runBtn)
                 this.runBtn.disabled = true;
-        } else {
-            this.compilationError = null;
+
+        })
+
+        this.compilationErrors = compilation.errors
+        this.updatePopupsAtCursor();
+
+        if (compilation.errors.length == 0) {
             if (this.runBtn)
                 this.runBtn.disabled = false;
             this.clearPopups();
@@ -608,7 +622,7 @@ export default class MatteAceEditor {
 
 
     popup(offset: number, message: string, top = false, style?: string): AceTooltip | undefined {
-        if(offset >= this.editor.getValue().length)
+        if (offset >= this.editor.getValue().length)
             return
         const Tooltip = ace.require("ace/tooltip").Tooltip as new (parent: Element) => AceTooltip;
         const tip = new Tooltip(this.editor.container);
@@ -696,6 +710,7 @@ export default class MatteAceEditor {
     }
 
     highlightedRange?: number = undefined
+
     highlightRange(range: MatteRange) {
         this.highlightedRange = this.editor.session.addMarker(
             this.range2Ace(range),
@@ -723,7 +738,7 @@ export default class MatteAceEditor {
     }
 
     clearHighlight() {
-        if(this.highlightedRange)
+        if (this.highlightedRange)
             this.editor.session.removeMarker(this.highlightedRange);
     }
 
@@ -773,12 +788,12 @@ export default class MatteAceEditor {
         for (const [key, value] of dataMap) {
             const mat = variableMaterialization(value)
             const matText = mat ? "<small> (" + mat + ")</small>" : "";
-            if(value.declaration)
+            if (value.declaration)
                 this.popup(value.declaration.end, this.prettyPrint(value.evaluation, value.type) + matText, false);
 
-            else if(key === "this") {
+            else if (key === "this") {
                 Object.keys(value.evaluation).forEach(f => {
-                    if(f !== "$type" && value.evaluation[f].declaration)
+                    if (f !== "$type" && value.evaluation[f].declaration)
                         this.popup(value.evaluation[f].declaration.end, this.prettyPrint(value.evaluation[f].evaluation, value.evaluation[f].type) + matText, false)
                 })
             }
@@ -789,9 +804,10 @@ export default class MatteAceEditor {
 
     prettyPrint(value: unknown, type?: Type, noRounding = false): string {
         const prettyPrintObject = (value: object): string => {
-            const fields = value as Record<string, {evaluation: unknown}>;
+            const fields = value as Record<string, { evaluation: unknown }>;
             return "{" + Object.keys(fields).filter(k => k !== "$type").map(k => `${k}: ${this.prettyPrint(fields[k].evaluation)}`).join(", ") + "}";
         };
+
         function formatNumberIfNeeded(num: number): string {
             const str = num.toString();
             let decimalPlaces = 0;
@@ -823,12 +839,11 @@ export default class MatteAceEditor {
             return formatNumberIfNeeded(value);
         else if (typeof value === "number" && Number.isInteger(value) && type === "double")
             return value.toString() + ".0";
-        else if(typeof value === "string")
+        else if (typeof value === "string")
             return "\"" + value + "\""
         else
             return value.toString();
     }
-
 
 
     // enable(key: string): void {

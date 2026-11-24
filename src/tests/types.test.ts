@@ -50,9 +50,9 @@ describe('Matte Interpreter Types', () => {
                 var count = 10;
                 var enabled = true;
                 var values = {1, 2, 3};
-            `) as Program
+            `).program
 
-            const declarations = p.block?.statements as Declaration[]
+            const declarations = p?.block?.statements as Declaration[]
             assert.equal(declarations[0].type, PrimitiveType.INT)
             assert.equal(declarations[1].type, PrimitiveType.BOOLEAN)
             assert.deepEqual(declarations[2].type, new ArrayType(PrimitiveType.INT))
@@ -151,16 +151,16 @@ describe('Matte Interpreter Types', () => {
             const p = compile(`
                 void f() {
                    
-                }`) as Program
-            assert.equal(p.procedures[0].returnType, PrimitiveType.VOID)
+                }`).program
+            assert.equal(p?.procedures[0].returnType, PrimitiveType.VOID)
         })
 
         it('array return', () => {
             const p = compile(`
                 int[] f() {
                    return null;
-                }`) as Program
-            assert.deepEqual(p.procedures[0].returnType, new ArrayType(PrimitiveType.INT))
+                }`).program
+            assert.deepEqual(p?.procedures[0].returnType, new ArrayType(PrimitiveType.INT))
         })
 
         it('non-void function missing return', () => {
@@ -178,7 +178,7 @@ describe('Matte Interpreter Types', () => {
                     else return 2;
                 }
             `)
-            assert.ok(p instanceof Program)
+            assert.ok(p.errors.length == 0)
         })
 
         it('void return mismatch', () => {
@@ -197,8 +197,6 @@ describe('Matte Interpreter Types', () => {
                 i++;
                 return;
             }`
-
-            compile(src)
 
             cases(src, ["f()", undefined])
 

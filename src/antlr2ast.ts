@@ -100,21 +100,18 @@ import JavaGrammarLexer from "./generated/JavaGrammarLexer";
 import {checkBracketMatching, MatteErrorListener} from "./MatteErrorListener";
 
 
-export function compile(source: string): Program | StaticError {
+export interface CompilationResult {
+    errors: StaticError[]
+    program?: Program
+}
+
+export function compile(source: string): CompilationResult {
     try {
         return buildAST(source)
     } catch (e: any) {
-        if (e.compilation)
-            return {
-                range: e.range,
-                type: e.compilation,
-                message: e.message,
-                detail: e.detail
-            }
-        else {
             console.log(e.stack)
             throw e
-        }
+        //}
     }
 }
 
@@ -138,180 +135,26 @@ function getTokenStreamAndParser(input: string): [CommonTokenStream, MatteErrorL
 }
 
 
-export function buildAST(source: string) {
+export function buildAST(source: string): CompilationResult {
     const [tokens, errorListener, parser] = getTokenStreamAndParser(source)
     let unit = parser.unit()
-    errorListener.checkErrors()
+    if (errorListener.errors.length != 0)
+        return {
+            errors: errorListener.errors
+        }
     const visitor = new TreeVisitor(tokens)
     const program = visitor.visitUnit(unit)
     setASTParents(program)
-    return program
-}
-
-export function getJavaCode(program: Program): string {
-    if (program.block)
-        return program.block.statements.map(statement => renderStatement(statement)).join("\n")
-
-    const typeDeclarations = program.typeDeclarations.map(type => renderTypeDeclaration(program, type))
-    const procedures = program.procedures
-        .filter(procedure => !procedure.instance)
-        .map(procedure => renderProcedure(procedure, false))
-
-    return [...typeDeclarations, ...procedures].join("\n\n")
-}
-
-function renderType(type: Type): string {
-    return typeName(type) ?? "Object"
-}
-
-function renderTypeDeclaration(program: Program, type: TypeDeclaration): string {
-    const methods = program.procedures.filter(procedure =>
-        procedure.instance && procedure.parameters[0]?.type === type
-    )
-    if (type.isRecord) {
-        const fields = type.fields.map(field => `${renderType(field.type)} ${field.name}`).join(", ")
-        const recordMethods = methods.filter(method => !isRecordAccessor(method, type.fields))
-        const body = recordMethods.map(method => renderProcedure(method, true, 1)).join("\n\n")
-        return `record ${type.name}(${fields}) {${body ? `\n${body}\n` : ""}}`
+    return {
+        errors: visitor.errors.length != 0 ? visitor.errors : program.checkStaticErrors(),
+        program
     }
-
-    const members = [
-        ...type.fields.map(field => `${renderIndent(1)}${renderDeclaration(field)};`),
-        ...methods.map(method => renderProcedure(method, true, 1))
-    ]
-    return `class ${type.name} {${members.length ? `\n${members.join("\n\n")}\n` : ""}}`
 }
 
-function isRecordAccessor(procedure: Procedure, fields: Declaration[]): boolean {
-    const field = fields.find(candidate => candidate.name === procedure.name)
-    if (!field || procedure.parameters.length !== 1 || procedure.body?.statements.length !== 1)
-        return false
-
-    const statement = procedure.body.statements[0]
-    return statement instanceof ReturnStatement &&
-        statement.expression instanceof Variable &&
-        statement.expression.declaration === field
-}
-
-function renderProcedure(procedure: Procedure, instance: boolean, indent = 0): string {
-    const parameters = procedure.parameters
-        .slice(instance ? 1 : 0)
-        .map(parameter => `${renderType(parameter.type)} ${parameter.name}`)
-        .join(", ")
-    const returnType = procedure.returnType ? renderType(procedure.returnType) : "void"
-    const body = procedure.body?.statements.map(statement => renderStatement(statement, indent + 1)).join("\n") ?? ""
-    const prefix = renderIndent(indent)
-    return `${prefix}${returnType} ${procedure.name}(${parameters}) {${body ? `\n${body}\n${prefix}` : ""}}`
-}
-
-function renderDeclaration(declaration: Declaration): string {
-    const initializer = declaration.initializer ? ` = ${renderExpression(declaration.initializer)}` : ""
-    return `${renderType(declaration.type)} ${declaration.name}${initializer}`
-}
-
-function renderStatement(statement: Statement, indent = 0): string {
-    const prefix = renderIndent(indent)
-    let code: string
-    if (statement instanceof Declaration)
-        code = `${prefix}${renderDeclaration(statement)};`
-    else if (statement instanceof Assignment)
-        code = `${prefix}${statement.variable.name} = ${renderExpression(statement.expression)};`
-    else if (statement instanceof ArrayAssignment)
-        code = `${prefix}${renderExpression(statement.target)}[${renderExpression(statement.index)}] = ${renderExpression(statement.expression)};`
-    else if (statement instanceof BlockStatement) {
-        const body = statement.statements.map(child => renderStatement(child, indent + 1)).join("\n")
-        code = `${prefix}{${body ? `\n${body}\n${prefix}` : ""}}`
-    } else if (statement instanceof IfStatement) {
-        const thenBranch = renderBranch(statement.thenBranch, indent)
-        const elseBranch = statement.elseBranch ? ` else ${renderBranch(statement.elseBranch, indent)}` : ""
-        code = `${prefix}if (${renderExpression(statement.guard)}) ${thenBranch}${elseBranch}`
-    } else if (statement instanceof WhileStatement)
-        code = `${prefix}while (${renderExpression(statement.guard)}) ${renderBranch(statement.body, indent)}`
-    else if (statement instanceof BreakStatement)
-        code = `${prefix}break;`
-    else if (statement instanceof ReturnStatement)
-        code = `${prefix}return${statement.expression ? ` ${renderExpression(statement.expression)}` : ""};`
-    else if (statement instanceof CallStatement)
-        code = `${prefix}${renderExpression(statement.expression)};`
-    else
-        throw new Error(`Unsupported statement: ${statement.constructor.name}`)
-
-    return statement.comment ? `${prefix}// ${statement.comment}\n${code}` : code
-}
-
-function renderBranch(statement: Statement, indent: number): string {
-    if (statement instanceof BlockStatement)
-        return renderStatement(statement, indent).trimStart()
-    const inner = renderStatement(statement, indent + 1)
-    return `{\n${inner}\n${renderIndent(indent)}}`
-}
-
-function renderExpression(expression: Expression): string {
-    if (expression instanceof IntLiteral || expression instanceof DoubleLiteral)
-        return String(expression.value)
-    if (expression instanceof BooleanLiteral)
-        return String(expression.value)
-    if (expression instanceof StringLiteral) {
-        const source = expression.range?.text
-        if (source?.startsWith('"') && source.endsWith('"'))
-            return source
-        return JSON.stringify(expression.value)
-    }
-    if (expression instanceof NullLiteral)
-        return "null"
-    if (expression instanceof Variable)
-        return expression.declaration.name
-    if (expression instanceof ConditionalExpression)
-        return `(${renderExpression(expression.condition)} ? ${renderExpression(expression.trueCase)} : ${renderExpression(expression.falseCase)})`
-    if (expression instanceof CastExpression)
-        return `(${expression.castType}) ${renderExpression(expression.expression)}`
-    if (expression instanceof UnaryExpression)
-        return `(${expression.operator}${renderExpression(expression.expression)})`
-    if (expression instanceof ArithmeticExpression ||
-        expression instanceof RelationalExpression ||
-        expression instanceof LogicalExpression)
-        if(expression.parent && expression.parent instanceof Expression)
-            return `(${renderExpression(expression.left)} ${expression.operator} ${renderExpression(expression.right)})`
-        else
-            return `${renderExpression(expression.left)} ${expression.operator} ${renderExpression(expression.right)}`
-    if (expression instanceof ArrayLiteralExpression)
-        return `{${expression.elements.map(renderExpression).join(", ")}}`
-    if (expression instanceof ArrayAllocationExpression)
-        return `new ${renderType(expression.componentType)}${expression.dimensions.map(dimension => `[${renderExpression(dimension)}]`).join("")}`
-    if (expression instanceof ArrayElementExpression)
-        return `${renderExpression(expression.target)}[${renderExpression(expression.index)}]`
-    if (expression instanceof CallExpression) {
-        const args = expression.instanceCall ? expression.args.slice(1) : expression.args
-        const receiver = expression.instanceCall && expression.args[0]
-            ? `${renderExpression(expression.args[0])}.`
-            : ""
-        return `${receiver}${expression.procedure.name}(${args.map(renderExpression).join(", ")})`
-    }
-    if (expression instanceof UnboundCallExpression) {
-        const args = expression.isInstance ? expression.args.slice(1) : expression.args
-        const receiver = expression.isInstance && expression.args[0]
-            ? `${renderExpression(expression.args[0])}.`
-            : ""
-        return `${receiver}${expression.procedureName}(${args.map(renderExpression).join(", ")})`
-    }
-    if (expression instanceof NewObjectExpression)
-        return `new ${expression.type.name}(${expression.args.map(renderExpression).join(", ")})`
-    if (expression instanceof UnboundNewObjectExpression)
-        return `new ${expression.typeName}(${expression.args.map(renderExpression).join(", ")})`
-    if (expression instanceof FieldAccessExpression)
-        return `${renderExpression(expression.target)}.${expression.fieldName}`
-
-    throw new Error(`Unsupported expression: ${expression.constructor.name}`)
-}
-
-function renderIndent(indent: number): string {
-    return "    ".repeat(indent)
-}
-
-export function buildASTandCall(source: string, call: string): [Program, Expression] {
+export function buildASTandCall(source: string, call: string): [CompilationResult, Expression] {
     const [tokens, errorListener, parser] = getTokenStreamAndParser(source)
     let unitCtx = parser.unit();
-    errorListener.checkErrors()
+    //errorListener.checkErrors()
     const visitor = new TreeVisitor(tokens);
     const chars2 = CharStreams.fromString(call);
     const lexer2 = new JavaGrammarLexer(chars2);
@@ -337,7 +180,11 @@ export function buildASTandCall(source: string, call: string): [Program, Express
             }
         setASTParents(exp)
         exp.setLoose()
-        return [program, exp]
+
+        return [{
+            errors:  visitor.errors.length != 0 ? visitor.errors : program.checkStaticErrors(),
+            program
+        }, exp]
     } catch (e: any) {
         if (e.callError)
             throw e
@@ -353,68 +200,10 @@ export function buildASTandCall(source: string, call: string): [Program, Express
     }
 }
 
+
 type ScopeEntry = {
     block: boolean;
     variables: Map<string, Declaration>;
-}
-
-function alwaysReturns(statement: Statement): boolean {
-    if (statement instanceof ReturnStatement)
-        return true;
-    if (statement instanceof BlockStatement)
-        return statement.statements.some(alwaysReturns);
-    if (statement instanceof IfStatement)
-        return statement.elseBranch != undefined &&
-            alwaysReturns(statement.thenBranch) &&
-            alwaysReturns(statement.elseBranch);
-    return false;
-}
-
-function checkReturns(procedure: Procedure): void {
-    function checkReturnsAux(statement: Statement, procedure: Procedure): void {
-        if (statement instanceof ReturnStatement) {
-            if (statement.expression == undefined) {
-                if (procedure.returnType != PrimitiveType.VOID)
-                    throw {
-                        compilation: StaticErrorType.TypeMismatch,
-                        range: statement.range,
-                        message: `Function must return a value of type ${markType(procedure.returnType)}`,
-                        detail: {
-                            related: [procedure.returnTypeRange]
-                        }
-                    }
-            } else {
-                if (procedure.returnType == PrimitiveType.VOID)
-                    throw {
-                        compilation: StaticErrorType.TypeMismatch,
-                        range: statement.expression.range,
-                        message: `Procedure cannot return any value`,
-                        detail: {
-                            related: [procedure.returnTypeRange]
-                        }
-                    }
-                if (!typeCompatibleWith((statement.expression as Expression).type, procedure.returnType)) {
-                    throw {
-                        compilation: StaticErrorType.TypeMismatch,
-                        range: statement.expression.range,
-                        message: `Expected value of type ${markType(procedure.returnType)} (not ${markType(statement.expression?.type)})`,
-                        detail: {
-                            related: [procedure.returnTypeRange]
-                        }
-                    }
-                }
-            }
-        } else if (statement instanceof BlockStatement) {
-            statement.statements.forEach(s => checkReturnsAux(s, procedure));
-        } else if (statement instanceof IfStatement) {
-            checkReturnsAux(statement.thenBranch, procedure);
-            if (statement.elseBranch)
-                checkReturnsAux(statement.elseBranch, procedure);
-        }
-    }
-
-    if (procedure.body && procedure.returnType)
-        checkReturnsAux(procedure.body, procedure);
 }
 
 
@@ -443,6 +232,8 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     tokenStream: CommonTokenStream
 
     comments: LineComment[] = [];
+
+    errors: StaticError[] = [];
 
     constructor(tokenStream: CommonTokenStream) {
         super();
@@ -520,8 +311,8 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             if (!this.varScope[i].block)
                 break
         }
-        throw {
-            compilation: StaticErrorType.UndeclaredVariable,
+        this.errors.push({
+            type: StaticErrorType.UndeclaredVariable,
             range: this.rangeTerminal(idCtx),
             message: `Variable ${mark(name)} not found`,
             detail: {
@@ -529,7 +320,9 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 hint: exp ? "If the intention is to have a new variable, write its type " + (exp.type == PrimitiveType.NULL ? "" : "(" + exp.type + ") ") + "before the name" :
                     varsInScope.length > 0 ? "Variables in scope are: " + varsInScope.map(v => mark(v.name)).join(", ") : undefined
             }
-        }
+        })
+        const range = this.rangeTerminal(idCtx)
+        return new Declaration(range, name, range, false, new ForeignType(name), undefined)
     }
 
     findSingleType(name: string): Type | undefined {
@@ -617,33 +410,20 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 if (ctx.getChild(i) instanceof MethodContext) {
                     const c = ctx.getChild(i) as MethodContext
                     const proc = this.procedures.find(p => p.name == c._id.text)
-                    if (!proc)
-                        throw {
-                            compilation: StaticErrorType.MethodNotFound,
+                    if (!proc) {
+                        this.errors.push({
+                            type: StaticErrorType.MethodNotFound,
                             range: this.rangeToken(c._id),
                             message: `No method named ${mark(c._id.text)} found`,
                             detail: {
                                 related: [this.procedures.map(p => p.nameRange)]
                             }
-                        }
+                        })
+                        continue
+                    }
                     proc.body = this.visitMethod(ctx.getChild(i) as MethodContext)
                 }
             }
-
-            this.procedures.forEach(procedure => {
-                if (procedure.returnType !== PrimitiveType.VOID &&
-                    (!procedure.body || !alwaysReturns(procedure.body))) {
-                    throw {
-                        compilation: StaticErrorType.MissingReturn,
-                        range: procedure.nameRange,
-                        message: `Missing return statement with value of type ${markType(procedure.returnType)}`,
-                        detail: {
-                            related: [procedure.returnTypeRange]
-                        }
-                    }
-                }
-                checkReturns(procedure)
-            });
 
             return new Program(undefined, this.procedures, this.types)
         }
@@ -810,14 +590,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     visitDeclaration = (ctx: DeclarationContext) => {
         if (last(this.varScope).variables.has(ctx._id.text))
-            throw {
-                compilation: StaticErrorType.DuplicateVariable,
+            this.errors.push({
+                type: StaticErrorType.DuplicateVariable,
                 range: this.rangeToken(ctx._id),
                 message: `Another variable named ${mark(ctx._id.text)} was declared previously`,
                 detail: {
                     related: [last(this.varScope).variables.get(ctx._id.text)?.nameRange]
                 }
-            }
+            })
         const inferred = ctx.VAR() != null
         const exp = ctx.exp() ? this.expToAST(ctx.exp()) :
             ctx.arrayLiteral() ? this.arrayLiteralToAST(ctx.arrayLiteral()) : undefined
@@ -825,29 +605,29 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
         if (inferred && (!exp || !type || type == PrimitiveType.NULL ||
             type instanceof ArrayType && !type.componentType)) {
-            throw {
-                compilation: StaticErrorType.CannotInferType,
+            this.errors.push({
+                type: StaticErrorType.CannotInferType,
                 range: this.rangeContext(ctx),
                 message: exp
                     ? "Cannot infer a variable type from this initializer"
                     : "A variable declared with 'var' must have an initializer",
                 detail: {}
-            }
+            })
         }
 
         if(this.isJavaKeyword(ctx._id.text))
-            throw {
-                compilation: StaticErrorType.KeywordUsedAsIdentifier,
+            this.errors.push({
+                type: StaticErrorType.KeywordUsedAsIdentifier,
                 range: this.rangeToken(ctx._id),
                 message: `Identifier ${mark(ctx._id.text)} is a Java keyword`,
                 detail: {}
-            }
+            })
         const dec = new Declaration(
             this.rangeContext(ctx),
             ctx._id.text,
             this.rangeToken(ctx._id),
             false,
-            type ? type : new ForeignType(ctx.type_().getText()),
+            type ? type : new ForeignType(ctx.type_()?.getText() ?? ctx._id.text),
             inferred ? this.rangeTerminal(ctx.VAR()!) : this.rangeContext(ctx.type_()),
             exp
         )
@@ -859,14 +639,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         const exp = this.expToAST(ctx.exp())
         const dec = this.varLookup(ctx.compId().ID(0).getText(), ctx.compId().ID(0), exp)
         if (dec.immutable)
-            throw {
-                compilation: StaticErrorType.ImmutableVariable,
+            this.errors.push({
+                type: StaticErrorType.ImmutableVariable,
                 range: this.rangeContext(ctx),
                 message: `Variable ${mark(dec.name)} is immutable, it cannot be reassigned`,
                 detail: {
                     related: [dec.range]
                 }
-            }
+            })
 
         return new Assignment(
             this.rangeContext(ctx),
@@ -937,12 +717,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitInc = (ctx: IncContext) => {
-        if (!(ctx._target instanceof IdExprContext))
-            throw {
+        if (!(ctx._target instanceof IdExprContext)) {
+            this.errors.push({
                 message: "Unsupported target: " + ctx.getText(),
-                compilation: StaticErrorType.Unsupported,
+                type: StaticErrorType.Unsupported,
                 range: this.rangeContext(ctx)
-            }
+            })
+            return new BlockStatement(this.rangeContext(ctx), [])
+        }
 
         const dec = this.varLookup(ctx._target.getText(), ctx._target.ID())
         const inc = new ArithmeticExpression(
@@ -958,12 +740,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitDec = (ctx: DecContext) => {
-        if (!(ctx._target instanceof IdExprContext))
-            throw {
+        if (!(ctx._target instanceof IdExprContext)) {
+            this.errors.push({
                 message: "Unsupported target: " + ctx.getText(),
-                compilation: StaticErrorType.Unsupported,
+                type: StaticErrorType.Unsupported,
                 range: this.rangeContext(ctx)
-            }
+            })
+            return new BlockStatement(this.rangeContext(ctx), [])
+        }
 
         const dec = this.varLookup(ctx._target.getText(), ctx._target.ID())
         const inc = new ArithmeticExpression(
@@ -1128,12 +912,15 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         else if (ctx instanceof InstanceCallExprContext) {
             return this.handleInstanceCall(ctx, ctx.exp(), ctx.call());
         } else
-            throw {
+        {
+            this.errors.push({
                 message: "Invalid expression: " + this.streamText(ctx),
-                compilation: StaticErrorType.Unsupported,
+                type: StaticErrorType.Unsupported,
                 range: this.rangeContext(ctx),
                 detail: "AST-exp2AST"
-            }
+            })
+            return new NullLiteral(this.rangeContext(ctx))
+        }
     }
 
     visitExpLiteral = (ctx: ExpLiteralContext): Expression => {
@@ -1185,12 +972,14 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     args,
                     false
                 )
-            } else
-                throw {
+            } else {
+                this.errors.push({
                     message: "Invalid call",
-                    compilation: StaticErrorType.Unsupported,
+                    type: StaticErrorType.Unsupported,
                     range: this.rangeContext(ctx)
-                }
+                })
+                return new UnboundCallExpression(this.rangeContext(ctx), ctx._id.text, false, [])
+            }
         } else if (ctx instanceof InstanceCallLiteralContext) {
             const proc = this.procedures.find(p => p.name == ctx._id.text)
             if (proc) {
@@ -1203,12 +992,16 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     args,
                     true
                 )
-            } else
-                throw {
+            } else {
+                this.errors.push({
                     message: "Invalid call",
-                    compilation: StaticErrorType.Unsupported,
+                    type: StaticErrorType.Unsupported,
                     range: this.rangeContext(ctx)
-                }
+                })
+                const instance = this.visitExpLiteral(ctx.expLiteral())
+                const args = ctx._args ? [instance, ...ctx._args.expLiteral_list().map(a => this.visitExpLiteral(a))] : [instance]
+                return new UnboundCallExpression(this.rangeContext(ctx), ctx._id.text, true, args)
+            }
         } else if (ctx instanceof NewCallLiteralContext) {
             const typeId = ctx.ID().getText()
             const type = this.findSingleType(typeId)
@@ -1227,11 +1020,12 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     args
                 )
         } else {
-            throw {
+            this.errors.push({
                 message: "Invalid expression",
-                compilation: StaticErrorType.Unsupported,
+                type: StaticErrorType.Unsupported,
                 range: this.rangeContext(ctx)
-            }
+            })
+            return new NullLiteral(this.rangeContext(ctx))
         }
     }
 
@@ -1243,11 +1037,15 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     private handleInstanceCall(ctx: ParserRuleContext, expCtx: ExpContext, callCtx: CallContext) {
         const target = this.expToAST(expCtx)
         if (!(target instanceof Variable || target instanceof NewObjectExpression))
-            throw {
+        {
+            this.errors.push({
                 message: "Unsupported target: " + expCtx.getText(),
-                compilation: StaticErrorType.Unsupported,
+                type: StaticErrorType.Unsupported,
                 range: this.rangeContext(expCtx)
-            }
+            })
+            const args = [target].concat(callCtx._args ? callCtx._args.exp_list().map(e => this.expToAST(e)) : [])
+            return new UnboundCallExpression(this.rangeContext(ctx), callCtx._id.text, true, args)
+        }
 
         const args = [this.expToAST(expCtx)].concat(callCtx._args ? callCtx._args.exp_list().map(e => this.expToAST(e)) : [])
 
@@ -1262,20 +1060,25 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 true,
                 args
             )
-        else
-            throw {
+        else {
+            this.errors.push({
                 message: "Unsupported target: " + expCtx.getText(),
-                compilation: StaticErrorType.Unsupported,
+                type: StaticErrorType.Unsupported,
                 range: this.rangeContext(expCtx)
-            }
+            })
+            return new UnboundCallExpression(this.rangeContext(ctx), callCtx._id.text, true, args)
+        }
 
         if (!proc)
-            throw {
+        {
+            this.errors.push({
                 message: "No method named '" + callCtx._id.text + "' found for type '" + target.type.name + "'",
-                compilation: StaticErrorType.MethodNotFound,
+                type: StaticErrorType.MethodNotFound,
                 range: this.rangeToken(callCtx._id),
                 detail: "AST-instanceCall"
-            }
+            })
+            return new UnboundCallExpression(this.rangeContext(ctx), callCtx._id.text, true, args)
+        }
 
 
         this.checkArgs(callCtx, args, proc);
@@ -1334,28 +1137,31 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     private checkArgs(ctx: ParserRuleContext, args: Expression[], proc: Procedure) {
         if (proc.parameters.length != args.length)
-            throw {
+        {
+            this.errors.push({
                 message: "Method " + mark(proc.name) + " expects " + proc.parameters.length + " arguments (not " + args.length + ")",
-                compilation: StaticErrorType.NumberArgumentsMismatch,
+                type: StaticErrorType.NumberArgumentsMismatch,
                 range: this.rangeContext(ctx),
                 detail: {
                     related: [...proc.parameters.map(p => p.typeRange)]
                 }
-            }
+            })
+            return
+        }
 
         proc.parameters.forEach((p, index) => {
             if (p.type instanceof ArrayType && args[index] instanceof ArrayLiteralExpression && (args[index] as ArrayLiteralExpression).getChildren().length == 0)
                 (args[index] as ArrayLiteralExpression).type = p.type
 
             if (!typeCompatibleWith(args[index].type, p.type))
-                throw {
+                this.errors.push({
                     message: "The " + this.toWordOrder(index) + " parameter of method " + mark(proc.name) + " is of type " + markType(proc.parameters[index].type) + " (not " + markType(args[index].type) + ")",
-                    compilation: StaticErrorType.ArgumentTypesMismatch,
+                    type: StaticErrorType.ArgumentTypesMismatch,
                     range: this.rangeContext(ctx),
                     detail: {
                         related: [proc.parameters[index].typeRange]
                     }
-                }
+                })
         })
     }
 

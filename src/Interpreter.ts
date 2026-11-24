@@ -32,6 +32,7 @@ import {
     StaticErrorType,
     StringLiteral,
     Type,
+    TypeDeclaration,
     UnaryExpression,
     UnboundCallExpression,
     UnboundNewObjectExpression,
@@ -40,13 +41,13 @@ import {
 } from "./ast";
 import Range from "./Range";
 
-import {buildAST, buildASTandCall} from "./antlr2ast";
+import {buildAST, buildASTandCall, CompilationResult} from "./antlr2ast";
 import {last} from "./utils";
 
 
 export interface InterpreterResult {
     callError: string | undefined;
-    error: StaticError | undefined;
+    compilationErrors: StaticError[];
     runtimeError: RuntimeError | undefined;
     result: any;
     trace?: TraceEntry;
@@ -139,8 +140,6 @@ export class Interpreter {
     private readonly maxLoopIterations?: number
     private readonly maxCallStack?: number
 
-    // TODO skip tracing
-
     constructor(maxLoopIterations?: number, maxCallStack: number = 100) {
         this.maxLoopIterations = maxLoopIterations
         this.maxCallStack = maxCallStack
@@ -157,7 +156,60 @@ export class Interpreter {
         this.extensionTypes.push(new ExtensionType(name, constProcedure, ...operations))
     }
 
-    loopIteration(loop: WhileStatement) {
+    parseAndRun(source: string, call?: string): InterpreterResult {
+        let progAndCall: [CompilationResult?, Expression?] = [undefined, undefined]
+        try {
+            if (call) {
+                progAndCall =  buildASTandCall(source, call)
+            }
+            else
+                progAndCall = [buildAST(source), undefined]
+        } catch (e: any) {
+            if(e.program?.block && call)
+                return {
+                    callError: "No call should be provided when executing scripts.",
+                    result: undefined,
+                    trace: undefined,
+                    compilationErrors: [],
+                    runtimeError: undefined
+                }
+            if(e.callError) {
+                return {
+                    callError: e.callError,
+                    result: undefined,
+                    trace: undefined,
+                    compilationErrors: [],
+                    runtimeError: undefined
+                }
+            }
+        }
+        const res = progAndCall[0]
+        const program= progAndCall[0]?.program
+        const expCall = progAndCall[1]
+
+        // TODO main call
+        if(program?.procedures && program.procedures.length > 0 && !expCall) {
+            return {
+                callError: "No call provided for execution.",
+                compilationErrors: [],
+                runtimeError: undefined,
+                result: undefined,
+                trace: undefined
+            }
+        }
+
+        if(res?.errors?.length != 0)
+            return {
+                compilationErrors: res?.errors ?? [],
+                result: undefined,
+                runtimeError: undefined,
+                callError: undefined
+            }
+
+        return this.runProgram(program as Program, expCall);
+    }
+
+    private loopIteration(loop: WhileStatement) {
         if (this.maxLoopIterations) {
             if (this.loopCount.has(loop)) {
                 const value = this.loopCount.get(loop)
@@ -173,16 +225,16 @@ export class Interpreter {
         }
     }
 
-    loopEnd(loop: WhileStatement) {
+    private loopEnd(loop: WhileStatement) {
         if (this.maxLoopIterations)
             this.loopCount.set(loop, 0);
     }
 
-    topScope(): StackFrame {
+    private topScope(): StackFrame {
         return this.scope[this.scope.length - 1];
     }
 
-    resolveVariable(id: string) :TraceVariable | undefined {
+    private resolveVariable(id: string) :TraceVariable | undefined {
         let v = this.topScope().variables.get(id)
         if(v)
             return v
@@ -205,7 +257,9 @@ export class Interpreter {
             this.traceStack.push(t)
             if (!this.trace) {
                 this.trace = t
-                t.range = node instanceof CallExpression ? node.procedure.nameRange : node.type.nameRange
+                t.range = node instanceof CallExpression
+                    ? node.procedure.nameRange
+                    : node.type instanceof TypeDeclaration ? node.type.nameRange : node.range
             }
         }
     }
@@ -251,68 +305,9 @@ export class Interpreter {
     }
 
 
-    execNoTrace(exec: () => any) {
-        this.traceOn = false
-        const ret = exec()
-        this.traceOn = true
-        return ret
-    }
 
-    parseAndRun(source: string, call?: string): InterpreterResult {
-        let progAndCall: [Program?, Expression?] = [undefined, undefined]
-        try {
-            if (call)
-                progAndCall = buildASTandCall(source, call)
-            else
-                progAndCall = [buildAST(source), undefined]
-        } catch (e: any) {
-            if(e.program?.block && call)
-                return {
-                    callError: "No call should be provided when executing scripts.",
-                    result: undefined,
-                    trace: undefined,
-                    error: undefined,
-                    runtimeError: undefined
-                }
-            if(e.callError) {
-                return {
-                    callError: e.callError,
-                    result: undefined,
-                    trace: undefined,
-                    error: undefined,
-                    runtimeError: undefined
-                }
-            }
-            else if (e.compilation)
-                return {
-                    callError: undefined,
-                    result: undefined,
-                    trace: undefined,
-                    error: {
-                        range: e.range,
-                        type: e.compilation,
-                        message: e.message,
-                        detail: e.detail
-                    },
-                    runtimeError: undefined
-                }
-        }
-        const [program, expCall] = progAndCall
 
-        if(program?.procedures && program.procedures.length > 0 && !expCall) {
-            return {
-                callError: "No call provided for execution.",
-                error: undefined,
-                runtimeError: undefined,
-                result: undefined,
-                trace: undefined
-            }
-        }
-
-        return this.runProgram(program as Program, expCall);
-    }
-
-    runProgram(program: Program, call?: Expression): InterpreterResult {
+    private runProgram(program: Program, call?: Expression): InterpreterResult {
         if (program.block) {
             this.scope.push({
                 variables: new Map()
@@ -330,7 +325,7 @@ export class Interpreter {
                 this.scope.pop()
                 return {
                     callError: undefined,
-                    error: undefined,
+                    compilationErrors: [],
                     runtimeError: undefined,
                     result: undefined,
                     trace: structuredClone(this.trace),
@@ -342,7 +337,7 @@ export class Interpreter {
             return this.tryRun(() => {
                 return {
                     callError: undefined,
-                    error: undefined,
+                    compilationErrors: [],
                     runtimeError: undefined,
                     result: this.evaluate(call as Expression),
                     trace: structuredClone(this.trace),
@@ -354,28 +349,28 @@ export class Interpreter {
 
     }
 
-    tryRun(exec: () => InterpreterResult):
+    private tryRun(exec: () => InterpreterResult):
         InterpreterResult {
         try {
             return exec();
         } catch (e: any) {
-            if (e.compilation)
+            // if (e.compilation)
+            //     return {
+            //         callError: undefined,
+            //         error: {
+            //             range: e.range,
+            //             type: e.compilation,
+            //             message: e.message,
+            //             detail: e.detail
+            //         },
+            //         runtimeError: undefined,
+            //         result: undefined,
+            //         trace: structuredClone(this.trace)
+            //     }
+            if (e.runtimeError) {
                 return {
                     callError: undefined,
-                    error: {
-                        range: e.range,
-                        type: e.compilation,
-                        message: e.message,
-                        detail: e.detail
-                    },
-                    runtimeError: undefined,
-                    result: undefined,
-                    trace: structuredClone(this.trace)
-                }
-            else if (e.runtimeError) {
-                return {
-                    callError: undefined,
-                    error: undefined,
+                    compilationErrors: [],
                     runtimeError: e.runtimeError,
                     result: undefined,
                     trace: structuredClone(this.trace)
@@ -384,7 +379,7 @@ export class Interpreter {
         }
     }
 
-    execute(s: Statement) {
+    private execute(s: Statement) {
         if (s instanceof BlockStatement)
             s.statements.forEach(i => this.execute(i));
         else if (s instanceof Declaration) {
@@ -555,7 +550,7 @@ export class Interpreter {
         }
     }
 
-    materialize(e: Expression): string | undefined {
+    private materialize(e: Expression): string | undefined {
         if (e instanceof Variable) {
             let variable = this.resolveVariable(e.declaration.name)
             if(Array.isArray(variable?.evaluation))
@@ -585,7 +580,7 @@ export class Interpreter {
             return value.toString()
     }
 
-    evaluate(e: Expression, isReturn: boolean = false):
+    private evaluate(e: Expression, isReturn: boolean = false):
         ExpressionEval {
         if (e instanceof Variable) {
             let variable = this.resolveVariable(e.declaration.name)
@@ -724,6 +719,8 @@ export class Interpreter {
         } else if (e instanceof UnboundCallExpression) {
             return this.handleUnboundCall(e)
         } else if (e instanceof NewObjectExpression) {
+            if (!(e.type instanceof TypeDeclaration))
+                throw new Error("Cannot instantiate a non-object type")
             const obj: any = {$type: e.type.name}
             const args = e.args.map(a => this.evaluate(a))
             if (e.type.isRecord) {
@@ -826,7 +823,7 @@ export class Interpreter {
     }
 
 
-    invocation(call: CallExpression, isReturn: boolean = false):
+    private invocation(call: CallExpression, isReturn: boolean = false):
         ExpressionEval {
         if(this.scope.length == this.maxCallStack)
             this.addTraceRuntimeError(call, {
@@ -902,7 +899,7 @@ export class Interpreter {
         }
     }
 
-    handleArithmetic(leftExp: Expression, leftVal: any, rightExp: Expression, rightVal: any, operator: string):
+    private handleArithmetic(leftExp: Expression, leftVal: any, rightExp: Expression, rightVal: any, operator: string):
         number {
         let left = leftVal.evaluation;
         let right = rightVal.evaluation;
@@ -930,7 +927,7 @@ export class Interpreter {
         }
     }
 
-    handleComparison(leftExp: Expression, leftVal: any, rightExp: Expression, rightVal: any, operator: string):
+    private handleComparison(leftExp: Expression, leftVal: any, rightExp: Expression, rightVal: any, operator: string):
         boolean {
         let left = leftVal.evaluation;
         let right = rightVal.evaluation;
@@ -967,7 +964,7 @@ export class Interpreter {
         }
     }
 
-    handleLogical(leftExp: Expression, rightExp: Expression, operator: string): [boolean, string] {
+    private handleLogical(leftExp: Expression, rightExp: Expression, operator: string): [boolean, string] {
         let leftVal = this.evaluate(leftExp).evaluation;
         switch (operator) {
             case "&&":

@@ -126,17 +126,14 @@ export class MatteErrorListener extends ErrorListener<any> {
         return offset + column;
     }
 
-    checkErrors() {
-        if (this.errors.length != 0)
-            throw {
-                compilation: this.errors[0].type,
-                range: this.errors[0].range,
-                message: this.errors[0].message
-            }
-    }
-
-
-
+    // checkErrors() {
+    //     if (this.errors.length != 0)
+    //         throw {
+    //             compilation: this.errors[0].type,
+    //             range: this.errors[0].range,
+    //             message: this.errors[0].message
+    //         }
+    // }
 }
 
 export function checkBracketMatching(tokens: CommonTokenStream): StaticError[] {

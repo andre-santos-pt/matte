@@ -1,5 +1,14 @@
 import Range from "./Range";
 import {mark, markType} from "./antlr2ast";
+import JavaGrammarVisitor from "./generated/JavaGrammarVisitor";
+import {
+    CommonTokenStream,
+    Interval,
+    ParserRuleContext,
+    TerminalNode,
+    Token
+} from "antlr4";
+import JavaGrammarLexer from "./generated/JavaGrammarLexer";
 
 export interface StaticError {
     range: Range;
@@ -23,55 +32,6 @@ export enum StaticErrorType {
     FieldNotFound = "FIELD_NOT_FOUND",
     KeywordUsedAsIdentifier = "KEYWORD_AS_IDENTIFIER",
     CannotInferType = "CANNOT_INFER_TYPE"
-}
-
-export abstract class ASTNode {
-    range?: Range;
-    parent?: ASTNode;
-
-    constructor(range?: Range) {
-        this.range = range;
-    }
-
-    accept(visitor: ASTVisitor): void {
-        visitor.visit(this);
-    }
-}
-
-export class Program extends ASTNode {
-    block?: BlockStatement;
-    procedures: Procedure[] = [];
-    typeDeclarations: TypeDeclaration[] = [];
-
-    constructor(block?: BlockStatement, procedures: Procedure[] = [], typeDeclarations: TypeDeclaration[] = []) {
-        super();
-        this.block = block;
-        this.procedures = procedures;
-        this.typeDeclarations = typeDeclarations;
-    }
-}
-
-export class Procedure extends ASTNode {
-    name: string;
-    nameRange: Range | undefined;
-    parameters: Declaration[];
-    instance: boolean;
-    returnType?: Type;
-    returnTypeRange?: Range;
-    body?: BlockStatement;
-
-    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, instance: boolean, parameters: Declaration[], returnType?: Type, returnTypeRange?: Range, body?: BlockStatement) {
-        super(range);
-        if (instance && parameters.length == 0)
-            throw new Error("Instance procedures must have at least one parameter (the instance)");
-        this.name = name;
-        this.nameRange = nameRange;
-        this.parameters = parameters;
-        this.instance = instance;
-        this.returnType = returnType;
-        this.returnTypeRange = returnTypeRange;
-        this.body = body;
-    }
 }
 
 export type Type = PrimitiveType | TypeDeclaration | ArrayType | ForeignType
@@ -146,24 +106,6 @@ export function typeCompatibleWith(a: Type | undefined, b: Type | undefined): bo
 }
 
 
-export class TypeDeclaration extends ASTNode {
-    name: string;
-    nameRange: Range;
-    isRecord: boolean;
-    fields: Declaration[];
-
-    constructor(name: string, nameRange: Range, isRecord: boolean, fields: Declaration[]) {
-        super();
-        this.name = name;
-        this.nameRange = nameRange;
-        this.isRecord = isRecord;
-        this.fields = fields;
-    }
-
-    toString(): string {
-        return this.name;
-    }
-}
 
 export class ArrayType {
     componentType?: Type
@@ -190,6 +132,164 @@ export class ForeignType {
     }
 }
 
+export abstract class ASTNode {
+    range?: Range;
+    parent?: ASTNode;
+
+    constructor(range?: Range) {
+        this.range = range;
+    }
+
+    accept(visitor: ASTVisitor): void {
+        visitor.visit(this);
+    }
+
+    validate(errors: StaticError[]) {}
+}
+
+export class Program extends ASTNode {
+    block?: BlockStatement;
+    procedures: Procedure[] = [];
+    typeDeclarations: TypeDeclaration[] = [];
+
+    constructor(block?: BlockStatement, procedures: Procedure[] = [], typeDeclarations: TypeDeclaration[] = []) {
+        super();
+        this.block = block;
+        this.procedures = procedures;
+        this.typeDeclarations = typeDeclarations;
+    }
+
+    checkStaticErrors(): StaticError[] {
+        const errors: StaticError[] = []
+        class VisitAll extends  ASTVisitor {
+            visitASTNode(node: ASTNode) {
+                node.validate(errors)
+            }
+        }
+        this.accept(new VisitAll())
+        return errors
+    }
+}
+
+export class Procedure extends ASTNode {
+    name: string;
+    nameRange: Range | undefined;
+    parameters: Declaration[];
+    instance: boolean;
+    returnType?: Type;
+    returnTypeRange?: Range;
+    body?: BlockStatement;
+
+    constructor(range: Range | undefined, name: string, nameRange: Range | undefined, instance: boolean, parameters: Declaration[], returnType?: Type, returnTypeRange?: Range, body?: BlockStatement) {
+        super(range);
+        if (instance && parameters.length == 0)
+            throw new Error("Instance procedures must have at least one parameter (the instance)");
+        this.name = name;
+        this.nameRange = nameRange;
+        this.parameters = parameters;
+        this.instance = instance;
+        this.returnType = returnType;
+        this.returnTypeRange = returnTypeRange;
+        this.body = body;
+    }
+
+
+    validate(errors: StaticError[]) {
+        function alwaysReturns(statement: Statement): boolean {
+            if (statement instanceof ReturnStatement)
+                return true;
+            if (statement instanceof BlockStatement)
+                return statement.statements.some(alwaysReturns);
+            if (statement instanceof IfStatement)
+                return statement.elseBranch != undefined &&
+                    alwaysReturns(statement.thenBranch) &&
+                    alwaysReturns(statement.elseBranch);
+            return false;
+        }
+
+        if (this.returnType !== PrimitiveType.VOID &&
+            (!this.body || !alwaysReturns(this.body))) {
+            errors.push({
+                type: StaticErrorType.MissingReturn,
+                range: this.nameRange as Range,
+                message: `Missing return statement with value of type ${markType(this.returnType)}`,
+                detail: {
+                    related: [this.returnTypeRange]
+                }
+            })
+        }
+        this.checkReturns(errors)
+    }
+
+     checkReturns(errors: StaticError[]): void {
+        function checkReturnsAux(statement: Statement, procedure: Procedure): void {
+            if (statement instanceof ReturnStatement) {
+                if (statement.expression == undefined) {
+                    if (procedure.returnType != PrimitiveType.VOID)
+                        errors.push({
+                            type: StaticErrorType.TypeMismatch,
+                            range: statement.range as Range,
+                            message: `Function must return a value of type ${markType(procedure.returnType)}`,
+                            detail: {
+                                related: [procedure.returnTypeRange]
+                            }
+                        })
+                } else {
+                    if (procedure.returnType == PrimitiveType.VOID)
+                        errors.push({
+                            type: StaticErrorType.TypeMismatch,
+                            range: statement.expression.range as Range,
+                            message: `Procedure cannot return any value`,
+                            detail: {
+                                related: [procedure.returnTypeRange]
+                            }
+                        })
+                    if (!typeCompatibleWith((statement.expression as Expression).type, procedure.returnType)) {
+                        errors.push({
+                            type: StaticErrorType.TypeMismatch,
+                            range: statement.expression.range as Range,
+                            message: `Expected value of type ${markType(procedure.returnType)} (not ${markType(statement.expression?.type)})`,
+                            detail: {
+                                related: [procedure.returnTypeRange]
+                            }
+                        })
+                    }
+                }
+            } else if (statement instanceof BlockStatement) {
+                statement.statements.forEach(s => checkReturnsAux(s, procedure));
+            } else if (statement instanceof IfStatement) {
+                checkReturnsAux(statement.thenBranch, procedure);
+                if (statement.elseBranch)
+                    checkReturnsAux(statement.elseBranch, procedure);
+            }
+        }
+
+        if (this.body && this.returnType)
+            checkReturnsAux(this.body, this);
+    }
+
+}
+
+export class TypeDeclaration extends ASTNode {
+    name: string;
+    nameRange: Range;
+    isRecord: boolean;
+    fields: Declaration[];
+
+    constructor(name: string, nameRange: Range, isRecord: boolean, fields: Declaration[]) {
+        super();
+        this.name = name;
+        this.nameRange = nameRange;
+        this.isRecord = isRecord;
+        this.fields = fields;
+    }
+
+    toString(): string {
+        return this.name;
+    }
+}
+
+
 export abstract class Statement extends ASTNode {
     comment?: string;
 }
@@ -206,17 +306,6 @@ export class Declaration extends Statement {
         if(initializer instanceof ArrayLiteralExpression && initializer.elements.length == 0)
             (initializer as ArrayLiteralExpression).type = type
 
-        if (initializer && initializer.type && !typeCompatibleWith(initializer.type, type))
-            throw {
-                message: "Incompatible type: expected " + markType(type) + " (not " + markType(initializer.type) + ")",
-                compilation: StaticErrorType.TypeMismatch,
-                range: initializer.range,
-                detail: {
-                    related: [typeRange],
-                    expected: type.toString(),
-                    found: initializer.type.toString()
-                }
-            }
         super(range);
         this.name = name;
         this.nameRange = nameRange;
@@ -225,6 +314,22 @@ export class Declaration extends Statement {
         this.typeRange = typeRange;
         this.initializer = initializer;
     }
+
+    validate(errors: StaticError[]) {
+        if (this.initializer && this.initializer.type && !typeCompatibleWith(this.initializer.type, this.type))
+        errors.push(
+            {
+                message: "Incompatible type: expected " + markType(this.type) + " (not " + markType(this.initializer.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.initializer.range as Range,
+                detail: {
+                    related: [this.typeRange],
+                    expected: this.type.toString(),
+                    found: this.initializer.type.toString()
+                }
+            }
+        )
+    }
 }
 
 export class Assignment extends Statement {
@@ -232,18 +337,21 @@ export class Assignment extends Statement {
     expression: Expression;
 
     constructor(range: Range, variable: Declaration, expression: Expression) {
-        if (expression.type && !typeCompatibleWith(expression.type, variable.type))
-            throw {
-                message: "Expected expression of type " + markType(variable.type) + " (not " + markType(expression.type) + ")",
-                compilation: StaticErrorType.TypeMismatch,
-                range: expression.range,
-                detail: {
-                    related: [variable.typeRange],
-                }
-            }
         super(range);
         this.variable = variable;
         this.expression = expression;
+    }
+
+    validate(errors: StaticError[]) {
+        if (this.expression.type && !typeCompatibleWith(this.expression.type, this.variable.type))
+            errors.push({
+                message: "Expected expression of type " + markType(this.variable.type) + " (not " + markType(this.expression.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.expression.range as Range,
+                detail: {
+                    related: [this.variable.typeRange],
+                }
+            })
     }
 }
 
@@ -253,37 +361,40 @@ export class ArrayAssignment extends Statement {
     expression: Expression;
 
     constructor(range: Range, target: Expression, index: Expression, expression: Expression) {
-        if (!(target.type instanceof ArrayType)) {
-            throw {
-                message: "The variable must be an array reference (not " + markType(target.type) + ")",
-                compilation: StaticErrorType.TypeMismatch,
-                range: target.range,
-                detail: target instanceof Variable ? {
-                    related: [target.declaration.typeRange]
-                } : undefined
-            }
-        }
-        if (index.type != PrimitiveType.INT)
-            throw {
-                message: "The index must be given by an integer (not " + markType(index.type) + ")",
-                compilation: StaticErrorType.TypeMismatch,
-                range: index.range
-            }
-
-        if (!typeCompatibleWith( expression.type, (target.type as ArrayType).componentType))
-            throw {
-                message: "Cannot assign a value of type " + markType(expression.type) + " to an array holding " + markType((target.type as ArrayType).componentType) + " values",
-                compilation: StaticErrorType.TypeMismatch,
-                range: expression.range,
-                detail: target instanceof Variable ? {
-                    related: [target.declaration.typeRange]
-                } : undefined
-            }
-
         super(range);
         this.target = target;
         this.index = index;
         this.expression = expression;
+    }
+
+    validate(errors: StaticError[]) {
+        if (!(this.target.type instanceof ArrayType))
+            errors.push({
+                message: "The variable must be an array reference (not " + markType(this.target.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.target.range as Range,
+                detail: this.target instanceof Variable ? {
+                    related: [this.target.declaration.typeRange]
+                } : undefined
+            })
+
+        if (this.index.type != PrimitiveType.INT)
+            errors.push({
+                message: "The index must be given by an integer (not " + markType(this.index.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.index.range as Range
+            })
+
+        if (this.target.type instanceof ArrayType &&
+            !typeCompatibleWith(this.expression.type, this.target.type.componentType))
+            errors.push({
+                message: "Cannot assign a value of type " + markType(this.expression.type) + " to an array holding " + markType(this.target.type.componentType) + " values",
+                type: StaticErrorType.TypeMismatch,
+                range: this.expression.range as Range,
+                detail: this.target instanceof Variable ? {
+                    related: [this.target.declaration.typeRange]
+                } : undefined
+            })
     }
 }
 
@@ -311,11 +422,19 @@ export class IfStatement extends Statement {
     elseBranch?: Statement;
 
     constructor(range: Range, condition: Expression, thenBranch: Statement, elseBranch: Statement | undefined) {
-        checkGuardType(condition);
         super(range);
         this.guard = condition;
         this.thenBranch = thenBranch;
         this.elseBranch = elseBranch;
+    }
+
+    validate(errors: StaticError[]) {
+        if (this.guard.type !== PrimitiveType.BOOLEAN)
+            errors.push({
+                message: "Expected boolean expression (not " + markType(this.guard.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.guard.range as Range
+            })
     }
 }
 
@@ -324,10 +443,18 @@ export class WhileStatement extends Statement {
     body: Statement;
 
     constructor(range: Range, condition: Expression, body: Statement) {
-        checkGuardType(condition);
         super(range);
         this.guard = condition;
         this.body = body;
+    }
+
+    validate(errors: StaticError[]) {
+        if (this.guard.type !== PrimitiveType.BOOLEAN)
+            errors.push({
+                message: "Expected boolean expression (not " + markType(this.guard.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.guard.range as Range
+            })
     }
 }
 
@@ -464,25 +591,28 @@ export class ConditionalExpression extends Expression {
 
     constructor(range: Range, condition: Expression, trueCase: Expression, falseCase: Expression) {
         super(range, trueCase.type)
-        if(condition.type != PrimitiveType.BOOLEAN)
-            throw {
-                message: "Boolean expression expected (not " + markType(condition.type) + ")",
-                compilation: StaticErrorType.TypeMismatch,
-                range: condition.range
-            }
-
-        if(!isSameType(trueCase.type, falseCase.type))
-            throw {
-                message: "The type of this expression (" + markType(falseCase) +") is not the same as the other alternative expression (" + markType(trueCase.type) + ")",
-                compilation: StaticErrorType.TypeMismatch,
-                range: falseCase.range,
-                detail: {
-                    related: trueCase.range
-                }
-            }
         this.condition = condition
         this.trueCase = trueCase
         this.falseCase = falseCase
+    }
+
+    validate(errors: StaticError[]) {
+        if (this.condition.type != PrimitiveType.BOOLEAN)
+            errors.push({
+                message: "Boolean expression expected (not " + markType(this.condition.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.condition.range as Range
+            })
+
+        if (!isSameType(this.trueCase.type, this.falseCase.type))
+            errors.push({
+                message: "The type of this expression (" + markType(this.falseCase) + ") is not the same as the other alternative expression (" + markType(this.trueCase.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.falseCase.range as Range,
+                detail: {
+                    related: this.trueCase.range
+                }
+            })
     }
 }
 
@@ -491,27 +621,29 @@ export class UnaryExpression extends Expression {
     expression: Expression;
 
     constructor(range: Range, operator: string, expression: Expression) {
-        if (operator == "-" && !isNumberType(expression.type))
-            throw {
-                message: "Unary operator - can only be applied to numeric expressions",
-                compilation: StaticErrorType.TypeMismatch,
-                range: expression.range,
-                detail: "The expression " + mark(expression.range?.text ?? "") + " is of type " + markType(expression.type)
-            }
-
-        if (operator == "!" && expression.type !== PrimitiveType.BOOLEAN)
-            throw {
-                message: "Unary operator - can only be applied to boolean expressions",
-                compilation: StaticErrorType.TypeMismatch,
-                range: expression.range,
-                detail: "The expression " + mark(expression.range?.text ?? "") + " is of type " + markType(expression.type)
-            }
-
         super(range, expression.type);
         this.operator = operator;
         this.expression = expression;
 
         // TODO truncate
+    }
+
+    validate(errors: StaticError[]) {
+        if (this.operator == "-" && !isNumberType(this.expression.type))
+            errors.push({
+                message: "Unary operator - can only be applied to numeric expressions",
+                type: StaticErrorType.TypeMismatch,
+                range: this.expression.range as Range,
+                detail: "The expression " + mark(this.expression.range?.text ?? "") + " is of type " + markType(this.expression.type)
+            })
+
+        if (this.operator == "!" && this.expression.type !== PrimitiveType.BOOLEAN)
+            errors.push({
+                message: "Unary operator - can only be applied to boolean expressions",
+                type: StaticErrorType.TypeMismatch,
+                range: this.expression.range as Range,
+                detail: "The expression " + mark(this.expression.range?.text ?? "") + " is of type " + markType(this.expression.type)
+            })
     }
 
     getChildren(): Expression[] {
@@ -524,16 +656,18 @@ export class CastExpression extends Expression {
     expression: Expression;
 
     constructor(range: Range, castType: PrimitiveType.INT | PrimitiveType.DOUBLE, expression: Expression) {
-        if (!isNumberType(expression.type))
-            throw {
-                message: `${castType} cast can only be applied to numeric expressions`,
-                compilation: StaticErrorType.TypeMismatch,
-                range: expression.range
-            }
-
         super(range, castType);
         this.castType = castType;
         this.expression = expression;
+    }
+
+    validate(errors: StaticError[]) {
+        if (!isNumberType(this.expression.type))
+            errors.push({
+                message: `${this.castType} cast can only be applied to numeric expressions`,
+                type: StaticErrorType.TypeMismatch,
+                range: this.expression.range as Range
+            })
     }
 
     getChildren(): Expression[] {
@@ -562,23 +696,26 @@ export abstract class BinaryExpression extends Expression {
 export class ArrayLiteralExpression extends Expression {
     elements: Expression[];
 
-
     constructor(range: Range, elements: Expression[]) {
         const types = [...new Set(elements.map(e => e.type))]
         const commontype = types.find(t => types.filter(x => typeCompatibleWith(x, t)).length == types.length)
-
-        if (elements.length != 0 && !commontype)
-            throw {
-                message: "Expressions do not have a common compatible type",
-                compilation: StaticErrorType.TypeMismatch,
-                range: range
-            }
 
         super(range, new ArrayType(commontype));
         if(commontype == PrimitiveType.DOUBLE)
             this.elements = elements.map(e => e instanceof IntLiteral ? new DoubleLiteral(e.range, e.value) : e);
         else
             this.elements = elements;
+    }
+
+    validate(errors: StaticError[]) {
+        const types = [...new Set(this.elements.map(element => element.type))]
+        const commonType = types.find(type => types.every(candidate => typeCompatibleWith(candidate, type)))
+        if (this.elements.length != 0 && !commonType)
+            errors.push({
+                message: "Expressions do not have a common compatible type",
+                type: StaticErrorType.TypeMismatch,
+                range: this.range as Range
+            })
     }
 
     getChildren(): Expression[] {
@@ -611,25 +748,28 @@ export class ArrayElementExpression extends Expression {
     index: Expression;
 
     constructor(range: Range, target: Expression, index: Expression) {
-        if (!isArrayType(target.type))
-            throw {
-                message: "The variable must be an array reference (not " + markType(target.type) + ")",
-                compilation: StaticErrorType.TypeMismatch,
-                range: target.range,
-                detail: target instanceof Variable ? {
-                    related: [target.declaration.typeRange]
-                } : undefined
-            }
-
-        if (index.type != PrimitiveType.INT)
-            throw {
-                message: "The index must be given by an integer (not " + markType(index.type) + ")",
-                compilation: StaticErrorType.TypeMismatch,
-                range: index.range
-            }
-        super(range, (target.type as ArrayType).componentType);
+        super(range, target.type instanceof ArrayType ? target.type.componentType : undefined);
         this.target = target;
         this.index = index;
+    }
+
+    validate(errors: StaticError[]) {
+        if (!isArrayType(this.target.type))
+            errors.push({
+                message: "The variable must be an array reference (not " + markType(this.target.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.target.range as Range,
+                detail: this.target instanceof Variable ? {
+                    related: [this.target.declaration.typeRange]
+                } : undefined
+            })
+
+        if (this.index.type != PrimitiveType.INT)
+            errors.push({
+                message: "The index must be given by an integer (not " + markType(this.index.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.index.range as Range
+            })
     }
 
     getChildren(): Expression[] {
@@ -641,29 +781,31 @@ export class ArrayElementExpression extends Expression {
 
 export class ArithmeticExpression extends BinaryExpression {
     constructor(range: Range, operator: string, left: Expression, right: Expression) {
-        if (!ArithmeticExpression.validOperator(operator))
-            throw {
-                message: "Invalid arithmetic operator " + mark(operator),
-                compilation: StaticErrorType.SyntaxError,
-                range: range
-            }
-
-        if (!isNumberType(left.type))
-            throw {
-                message: "Number is expected to perform the operation " + mark(operator),
-                compilation: StaticErrorType.TypeMismatch,
-                range: left.range
-            }
-
-        if (!isNumberType(right.type))
-            throw {
-                message: "Number is expected to perform the operation " + mark(operator),
-                compilation: StaticErrorType.TypeMismatch,
-                range: right.range
-            }
-
         const type = left.type == PrimitiveType.DOUBLE || right.type == PrimitiveType.DOUBLE ? PrimitiveType.DOUBLE : PrimitiveType.INT
         super(range, operator, left, right, type)
+    }
+
+    validate(errors: StaticError[]) {
+        if (!ArithmeticExpression.validOperator(this.operator))
+            errors.push({
+                message: "Invalid arithmetic operator " + mark(this.operator),
+                type: StaticErrorType.SyntaxError,
+                range: this.range as Range
+            })
+
+        if (!isNumberType(this.left.type))
+            errors.push({
+                message: "Number is expected to perform the operation " + mark(this.operator),
+                type: StaticErrorType.TypeMismatch,
+                range: this.left.range as Range
+            })
+
+        if (!isNumberType(this.right.type))
+            errors.push({
+                message: "Number is expected to perform the operation " + mark(this.operator),
+                type: StaticErrorType.TypeMismatch,
+                range: this.right.range as Range
+            })
     }
 
     static validOperator(op: string) {
@@ -674,55 +816,56 @@ export class ArithmeticExpression extends BinaryExpression {
 
 export class RelationalExpression extends BinaryExpression {
     constructor(range: Range, operator: string, left: Expression, right: Expression) {
-        if (!RelationalExpression.validOperator(operator))
-            throw {
-                message: "Invalid relational operator",
-                compilation: StaticErrorType.SyntaxError,
-                range: range
-            }
-
-        if (operator == "==" || operator == "!=") {
-
-            if (left instanceof NullLiteral || right instanceof NullLiteral) {
-                if (left instanceof NullLiteral && !isReferenceType(right.type))
-                    throw {
-                        message: right.range?.text + " does not have a reference type",
-                        compilation: StaticErrorType.TypeMismatch,
-                        range: range
-                    }
-
-                if (right instanceof NullLiteral && !isReferenceType(left.type))
-                    throw {
-                        message: left.range?.text + " does not have a reference type",
-                        compilation: StaticErrorType.TypeMismatch,
-                        range: range
-                    }
-
-            } else if (left.type != right.type) // TODO case int / double
-                throw {
-                    message: "Operands have incompatible compatible types; " + left.range?.text + " is " + markType(left.type) + " and " + right.range?.text + " is " + markType(right.type),
-                    compilation: StaticErrorType.TypeMismatch,
-                    range: range
-                }
-
-
-        }
-        if (operator == '<' || operator == '<=' || operator == '>' || operator == '>=') {
-            if (!isNumberType(left.type))
-                throw {
-                    message: "Number is expected to perform the comparison " + mark(operator),
-                    compilation: StaticErrorType.TypeMismatch,
-                    range: left.range
-                }
-
-            if (!isNumberType(right.type))
-                throw {
-                    message: "Number is expected to perform the comparison " + mark(operator),
-                    compilation: StaticErrorType.TypeMismatch,
-                    range: right.range
-                }
-        }
         super(range, operator, left, right, PrimitiveType.BOOLEAN)
+    }
+
+    validate(errors: StaticError[]) {
+        if (!RelationalExpression.validOperator(this.operator))
+            errors.push({
+                message: "Invalid relational operator",
+                type: StaticErrorType.SyntaxError,
+                range: this.range as Range
+            })
+
+        if (this.operator == "==" || this.operator == "!=") {
+            if (this.left instanceof NullLiteral || this.right instanceof NullLiteral) {
+                if (this.left instanceof NullLiteral && !isReferenceType(this.right.type))
+                    errors.push({
+                        message: this.right.range?.text + " does not have a reference type",
+                        type: StaticErrorType.TypeMismatch,
+                        range: this.range as Range
+                    })
+
+                if (this.right instanceof NullLiteral && !isReferenceType(this.left.type))
+                    errors.push({
+                        message: this.left.range?.text + " does not have a reference type",
+                        type: StaticErrorType.TypeMismatch,
+                        range: this.range as Range
+                    })
+            } else if (this.left.type != this.right.type) {
+                errors.push({
+                    message: "Operands have incompatible compatible types; " + this.left.range?.text + " is " + markType(this.left.type) + " and " + this.right.range?.text + " is " + markType(this.right.type),
+                    type: StaticErrorType.TypeMismatch,
+                    range: this.range as Range
+                })
+            }
+        }
+
+        if (this.operator == '<' || this.operator == '<=' || this.operator == '>' || this.operator == '>=') {
+            if (!isNumberType(this.left.type))
+                errors.push({
+                    message: "Number is expected to perform the comparison " + mark(this.operator),
+                    type: StaticErrorType.TypeMismatch,
+                    range: this.left.range as Range
+                })
+
+            if (!isNumberType(this.right.type))
+                errors.push({
+                    message: "Number is expected to perform the comparison " + mark(this.operator),
+                    type: StaticErrorType.TypeMismatch,
+                    range: this.right.range as Range
+                })
+        }
     }
 
     static validOperator(op: string) {
@@ -732,28 +875,30 @@ export class RelationalExpression extends BinaryExpression {
 
 export class LogicalExpression extends BinaryExpression {
     constructor(range: Range, operator: string, left: Expression, right: Expression) {
-        if (!LogicalExpression.validOperator(operator))
-            throw {
-                message: "Invalid relational operator " + mark(operator),
-                compilation: StaticErrorType.SyntaxError,
-                range: range
-            }
-
-        if (!isBooleanType(left.type))
-            throw {
-                message: "Boolean expression expected (not " + markType(left.type) + ")",
-                compilation: StaticErrorType.TypeMismatch,
-                range: left.range
-            }
-
-        if (!isBooleanType(right.type))
-            throw {
-                message: "Boolean expression expected (not " + markType(right.type) + ")",
-                compilation: StaticErrorType.TypeMismatch,
-                range: right.range
-            }
-
         super(range, operator, left, right, PrimitiveType.BOOLEAN)
+    }
+
+    validate(errors: StaticError[]) {
+        if (!LogicalExpression.validOperator(this.operator))
+            errors.push({
+                message: "Invalid relational operator " + mark(this.operator),
+                type: StaticErrorType.SyntaxError,
+                range: this.range as Range
+            })
+
+        if (!isBooleanType(this.left.type))
+            errors.push({
+                message: "Boolean expression expected (not " + markType(this.left.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.left.range as Range
+            })
+
+        if (!isBooleanType(this.right.type))
+            errors.push({
+                message: "Boolean expression expected (not " + markType(this.right.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.right.range as Range
+            })
     }
 
     static validOperator(op: string) {
@@ -798,20 +943,23 @@ export class UnboundCallExpression extends Expression {
 }
 
 export class NewObjectExpression extends Expression {
-    type: TypeDeclaration;
+    type: Type;
     args: Expression[];
 
     constructor(range: Range, type: Type, args: Expression[]) {
-        if (!(type instanceof TypeDeclaration))
-            throw {
-                message: "Not an object type",
-                compilation: StaticErrorType.TypeMismatch,
-                range
-            }
         // TODO arg types
         super(range, type);
         this.type = type;
         this.args = args;
+    }
+
+    validate(errors: StaticError[]) {
+        if (!(this.type instanceof TypeDeclaration))
+            errors.push({
+                message: "Not an object type",
+                type: StaticErrorType.TypeMismatch,
+                range: this.range as Range
+            })
     }
 
     getChildren(): Expression[] {
@@ -839,6 +987,7 @@ type FieldTarget = Variable | ArrayElementExpression | NewObjectExpression
 export class FieldAccessExpression extends Expression {
     target: FieldTarget;
     fieldName: string;
+    fieldNameRange: Range;
 
     static isFieldTarget(obj: any): obj is FieldTarget {
         return (
@@ -849,41 +998,51 @@ export class FieldAccessExpression extends Expression {
     }
 
     constructor(range: Range, target: Expression, fieldName: string, fieldNameRange: Range) {
-        if (!FieldAccessExpression.isFieldTarget(target))
-            throw {
-                message: "Invalid expression for field access",
-                compilation: StaticErrorType.TypeMismatch,
-                range: target.range
-            }
-
         let type: Type | undefined
-        if (isArrayType(target.type)) {
-            if (fieldName == "length")// TODO remove to avoid Java-specific?
+        if (FieldAccessExpression.isFieldTarget(target) && isArrayType(target.type)) {
+            if (fieldName == "length")
                 type = PrimitiveType.INT
-            else
-                throw {
-                    message: "Invalid field " + mark(fieldName) + " for arrays",
-                    compilation: StaticErrorType.FieldNotFound,
-                    range: fieldNameRange
-                }
-        } else if (target.type instanceof TypeDeclaration) {
-            const dec = (target as Variable).type as TypeDeclaration
-            type = (dec as TypeDeclaration).fields.find(f => f.name == fieldName)?.type
-            if (!type)
-                throw {
-                    message: "Field " + mark(fieldName) + " is not declared in type " + markType(dec),
-                    compilation: StaticErrorType.FieldNotFound,
-                    range: fieldNameRange
-                }
-        } else throw {
-            message: "Not a valid target",
-            compilation: StaticErrorType.Unsupported,
-            range: target.range
+        } else if (FieldAccessExpression.isFieldTarget(target) && target.type instanceof TypeDeclaration) {
+            type = target.type.fields.find(field => field.name == fieldName)?.type
         }
 
         super(range, type);
-        this.target = target;
+        this.target = target as FieldTarget;
         this.fieldName = fieldName;
+        this.fieldNameRange = fieldNameRange;
+    }
+
+    validate(errors: StaticError[]) {
+        if (!FieldAccessExpression.isFieldTarget(this.target)) {
+            errors.push({
+                message: "Invalid expression for field access",
+                type: StaticErrorType.TypeMismatch,
+                range: (this.target as Expression).range as Range
+            })
+            return
+        }
+
+        if (isArrayType(this.target.type)) {
+            if (this.fieldName != "length")
+                errors.push({
+                    message: "Invalid field " + mark(this.fieldName) + " for arrays",
+                    type: StaticErrorType.FieldNotFound,
+                    range: this.fieldNameRange
+                })
+        } else if (this.target.type instanceof TypeDeclaration) {
+            if (!this.target.type.fields.some(field => field.name == this.fieldName))
+                errors.push({
+                    message: "Field " + mark(this.fieldName) + " is not declared in type " + markType(this.target.type),
+                    type: StaticErrorType.FieldNotFound,
+                    range: this.fieldNameRange
+                })
+        } else {
+            errors.push({
+                message: "Not a valid target",
+                type: StaticErrorType.Unsupported,
+                range: this.target.range as Range
+            })
+        }
     }
 
     getChildren(): Expression[] {
@@ -891,8 +1050,37 @@ export class FieldAccessExpression extends Expression {
     }
 }
 
+export function setASTParents(root: ASTNode): void {
+    class ParentVisitor extends ASTVisitor {
+        private currentParent?: ASTNode;
+
+        override visit(node: ASTNode): void {
+            const previousParent = this.currentParent;
+            node.parent = previousParent;
+            this.currentParent = node;
+            try {
+                super.visit(node);
+            } finally {
+                this.currentParent = previousParent;
+            }
+        }
+    }
+
+    new ParentVisitor().visit(root);
+}
+
+export function visitAll(program: Program) {
+    class VisitAll extends  ASTVisitor {
+        visitASTNode(node: ASTNode) {
+            console.log(node)
+        }
+    }
+    program.accept(new VisitAll())
+}
+
 export class ASTVisitor {
-    visit(node: Program | ASTNode | TypeDeclaration): void {
+    visit(node: ASTNode): void {
+        this.visitASTNode(node);
         if (node instanceof Program)
             this.visitProgram(node);
         else if (node instanceof Procedure)
@@ -957,8 +1145,6 @@ export class ASTVisitor {
             this.visitUnboundNewObjectExpression(node);
         else if (node instanceof FieldAccessExpression)
             this.visitFieldAccessExpression(node);
-        else
-            this.visitASTNode(node);
     }
 
     visitProgram(program: Program): void {
@@ -1102,23 +1288,4 @@ export class ASTVisitor {
     visitFieldAccessExpression(expression: FieldAccessExpression): void {
         this.visitExpression(expression);
     }
-}
-
-export function setASTParents(root: ASTNode): void {
-    class ParentVisitor extends ASTVisitor {
-        private currentParent?: ASTNode;
-
-        override visit(node: ASTNode): void {
-            const previousParent = this.currentParent;
-            node.parent = previousParent;
-            this.currentParent = node;
-            try {
-                super.visit(node);
-            } finally {
-                this.currentParent = previousParent;
-            }
-        }
-    }
-
-    new ParentVisitor().visit(root);
 }

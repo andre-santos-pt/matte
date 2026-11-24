@@ -1,15 +1,27 @@
 import {
     ASTVisitor,
     ArithmeticExpression,
+    ArrayAssignment,
+    ArrayElementExpression,
+    ArrayLiteralExpression,
+    ArrayType,
     BlockStatement,
+    BooleanLiteral,
+    CastExpression,
     CallExpression,
+    ConditionalExpression,
     Declaration,
+    FieldAccessExpression,
     IntLiteral,
+    LogicalExpression,
     PrimitiveType,
     Procedure,
     Program,
+    RelationalExpression,
     ReturnStatement,
     TypeDeclaration,
+    NewObjectExpression,
+    UnaryExpression,
     Variable,
     IfStatement,
     WhileStatement, Assignment
@@ -155,5 +167,39 @@ describe("ASTVisitor", () => {
         expect(visitor.declarations).toBe(2);
         expect(visitor.integers).toBe(2);
         expect(visitor.variables).toBe(1);
+    });
+
+    it("reports semantic errors through validation without throwing during AST construction", () => {
+        const range = new Range(0, 1, 1, 0);
+        const integer = new IntLiteral(range, 1);
+        const boolean = new BooleanLiteral(range, true);
+        const program = new Program(
+            new BlockStatement(range, [
+                new ArrayAssignment(range, integer, boolean, boolean),
+                new ArrayAssignment(range, new Variable(range, new Declaration(range, "values", range, false, new ArrayType(PrimitiveType.INT), range)), integer, boolean),
+                new IfStatement(range, integer, new BlockStatement(range, []), undefined),
+                new WhileStatement(range, integer, new BlockStatement(range, [])),
+                new ReturnStatement(range, new ArrayElementExpression(range, integer, boolean)),
+                new ReturnStatement(range, new ConditionalExpression(range, integer, integer, boolean)),
+                new ReturnStatement(range, new ArithmeticExpression(range, "+", boolean, integer)),
+                new ReturnStatement(range, new ArithmeticExpression(range, "^", integer, integer)),
+                new ReturnStatement(range, new RelationalExpression(range, "<", boolean, integer)),
+                new ReturnStatement(range, new UnaryExpression(range, "-", boolean)),
+                new ReturnStatement(range, new CastExpression(range, PrimitiveType.INT, boolean)),
+                new ReturnStatement(range, new ArrayLiteralExpression(range, [integer, boolean])),
+                new ReturnStatement(range, new LogicalExpression(range, "&&", integer, boolean)),
+                new ReturnStatement(range, new FieldAccessExpression(range, integer, "field", range)),
+                new ReturnStatement(range, new FieldAccessExpression(range, new Variable(range, new Declaration(range, "values", range, false, new ArrayType(PrimitiveType.INT), range)), "field", range)),
+                new ReturnStatement(range, new NewObjectExpression(range, PrimitiveType.INT, []))
+            ]),
+            [new Procedure(range, "instanceMethod", range, true, [])]
+        );
+
+        const errors = program.checkStaticErrors();
+
+        expect(errors.length).toBeGreaterThan(10);
+        expect(errors.some(error => error.message === "Not an object type")).toBe(true);
+        expect(errors.some(error => error.message.includes("Expected boolean expression"))).toBe(true);
+        expect(errors.every(error => error.type !== undefined)).toBe(true);
     });
 });
