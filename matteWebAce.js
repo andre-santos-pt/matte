@@ -21,7 +21,6 @@ import {compile} from "./src/antlr2ast.ts";
 
 window.callstack_matte = callstack_matte;
 window.sysout_matte = sysout_matte;
-
 window.compile = compile;
 
 window.flatTrace = (trace) => {

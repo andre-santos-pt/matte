@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Expression types</title>
+</head>
+<body>
+<script src="../extensions/expressiontypes-matte.js"></script>
+<script src="../dist/matte-web-ace.js" defer></script>
+Select an expression to see its inferred type.
+
+<matte-ace expressiontypes>
+int result = 10 + 20 / 2;
+boolean valid = result > 10;
+int round = (int) 4.2 + .5;
+int roundok = (int) (4.2 + .5);
+boolean b = !true;
+</matte-ace>
+</body>
+</html>
