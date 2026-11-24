@@ -7,6 +7,16 @@ import {last, lastTrace} from "../utils";
 import {Program, StaticErrorType} from "../ast";
 import {compile} from "../antlr2ast";
 
+export function unwrapEvaluations(value: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(value).map(([name, property]) => {
+        if (name === "$type")
+            return [name, property];
+        if (!property || typeof property !== "object" || !("evaluation" in property))
+            throw new TypeError(`Property "${name}" does not contain an evaluation`);
+        return [name, property.evaluation];
+    }));
+}
+
 export function compilationError(code: string, expected: StaticErrorType, call?: string) {
     const interpreter = new Interpreter();
     const result = compile(code)
@@ -46,7 +56,8 @@ export function cases(code: string, ...tests: [string, any][]) {
         if(result.runtimeError) {
             assert.fail(`Runtime error ${result.runtimeError.message}`)
         }
-        assert.deepStrictEqual(result.result.evaluation, t[1], t[0]);
+        const ev = typeof result.result.evaluation === "object" ? unwrapEvaluations(result.result.evaluation) : result.result.evaluation;
+        assert.deepStrictEqual(ev, t[1], t[0]);
     })
 }
 

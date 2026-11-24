@@ -769,7 +769,7 @@ export class Interpreter {
                     }
                 )
             return {
-                evaluation: objVal.evaluation[e.fieldName],
+                evaluation: objVal.evaluation[e.fieldName].evaluation,
                 materialization: `${objVal.materialization}.${e.fieldName}`
             }
         } else if (e instanceof ArrayLiteralExpression) {
@@ -848,9 +848,10 @@ export class Interpreter {
                 uuid: thisVal.uuid
             })
         }
+        const offset = p.instance ? 1 : 0
         const argValues = args.map((e, i) => {
             const eVal = this.evaluate(e)
-            variables.set(p.parameters[i].name, {
+            variables.set(p.parameters[i+offset].name, {
                 name: p.parameters[i].name,
                 type: p.parameters[i].type,
                 evaluation: eVal.evaluation,
@@ -865,8 +866,6 @@ export class Interpreter {
                 mat = thisVal?.materialization + "." + p.name + "(" + argValues.map(a => a?.materialization).join() + ")"
             else
                 mat = p.name + "(" + argValues.map(a => a?.materialization).join() + ")"
-
-
 
         this.addTrace(call, true, isReturn, undefined, mat)
 
