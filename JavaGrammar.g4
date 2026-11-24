@@ -20,7 +20,7 @@ params: param (COMMA param)*;
 
 param: type id=ID;
 
-type: id=ID arrayDim*;
+type: id=(ID|INT_TYPE|DOUBLE_TYPE) arrayDim*;
 
 arrayDim: LBRACK RBRACK;
 
@@ -69,8 +69,8 @@ arrayLiteral: LCURLY (arrayLiteralElement (COMMA arrayLiteralElement)*)? RCURLY;
 arrayLiteralElement: exp | arrayLiteral;
 
 exp:
-    LPAREN castType=ID RPAREN target=exp # castExpr
-    | LPAREN exp RPAREN                           # bracketsExpr
+    LPAREN castType=(INT_TYPE|DOUBLE_TYPE) RPAREN target=exp # castExpr
+    | LPAREN exp RPAREN                         # bracketsExpr
     | newCall                                   # objectAllocExpr
     | target=exp DOT fieldId=ID                 # fieldExpr
     | target=exp LBRACK index=exp RBRACK        # arrayExpr
@@ -216,8 +216,8 @@ DOUBLE: [0-9]* '.' [0-9]+;
 
 CHAR: '\''.'\'';
 
-//INT_TYPE: 'int' ;
-//DOUBLE_TYPE: 'double' ;
+INT_TYPE: 'int' ;
+DOUBLE_TYPE: 'double' ;
 
 ID: [a-zA-Z] [a-zA-Z0-9_]* ;
 

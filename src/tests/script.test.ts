@@ -190,6 +190,16 @@ describe('Matte Interpreter Test Script', () => {
                 .set("castFraction", 3.9))
         });
 
+        it('paren types bug', () => {
+            script(`
+                int a = 3;
+                int b = (a) - 1;
+            `, new Map()
+                .set("a", 3)
+                .set("b", 2)
+            )
+        });
+
         it('remainder by zero', () => {
             runtimeError('int result = 10 % 0;', RuntimeErrorType.DivisionByZero)
         });
