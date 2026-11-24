@@ -6,9 +6,9 @@ script: statement+ ;
 
 class: CLASS id=ID LCURLY member* RCURLY;
 
-member: method | field;
+member: method | field | constructor;
 
-// TODO constructor (classes)
+constructor: id=ID LPAREN params? RPAREN LCURLY statement* RCURLY;
 
 record: RECORD id=ID LPAREN params RPAREN LCURLY method* RCURLY;
 

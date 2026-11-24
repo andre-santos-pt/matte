@@ -24,6 +24,7 @@ import {
     NewObjectExpression,
     NullLiteral,
     PrimitiveType,
+    Procedure,
     Program,
     RelationalExpression,
     ReturnStatement,
@@ -135,6 +136,7 @@ export class Interpreter {
     private traceOn = true
 
     private loopCount = new Map()
+    private procedures: Procedure[] = []
     private extensionProcedures: ExtensionProcedure[] = []
     private extensionTypes: ExtensionType[] = []
     private readonly maxLoopIterations?: number
@@ -308,6 +310,7 @@ export class Interpreter {
 
 
     private runProgram(program: Program, call?: Expression): InterpreterResult {
+        this.procedures = program.procedures;
         if (program.block) {
             this.scope.push({
                 variables: new Map()
@@ -334,8 +337,12 @@ export class Interpreter {
                 }
             })
         } else {
-            return this.tryRun(() => {
-                return {
+            this.trace = {
+                stack: {variables: new Map()},
+                children: []
+            };
+            this.traceStack = [this.trace];
+            return this.tryRun(() => ({
                     callError: undefined,
                     compilationErrors: [],
                     runtimeError: undefined,
@@ -343,8 +350,7 @@ export class Interpreter {
                     trace: structuredClone(this.trace),
                     program,
                     call
-                }
-            });
+                }));
         }
 
     }
@@ -739,10 +745,27 @@ export class Interpreter {
                     obj[f.name].type = f.type
                 })
             }
+            const materialization = `new ${e.type.name}(${args.map(a => a.materialization || a.evaluation).join(", ")})`;
             this.addTrace(e, true, false, obj);
+            if (!e.type.isRecord) {
+                const constructor = this.procedures.find(procedure =>
+                    procedure.instance &&
+                    procedure.name === "$init" &&
+                    procedure.parameters[0]?.type === e.type
+                );
+                if (constructor) {
+                    const constructorCall = new CallExpression(e.range as Range, constructor, e.args, true);
+                    this.invocation(
+                        constructorCall,
+                        false,
+                        {evaluation: obj, materialization, uuid: crypto.randomUUID()},
+                        args
+                    );
+                }
+            }
             return {
                 evaluation: obj,
-                materialization: `new ${e.type.name}(${args.map(a => a.materialization || a.evaluation).join(", ")})`,
+                materialization,
                 uuid: crypto.randomUUID()
             }
         } else if (e instanceof UnboundNewObjectExpression) {
@@ -823,7 +846,12 @@ export class Interpreter {
     }
 
 
-    private invocation(call: CallExpression, isReturn: boolean = false):
+    private invocation(
+        call: CallExpression,
+        isReturn = false,
+        instanceValue?: ExpressionEval,
+        evaluatedArguments?: ExpressionEval[]
+    ):
         ExpressionEval {
         if(this.scope.length == this.maxCallStack)
             this.addTraceRuntimeError(call, {
@@ -838,8 +866,12 @@ export class Interpreter {
         let args = call.args
         const variables: Map<string, TraceVariable> = new Map()
         if (p.instance) {
-            thisVal = this.evaluate(call.args[0])
-            args = args.slice(1, args.length)
+            if (instanceValue) {
+                thisVal = instanceValue;
+            } else {
+                thisVal = this.evaluate(call.args[0])
+                args = args.slice(1, args.length)
+            }
             variables.set("this", {
                 name: "this",
                 type: p.parameters[0].type,
@@ -849,21 +881,22 @@ export class Interpreter {
             })
         }
         const offset = p.instance ? 1 : 0
-        const argValues = args.map((e, i) => {
-            const eVal = this.evaluate(e)
+        const argValues = evaluatedArguments ?? args.map(e => this.evaluate(e))
+        argValues.forEach((eVal, i) => {
             variables.set(p.parameters[i+offset].name, {
-                name: p.parameters[i].name,
-                type: p.parameters[i].type,
+                name: p.parameters[i+offset].name,
+                type: p.parameters[i+offset].type,
                 evaluation: eVal.evaluation,
                 materialization: eVal.materialization,
-                declaration: p.parameters[i].range,
+                declaration: p.parameters[i+offset].range,
                 uuid: eVal.uuid
             })
-            return eVal
         })
         let mat: string
             if(p.instance)
-                mat = thisVal?.materialization + "." + p.name + "(" + argValues.map(a => a?.materialization).join() + ")"
+                mat = p.name === "$init"
+                    ? thisVal?.materialization ?? ""
+                    : thisVal?.materialization + "." + p.name + "(" + argValues.map(a => a?.materialization).join() + ")"
             else
                 mat = p.name + "(" + argValues.map(a => a?.materialization).join() + ")"
 

@@ -16,7 +16,7 @@ import JavaGrammarParser, {
     CallExprContext, CallLiteralContext, CastExprContext, CharExprContext, CharLiteralContext, ClassContext, ConditionalExprContext,
     DecContext,
     DeclarationContext,
-    DoubleExprContext, DoubleLiteralContext,
+    ConstructorContext, DoubleExprContext, DoubleLiteralContext,
     ExpContext, ExpLiteralContext, FieldContext,
     FieldExprContext,
     ForStmtContext,
@@ -353,15 +353,20 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         if (ctx.script())
             return new Program(this.visitScript(ctx.script()))
         else {
-            const typeMap: [TypeDeclaration, MethodContext[]][] = []
+            const typeMap: [TypeDeclaration, MethodContext[], ConstructorContext[]][] = []
             for (let i = 0; i < ctx.getChildCount(); i++)
                 if (ctx.getChild(i) instanceof RecordContext) {
                     let typeDeclaration = this.visitRecord(ctx.getChild(i) as RecordContext);
-                    typeMap.push([typeDeclaration, (ctx.getChild(i) as RecordContext).method_list()])
+                    typeMap.push([typeDeclaration, (ctx.getChild(i) as RecordContext).method_list(), []])
                     this.types.push(typeDeclaration)
                 } else if (ctx.getChild(i) instanceof ClassContext) {
                     let typeDeclaration = this.visitClass(ctx.getChild(i) as ClassContext);
-                    typeMap.push([typeDeclaration, (ctx.getChild(i) as ClassContext).member_list().filter(m => m.method() != null).map(m => m.method())])
+                    const members = (ctx.getChild(i) as ClassContext).member_list();
+                    typeMap.push([
+                        typeDeclaration,
+                        members.filter(m => m.method() != null).map(m => m.method()),
+                        members.filter(m => m.constructor_() != null).map(m => m.constructor_())
+                    ])
                     this.types.push(typeDeclaration)
                 }
 
@@ -396,11 +401,18 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
             typeMap.forEach(tm => {
                 const type = tm[0]
-                const typeCtx = tm[1]
-                const recordProcedures = this.procedures.filter(p => p.range && p.instance && p.parameters.length > 0 && p.parameters[0].type == type)
+                const methodContexts = tm[1]
+                const constructorContexts = tm[2]
                 this.typeContext = type
-                recordProcedures.forEach((p, i) => {
-                    p.body = this.visitMethod(typeCtx[i])
+                methodContexts.forEach(method => {
+                    const procedure = this.findMethodInType(type, method._id.text)
+                    if (procedure)
+                        procedure.body = this.visitMethod(method)
+                })
+                constructorContexts.forEach(constructor => {
+                    const procedure = this.findMethodInType(type, "$init")
+                    if (procedure)
+                        procedure.body = this.parseConstructorBody(constructor)
                 })
                 this.typeContext = undefined
             })
@@ -523,9 +535,75 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 )
             )
         )
-        ctx.member_list().filter(m => m.method() != null)
-            .forEach(m => this.addInstanceMethod(typedec, m.method()))
+        ctx.member_list().forEach(member => {
+            if (member.method())
+                this.addInstanceMethod(typedec, member.method())
+            else if (member.constructor_())
+                this.addInstanceConstructor(typedec, member.constructor_())
+        })
         return typedec
+    }
+
+    addInstanceConstructor(typedec: TypeDeclaration, ctx: ConstructorContext): void {
+        if (ctx._id.text !== typedec.name) {
+            this.errors.push({
+                type: StaticErrorType.SyntaxError,
+                range: this.rangeToken(ctx._id),
+                message: `Constructor name must match class name '${typedec.name}'`
+            });
+            return;
+        }
+        if (this.findMethodInType(typedec, "$init")) {
+            this.errors.push({
+                type: StaticErrorType.SyntaxError,
+                range: this.rangeToken(ctx._id),
+                message: `Class '${typedec.name}' can only declare one constructor`
+            });
+            return;
+        }
+
+        const params = ctx.params()?.param_list().map(param => {
+            const type = this.findType(param.type_());
+            return new Declaration(
+                this.rangeContext(param),
+                param._id.text,
+                this.rangeToken(param._id),
+                true,
+                type ?? new ForeignType(param.type_().getText()),
+                this.rangeContext(param.type_())
+            );
+        }) ?? [];
+        this.procedures.push(new Procedure(
+            this.rangeContext(ctx),
+            "$init",
+            this.rangeToken(ctx._id),
+            true,
+            [new Declaration(undefined, "this", undefined, true, typedec, undefined), ...params],
+            PrimitiveType.VOID,
+            undefined,
+            undefined
+        ));
+    }
+
+    parseConstructorBody(ctx: ConstructorContext): BlockStatement {
+        this.varScope.push({
+            block: false,
+            variables: new Map<string, Declaration>()
+        });
+        ctx.params()?.param_list().forEach(param => {
+            const type = this.findType(param.type_());
+            this.topScope().set(param._id.text, new Declaration(
+                this.rangeContext(param),
+                param._id.text,
+                this.rangeToken(param._id),
+                false,
+                type ?? new ForeignType(param.type_().getText()),
+                this.rangeContext(param.type_())
+            ));
+        });
+        const body = ctx.statement_list().flatMap(statement => this.visit(statement));
+        this.varScope.pop();
+        return new BlockStatement(this.rangeContext(ctx), body);
     }
 
 
@@ -1092,22 +1170,30 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     private handleNewCall(ctx: ObjectAllocExprContext) {
         const type = this.findSingleType(ctx.newCall()._typeName.text)
-        if (type)
-            // TODO n args check
+        const args = ctx.newCall()._args ? ctx.newCall()._args.exp_list().map(e => this.expToAST(e)) : [];
+        if (type) {
+            if (type instanceof TypeDeclaration && !type.isRecord) {
+                const constructor = this.findMethodInType(type, "$init");
+                if (constructor)
+                    this.checkArgs(ctx, args, constructor, 1);
+                else if (args.length > 0) {
+                    this.errors.push({
+                        message: `Class '${type.name}' has no constructor accepting arguments`,
+                        type: StaticErrorType.NumberArgumentsMismatch,
+                        range: this.rangeContext(ctx)
+                    });
+                }
+            }
             return new NewObjectExpression(
                 this.rangeContext(ctx),
                 type,
-                ctx.newCall()._args ? ctx.newCall()._args.exp_list().map(
-                    e => this.expToAST(e)
-                ) : []
+                args
             )
-        else
+        } else
             return new UnboundNewObjectExpression(
                 this.rangeContext(ctx),
                 ctx.newCall()._typeName.text,
-                ctx.newCall()._args ? ctx.newCall()._args.exp_list().map(
-                    e => this.expToAST(e)
-                ) : []
+                args
             )
     }
 
@@ -1134,31 +1220,33 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             )
     }
 
-    private checkArgs(ctx: ParserRuleContext, args: Expression[], proc: Procedure) {
-        if (proc.parameters.length != args.length)
+    private checkArgs(ctx: ParserRuleContext, args: Expression[], proc: Procedure, parameterOffset = 0) {
+        const expectedCount = proc.parameters.length - parameterOffset;
+        if (expectedCount != args.length)
         {
             this.errors.push({
-                message: "Method " + mark(proc.name) + " expects " + proc.parameters.length + " arguments (not " + args.length + ")",
+                message: "Method " + mark(proc.name) + " expects " + expectedCount + " arguments (not " + args.length + ")",
                 type: StaticErrorType.NumberArgumentsMismatch,
                 range: this.rangeContext(ctx),
                 detail: {
-                    related: [...proc.parameters.map(p => p.typeRange)]
+                    related: [...proc.parameters.slice(parameterOffset).map(p => p.typeRange)]
                 }
             })
             return
         }
 
-        proc.parameters.forEach((p, index) => {
-            if (p.type instanceof ArrayType && args[index] instanceof ArrayLiteralExpression && (args[index] as ArrayLiteralExpression).getChildren().length == 0)
-                (args[index] as ArrayLiteralExpression).type = p.type
+        args.forEach((arg, index) => {
+            const parameter = proc.parameters[index + parameterOffset];
+            if (parameter.type instanceof ArrayType && arg instanceof ArrayLiteralExpression && arg.getChildren().length == 0)
+                arg.type = parameter.type;
 
-            if (!typeCompatibleWith(args[index].type, p.type))
+            if (!typeCompatibleWith(arg.type, parameter.type))
                 this.errors.push({
-                    message: "The " + this.toWordOrder(index) + " parameter of method " + mark(proc.name) + " is of type " + markType(proc.parameters[index].type) + " (not " + markType(args[index].type) + ")",
+                    message: "The " + this.toWordOrder(index) + " parameter of method " + mark(proc.name) + " is of type " + markType(parameter.type) + " (not " + markType(arg.type) + ")",
                     type: StaticErrorType.ArgumentTypesMismatch,
                     range: this.rangeContext(ctx),
                     detail: {
-                        related: [proc.parameters[index].typeRange]
+                        related: [parameter.typeRange]
                     }
                 })
         })
