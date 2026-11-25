@@ -3,6 +3,7 @@ import {
     ArrayAllocationExpression,
     ArrayAssignment,
     ArrayElementExpression,
+    ArrayLengthExpression,
     ArrayLiteralExpression,
     Assignment,
     ASTNode,
@@ -836,6 +837,18 @@ export class Interpreter {
             return {
                 evaluation: arrayVal[index],
                 materialization: undefined // TODO
+            }
+        } else if (e instanceof ArrayLengthExpression) {
+            const array = this.evaluate(e.target)
+            if (array.evaluation == null)
+                this.addTraceRuntimeError(e.target, {
+                    type: RuntimeErrorType.NullPointer,
+                    message: "Reference is null",
+                    range: e.target.range
+                })
+            return {
+                evaluation: array.evaluation.length,
+                materialization: `${array.materialization}.length`
             }
         } else throw {
             message: "Unsupported expression type:" + (e as any).constructor.name,

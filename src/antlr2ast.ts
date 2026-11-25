@@ -44,6 +44,7 @@ import {
     ArrayAllocationExpression,
     ArrayAssignment,
     ArrayElementExpression,
+    ArrayLengthExpression,
     ArrayLiteralExpression,
     ArrayType,
     Assignment,
@@ -984,13 +985,17 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         else if (ctx instanceof ObjectAllocExprContext)
             return this.handleNewCall(ctx);
 
-        else if (ctx instanceof FieldExprContext)
+        else if (ctx instanceof FieldExprContext) {
+            const target = this.expToAST(ctx._target)
+            if (ctx._fieldId.text == "length" && target.type instanceof ArrayType)
+                return new ArrayLengthExpression(this.rangeContext(ctx), target)
             return new FieldAccessExpression(
                 this.rangeContext(ctx),
-                this.expToAST(ctx._target),
+                target,
                 ctx._fieldId.text,
                 this.rangeToken(ctx._fieldId)
             )
+        }
 
         else if (ctx instanceof InstanceCallExprContext) {
             return this.handleInstanceCall(ctx, ctx.exp(), ctx.call());

@@ -1,6 +1,6 @@
 import {
     ArithmeticExpression, ArrayAllocationExpression, ArrayAssignment,
-    ArrayElementExpression, ArrayLiteralExpression,
+    ArrayElementExpression, ArrayLengthExpression, ArrayLiteralExpression,
     ArrayType, Assignment, BlockStatement, BooleanLiteral, BreakStatement,
     CallExpression, CallStatement, CastExpression, ConditionalExpression,
     Declaration, DoubleLiteral,
@@ -147,6 +147,8 @@ function renderExpression(expression: Expression): string {
         return `new ${renderType(expression.componentType)}${expression.dimensions.map(dimension => `[${renderExpression(dimension)}]`).join("")}`
     if (expression instanceof ArrayElementExpression)
         return `${renderExpression(expression.target)}[${renderExpression(expression.index)}]`
+    if (expression instanceof ArrayLengthExpression)
+        return `${renderExpression(expression.target)}.length`
     if (expression instanceof CallExpression) {
         const args = expression.instanceCall ? expression.args.slice(1) : expression.args
         const receiver = expression.instanceCall && expression.args[0]

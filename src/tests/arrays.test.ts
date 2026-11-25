@@ -54,10 +54,12 @@ describe('Matte Interpreter Test Arrays', () => {
         int[] b = {};
         int aLen = a.length;
         int bLen = b.length;
+        int allocationLen = new int[4].length;
         
         `, new Map()
                 .set("aLen", 3)
                 .set("bLen", 0)
+                .set("allocationLen", 4)
                 .set("a", [5, 6, 7])
                 .set("b", [])
             )

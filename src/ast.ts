@@ -781,9 +781,32 @@ export class ArrayElementExpression extends Expression {
     getChildren(): Expression[] {
         return [this.target, this.index]
     }
-
 }
 
+export class ArrayLengthExpression extends Expression {
+    target: Expression;
+
+    constructor(range: Range, target: Expression) {
+        super(range, PrimitiveType.INT);
+        this.target = target;
+    }
+
+    validate(errors: StaticError[]) {
+        if (!isArrayType(this.target.type))
+            errors.push({
+                message: "The variable must be an array reference (not " + markType(this.target.type) + ")",
+                type: StaticErrorType.TypeMismatch,
+                range: this.target.range as Range,
+                detail: this.target instanceof Variable ? {
+                    related: [this.target.declaration.typeRange]
+                } : undefined
+            })
+    }
+
+    getChildren(): Expression[] {
+        return [this.target]
+    }
+}
 
 export class ArithmeticExpression extends BinaryExpression {
     constructor(range: Range, operator: string, left: Expression, right: Expression) {
@@ -1141,6 +1164,8 @@ export class ASTVisitor {
             this.visitArrayAllocationExpression(node);
         else if (node instanceof ArrayElementExpression)
             this.visitArrayElementExpression(node);
+        else if (node instanceof ArrayLengthExpression)
+            this.visitArrayLengthExpression(node);
         else if (node instanceof CallExpression)
             this.visitCallExpression(node);
         else if (node instanceof UnboundCallExpression)
@@ -1272,6 +1297,10 @@ export class ASTVisitor {
     }
 
     visitArrayElementExpression(expression: ArrayElementExpression): void {
+        this.visitExpression(expression);
+    }
+
+    visitArrayLengthExpression(expression: ArrayLengthExpression): void {
         this.visitExpression(expression);
     }
 
