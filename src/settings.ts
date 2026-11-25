@@ -7,6 +7,7 @@ export enum SettingProperty {
     HighlightActiveLine = "linehighlight",
     AutoRun = "autorun",
     AutoCompile = "autocompile",
+    SecondaryMarks = "secondarymarks",
     CompilationHints = "compilationhints",
     VariableMaterialization = "variablematerialization",
     CumulativeTrace = "cumulativetrace",
@@ -73,6 +74,9 @@ const settingsConf: Record<SettingProperty, SettingsConf> = {
     [SettingProperty.CompilationHints]: {
         label: "Compilation hints",
     },
+    [SettingProperty.SecondaryMarks]: {
+        label: "Secondary error marks",
+    },
     [SettingProperty.VariableMaterialization]: {
         label: "Variable materialization",
     },
@@ -95,6 +99,7 @@ export class Settings {
     [SettingProperty.AutoRun]: boolean = false;
     [SettingProperty.AutoCompile]: boolean = true;
     [SettingProperty.CompilationHints]: boolean = true;
+    [SettingProperty.SecondaryMarks]: boolean = true;
     [SettingProperty.VariableMaterialization]: boolean = true;
     [SettingProperty.CumulativeTrace]: boolean = true;
     [SettingProperty.MaxLoopIterations]: number | undefined = 100;

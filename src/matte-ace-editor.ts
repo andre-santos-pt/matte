@@ -760,11 +760,12 @@ export default class MatteAceEditor {
     }
 
     markSecondaryHighlights(r: MatteRange): void {
-        this.secondaryMarkers.push(this.editor.session.addMarker(
-            this.range2Ace(r),
-            "secondary-mark",
-            "text"
-        ))
+        if(this.settings[SettingProperty.SecondaryMarks])
+            this.secondaryMarkers.push(this.editor.session.addMarker(
+                this.range2Ace(r),
+                "secondary-mark",
+                "text"
+            ))
     }
 
     highlightedRange?: number = undefined
