@@ -630,8 +630,6 @@ export class UnaryExpression extends Expression {
         super(range, expression.type);
         this.operator = operator;
         this.expression = expression;
-
-        // TODO truncate
     }
 
     validate(errors: StaticError[]) {
