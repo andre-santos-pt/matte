@@ -34,7 +34,6 @@ export enum StaticErrorType {
     KeywordUsedAsIdentifier = "KEYWORD_AS_IDENTIFIER",
     CannotInferType = "CANNOT_INFER_TYPE",
     BreakOutsideLoop = "BREAK_OUTSIDE_LOOP"
-
 }
 
 export type Type = PrimitiveType | TypeDeclaration | ArrayType | ForeignType

@@ -48,7 +48,7 @@ import {last} from "./utils";
 
 
 export interface InterpreterResult {
-    callError: string | undefined;
+    callError: StaticError | undefined;
     compilationErrors: StaticError[];
     runtimeError: RuntimeError | undefined;
     result: any;
@@ -170,7 +170,11 @@ export class Interpreter {
         } catch (e: any) {
             if(e.program?.block && call)
                 return {
-                    callError: "No call should be provided when executing scripts.",
+                    callError: {
+                        range: new Range(0, call.length, 1, 1,),
+                        type: StaticErrorType.Unsupported,
+                        message:  "No call should be provided when executing scripts."
+                    },
                     result: undefined,
                     trace: undefined,
                     compilationErrors: [],
@@ -193,7 +197,11 @@ export class Interpreter {
         // TODO main call
         if(program?.procedures && program.procedures.length > 0 && !expCall) {
             return {
-                callError: "No call provided for execution.",
+                callError: {
+                    range: new Range(0, 0, 1, 1, ""),
+                    type: StaticErrorType.Unsupported,
+                    message:  "No call provided for execution."
+                },
                 compilationErrors: [],
                 runtimeError: undefined,
                 result: undefined,

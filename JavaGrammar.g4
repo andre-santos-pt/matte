@@ -121,6 +121,9 @@ bopLog:
 AND | OR;
 
 
+expCall:
+    expLiteral EOF;
+
 expLiteral:
 id=ID LPAREN args=expLiteralList? RPAREN                    # callLiteral
 | NEW id=ID LPAREN args=expLiteralList? RPAREN              # newCallLiteral

@@ -379,7 +379,7 @@ export default class MatteAceEditor {
         this.resultLabel.style.visibility = result.callError || result.result?.evaluation !== undefined ? "visible" : "hidden";
 
         if (result.callError)
-            this.resultLabel.innerHTML = "<span style='color: #a19f9f; font-style: italic'>" + result.callError + "</span>";
+            this.resultLabel.innerHTML = "<span style='color: #a19f9f; font-style: italic'>" + result.callError.message + "</span>";
         else if (result.compilationErrors.length == 0 && !result.runtimeError) {
             this.resultLabel.innerHTML = '';
             if (result.result?.evaluation !== undefined)

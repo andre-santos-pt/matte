@@ -152,30 +152,50 @@ export function buildAST(source: string): CompilationResult {
     }
 }
 
-export function buildASTandCall(source: string, call: string): [CompilationResult, Expression] {
+export function buildASTandCall(source: string, call: string): [CompilationResult, Expression | undefined] {
     const [tokens, errorListener, parser] = getTokenStreamAndParser(source)
     let unitCtx = parser.unit();
     const visitor = new TreeVisitor(tokens);
     const chars2 = CharStreams.fromString(call);
+
     const lexer2 = new JavaGrammarLexer(chars2);
+    lexer2.removeErrorListeners()
+    lexer2.addErrorListener(errorListener)
+
     const tokens2 = new CommonTokenStream(lexer2);
     const parser2 = new JavaGrammarParser(tokens2);
-    let callCtx = parser2.expLiteral();
+    parser2.removeErrorListeners()
+    parser2.addErrorListener(errorListener)
+
+    let callCtx = parser2.expCall();
+
+    if (errorListener.errors.length != 0)
+        throw {
+            callError: errorListener.errors[0]
+        }
 
     const program = visitor.visitUnit(unitCtx)
     setASTParents(program)
 
     visitor.tokenStream = tokens2
     try {
-        const exp = visitor.visitExpLiteral(callCtx)
+        const exp = visitor.visitExpLiteral(callCtx.expLiteral())
+        if(visitor.errors.length != 0)
+            throw {
+                callError: visitor.errors[0]
+            }
         if (exp instanceof UnboundCallExpression)
             throw {
-                callError: `'${exp.procedureName}' not found`,
+                callError: {
+                    message: `'${exp.procedureName}' not found`
+                },
                 program: program,
             }
         if (!(exp instanceof CallExpression || exp instanceof NewObjectExpression))
             throw {
-                callError: "Not a valid call",
+                callError: {
+                    message: "Not a valid call"
+                },
                 program: program,
             }
         setASTParents(exp)
