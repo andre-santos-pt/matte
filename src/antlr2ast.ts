@@ -98,7 +98,11 @@ import {
 } from "antlr4";
 import {last} from "./utils";
 import JavaGrammarLexer from "./generated/JavaGrammarLexer";
-import {checkBracketMatching, MatteErrorListener} from "./MatteErrorListener";
+import {
+    checkBracketMatching,
+    checkTokenMisconceptions,
+    MatteErrorListener
+} from "./MatteErrorListener";
 
 
 export interface CompilationResult {
@@ -136,6 +140,12 @@ export function buildAST(source: string): CompilationResult {
     if(bracketErrors.length != 0)
         return {
             errors: bracketErrors
+        }
+
+    const miscErrors = checkTokenMisconceptions(tokens)
+    if(miscErrors.length != 0)
+        return {
+            errors: miscErrors
         }
 
     let unit = parser.unit()

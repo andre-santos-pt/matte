@@ -2,7 +2,6 @@ import {CommonTokenStream, ErrorListener, Recognizer, Token} from "antlr4";
 import {StaticError, StaticErrorType} from "./ast";
 import Range from "./Range";
 import JavaGrammarParser from "./generated/JavaGrammarParser";
-import {mark} from "./antlr2ast";
 
 export class MatteErrorListener extends ErrorListener<any> {
     input: string
@@ -122,6 +121,39 @@ export class MatteErrorListener extends ErrorListener<any> {
         // Add the column offset (ANTLR columns are already 0-based)
         return offset + column;
     }
+}
+const miscTypes: Record<number, number> = Object.fromEntries(
+    Object.entries(JavaGrammarParser)
+        .filter(([name, type]) => name.endsWith("_MIS") && typeof type === "number")
+        .flatMap(([misName, misType]) => {
+            const baseName = misName.slice(0, -"_MIS".length);
+            const baseType = (JavaGrammarParser as any)[baseName];
+            return typeof baseType === "number"
+                ? [[misType as number, baseType as number]]
+                : [];
+        })
+);
+
+export function checkTokenMisconceptions(tokens: CommonTokenStream): StaticError[] {
+    tokens.fill();
+    const errors: StaticError[] = [];
+    for (let i = 0; i < tokens.size; i++) {
+        const token = tokens.get(i)
+        const pairedType = miscTypes[token.type];
+        if (pairedType !== undefined)
+            errors.push({
+                message: `Do you mean ${JavaGrammarParser.literalNames[pairedType]}?`,
+                range: new Range(
+                    token.start,
+                    token.stop + 1,
+                    token.line,
+                    token.column,
+                    token.text
+                ),
+                type: StaticErrorType.SyntaxError
+            })
+    }
+    return errors
 }
 
 export function checkBracketMatching(tokens: CommonTokenStream): StaticError[] {
