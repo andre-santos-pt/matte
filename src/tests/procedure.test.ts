@@ -192,21 +192,4 @@ describe('Matte Interpreter Test Procedure', () => {
         })
     })
 
-    describe('Other', () => {
-        it('nats', () => {
-            const code = `
-            int[] nats(int n) {
-    int[] arr = new int[n];
-    int i = 0;
-    while(i < arr.length) {
-        arr[i] = i + 1;
-        i++;
-    }
-    return arr;
-}
-            `
-            cases(code,["nats(5)",[1,2,3,4,5]])
-        })
-    })
-
 })

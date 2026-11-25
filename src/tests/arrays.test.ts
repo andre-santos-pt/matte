@@ -154,8 +154,8 @@ describe('Matte Interpreter Test Arrays', () => {
     })
     describe('Functions', () => {
 
-        it('sum', () =>{
-            cases(`int sum(int[] a) {
+            it('sum', () => {
+                cases(`int sum(int[] a) {
                 int s = 0;
                 int i = 0;
                 while(i < a.length) {
@@ -169,13 +169,13 @@ describe('Matte Interpreter Test Arrays', () => {
                 return sum(array) / (array.length * 1.0);
             }
             `,
-                ["sum([1,2,3])",6],
-                ["sum([])",0],
-                ["avg([1,2])", 1.5])
-        })
+                    ["sum([1,2,3])", 6],
+                    ["sum([])", 0],
+                    ["avg([1,2])", 1.5])
+            })
 
-        it('sum out of bounds', () =>{
-            runtimeError(`int sum(int[] a) {
+            it('sum out of bounds', () => {
+                runtimeError(`int sum(int[] a) {
                 int s = 0;
                 int i = 0;
                 while(i <= a.length) {
@@ -185,12 +185,12 @@ describe('Matte Interpreter Test Arrays', () => {
                 return s;
             }
             `,
-                RuntimeErrorType.ArrayIndexOutOfBounds,
-                "sum([1,2,3])")
-        })
+                    RuntimeErrorType.ArrayIndexOutOfBounds,
+                    "sum([1,2,3])")
+            })
 
-        it('sum double', () =>{
-            cases(`double sum(double[] a) {
+            it('sum double', () => {
+                cases(`double sum(double[] a) {
                 double s = 0;
                 int i = 0;
                 while(i < a.length) {
@@ -200,25 +200,40 @@ describe('Matte Interpreter Test Arrays', () => {
                 return s;
             }
             `,
-                ["sum([1,2.2,3])",6.2],
-                ["sum([1,2,3])",6], // TODO to double
-                ["sum([1.2,2.1,3.3])",6.6],
-                ["sum([])",0.0]
-            )
-        })
+                    ["sum([1,2.2,3])", 6.2],
+                    ["sum([1,2,3])", 6], // TODO to double
+                    ["sum([1.2,2.1,3.3])", 6.6],
+                    ["sum([])", 0.0]
+                )
+            })
 
-        it('null return', () =>{
-            cases(`int[] test(int[] a) {
+            it('null return', () => {
+                cases(`int[] test(int[] a) {
                 if(a == null)
                     return null;
                 else
                     return new int[a.length];
             }
             `,
-                ["test(null)",null],
-                ["test([])",[]],
-                ["test([1,2,3])", [0,0,0]])
-        })
+                    ["test(null)", null],
+                    ["test([])", []],
+                    ["test([1,2,3])", [0, 0, 0]])
+            })
+
+            it('nats', () => {
+                const code = `
+            int[] nats(int n) {
+                int[] arr = new int[n];
+                int i = 0;
+                while(i < arr.length) {
+                    arr[i] = i + 1;
+                    i++;
+                }
+                return arr;
+            }
+            `
+                cases(code, ["nats(5)", [1, 2, 3, 4, 5]])
+            })
         }
     )
 })

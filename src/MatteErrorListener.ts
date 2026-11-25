@@ -66,13 +66,6 @@ export class MatteErrorListener extends ErrorListener<any> {
                 )
             });
         } else if (token) {
-            // if (token.text == "<EOF>") {
-            //     const bracketErrors = this.checkBracketMatching(recognizer)
-            //     if (bracketErrors.length != 0) {
-            //         this.errors.push(bracketErrors[0])
-            //         return
-            //     }
-            // }
             this.errors.push({
                 type: StaticErrorType.SyntaxError,
                 message: msg,
@@ -125,15 +118,6 @@ export class MatteErrorListener extends ErrorListener<any> {
         // Add the column offset (ANTLR columns are already 0-based)
         return offset + column;
     }
-
-    // checkErrors() {
-    //     if (this.errors.length != 0)
-    //         throw {
-    //             compilation: this.errors[0].type,
-    //             range: this.errors[0].range,
-    //             message: this.errors[0].message
-    //         }
-    // }
 }
 
 export function checkBracketMatching(tokens: CommonTokenStream): StaticError[] {
@@ -211,13 +195,6 @@ export function checkBracketMatching(tokens: CommonTokenStream): StaticError[] {
             type: StaticErrorType.SyntaxError
         });
     }
-
-    // if (errors.length != 0)
-    //     throw {
-    //         compilation: errors[0].type,
-    //         range: errors[0].range,
-    //         message: errors[0].message
-    //     }
 
     return errors;
 }
