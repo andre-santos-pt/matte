@@ -56,7 +56,7 @@ export function cases(code: string, ...tests: [string, any][]) {
         if(result.runtimeError) {
             assert.fail(`Runtime error ${result.runtimeError.message}`)
         }
-        const ev = typeof result.result.evaluation === "object" ? unwrapEvaluations(result.result.evaluation) : result.result.evaluation;
+        const ev = result.result.evaluation && typeof result.result.evaluation === "object" ? unwrapEvaluations(result.result.evaluation) : result.result.evaluation;
         assert.deepStrictEqual(ev, t[1], t[0]);
     })
 }

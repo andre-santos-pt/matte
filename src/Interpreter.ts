@@ -313,25 +313,23 @@ export class Interpreter {
         }
     }
 
-    private runProgram(program: Program, call?: Expression): InterpreterResult {
-        const trace = this.trace;
-
-        function tryRun(exec: () => InterpreterResult): InterpreterResult {
-            try {
-                return exec();
-            } catch (e: any) {
-                if (e.runtimeError) {
-                    return {
-                        callError: undefined,
-                        compilationErrors: [],
-                        runtimeError: e.runtimeError,
-                        result: undefined,
-                        trace: structuredClone(trace)
-                    }
-                } else throw e
-            }
+    private tryRun(exec: () => InterpreterResult): InterpreterResult {
+        try {
+            return exec();
+        } catch (e: any) {
+            if (e.runtimeError) {
+                return {
+                    callError: undefined,
+                    compilationErrors: [],
+                    runtimeError: e.runtimeError,
+                    result: undefined,
+                    trace: structuredClone(this.trace)
+                }
+            } else throw e
         }
+    }
 
+    private runProgram(program: Program, call?: Expression): InterpreterResult {
         this.procedures = program.procedures;
         if (program.block) {
             this.scope.push({
@@ -342,7 +340,7 @@ export class Interpreter {
                 children: [],
             }
             this.traceStack.push(this.trace)
-            return tryRun(() => {
+            return this.tryRun(() => {
                 // script execution
                 this.addTrace((program.block as BlockStatement), false, false, undefined, undefined);
                 (program.block as BlockStatement).statements.forEach(i => this.execute(i));
@@ -359,7 +357,7 @@ export class Interpreter {
                 }
             })
         } else {
-            return tryRun(() => ({
+            return this.tryRun(() => ({
                     callError: undefined,
                     compilationErrors: [],
                     runtimeError: undefined,
