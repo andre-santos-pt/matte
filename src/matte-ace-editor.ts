@@ -70,6 +70,7 @@ export default class MatteAceEditor {
     stepListeners: Array<(trace: TraceEntry[], index: number) => void> = [];
     compilationListeners: Array<(compilation: CompilationResult) => void> = [];
     settings: Settings;
+    private settingsMenu?: HTMLElement;
     trace: TraceEntry[] = [];
     private _resizeTimeout: number | null = null;
     private callError?: StaticError;
@@ -88,6 +89,16 @@ export default class MatteAceEditor {
 
     setProperty(key: string, value: any): void {
         this.settings.set(key, value);
+    }
+
+    hideSettingsButton(): void {
+        if (this.settingsMenu)
+            this.settingsMenu.hidden = true;
+    }
+
+    showSettingsButton(): void {
+        if (this.settingsMenu)
+            this.settingsMenu.hidden = false;
     }
 
     constructor(
@@ -137,7 +148,7 @@ export default class MatteAceEditor {
         });
         this.editor.setHighlightActiveLine(false);
 
-        this.settings.createSettingsMenu();
+        this.settingsMenu = this.settings.createSettingsMenu();
 
         this.runBar = document.createElement('div');
         this.runBar.style = "display: flex; align-items: center; gap: 10px; margin-top: 5px; margin-bottom: 5px";
