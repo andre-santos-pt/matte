@@ -769,9 +769,17 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     }
 
     visitAssignment = (ctx: AssignmentContext) => {
-        const exp = this.expToAST(ctx.exp())
-        const dec = this.varLookup(ctx.compId().ID(0).getText(), ctx.compId().ID(0), exp)
+        const right = this.expToAST(ctx.exp())
+        const dec = this.varLookup(ctx.compId().ID(0).getText(), ctx.compId().ID(0), right)
         this.checkImmutableAssignment(dec, this.rangeContext(ctx))
+        const exp = ctx._operator.type === JavaGrammarParser.ASSIGN
+            ? right
+            : new ArithmeticExpression(
+                this.rangeContext(ctx),
+                ctx._operator.text[0],
+                new Variable(this.rangeTerminal(ctx.compId().ID(0)), dec),
+                right
+            )
 
         return new Assignment(
             this.rangeContext(ctx),

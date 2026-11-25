@@ -44,7 +44,7 @@ forProgress: assignment|inc|dec;
 
 declaration: FINAL? (type | VAR) id=ID (ASSIGN (expression=exp | arrayInitializer=arrayLiteral))?;
 
-assignment: id=compId ASSIGN expression=exp; // TODO field set (classes)
+assignment: id=compId operator=(ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | MULT_ASSIGN | DIV_ASSIGN | MOD_ASSIGN) expression=exp; // TODO field set (classes)
 
 compId: ID (DOT ID)*;
 
@@ -158,8 +158,20 @@ RBRACK: ']' ;
 ASSIGN: '=' ;
 
 PLUS_ASSIGN: '+=' ;
-
 PLUS_ASSIGN_MIS: '=+' ;
+
+MINUS_ASSIGN: '-=' ;
+
+MULT_ASSIGN: '*=' ;
+MULT_ASSIGN_MIS: '=*' ;
+
+DIV_ASSIGN: '/=' ;
+DIV_ASSIGN_MIS: '=/' ;
+
+MOD_ASSIGN: '%=' ;
+MOD_ASSIGN_MIS: '=%' ;
+
+
 
 EQ: '==' ;
 NEQ: '!=' ;

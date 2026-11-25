@@ -1,7 +1,7 @@
 import {Interpreter, RuntimeErrorType} from '../Interpreter';
 
 import {compilationError, runtimeError, script} from "./utils";
-import {StaticErrorType} from "../ast";
+import {ArithmeticExpression, Assignment, StaticErrorType} from "../ast";
 import {buildAST} from "../antlr2ast";
 
 describe('Matte Interpreter Test Script', () => {
@@ -18,6 +18,34 @@ describe('Matte Interpreter Test Script', () => {
                 .set("j", 20)
                 .set("z", 80)
             )
+        });
+
+        it('compound arithmetic assignments', () => {
+            script(`
+                int value = 100;
+                value += 10;
+                int added = value;
+                value -= 10;
+                int subtracted = value;
+                value *= 2;
+                int multiplied = value;
+                value /= 4;
+                int divided = value;
+                value %= 7;
+            `, new Map()
+                .set("value", 1)
+                .set("added", 110)
+                .set("subtracted", 100)
+                .set("multiplied", 200)
+                .set("divided", 50))
+        });
+
+        it('translates compound assignments to regular assignments', () => {
+            const result = buildAST('int value = 2; value *= 3;')
+            const assignment = result.program?.block?.statements[1]
+            expect(assignment).toBeInstanceOf(Assignment)
+            expect((assignment as Assignment).expression).toBeInstanceOf(ArithmeticExpression)
+            expect(((assignment as Assignment).expression as ArithmeticExpression).operator).toBe("*")
         });
 
         it('final variable declarations are immutable', () => {

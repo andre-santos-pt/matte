@@ -35,7 +35,7 @@ export function runtimeError(code: string, expected: RuntimeErrorType, call?: st
         assert.fail(`Compilation error: ${result.compilationErrors[0].message}`)
     }
     if(result.callError)
-        assert.fail(result.callError)
+        assert.fail(result.callError.message)
     if(!result.trace)
         assert.fail(`No trace`)
 
