@@ -208,14 +208,14 @@ export function buildASTandCall(source: string, call: string): [CompilationResul
     } catch (e: any) {
         if (e.callError)
             throw e
-        e.program = program
-        if (e.compilation == StaticErrorType.UndeclaredVariable || e.compilation == StaticErrorType.Unsupported)
-            e.callError = "Not a valid call"
-        else if (e.compilation)
-            e.callError = e.message
+        // e.program = program
+        // if (e.compilation == StaticErrorType.UndeclaredVariable || e.compilation == StaticErrorType.Unsupported)
+        //     e.callError = "Not a valid call"
+        // else if (e.compilation)
+        //     e.callError = e.message
         throw {
             callError: "Not a valid call",
-            program: program,
+            program: e.program,
         }
     }
 }
@@ -282,6 +282,19 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             this.streamText(ctx)
         );
     }
+
+    private rangeContextTo(from: ParserRuleContext, to: ParserRuleContext): Range {
+        const start = from.start.start;
+        const end = (to.stop?.stop || start) + 1; // Handle cases where _stop might be undefined
+        return new Range(
+            start,
+            end,
+            from.start.line,
+            to.start.column,
+            this.tokenStream.getText(new Interval(start, end))
+        );
+    }
+
 
     private rangeToken(token: Token): Range {
         return new Range(
@@ -1073,7 +1086,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             const proc = this.procedures.find(p => p.name == ctx._id.text)
             if (proc) {
                 let args = ctx._args ? ctx._args.expLiteral_list().map(a => this.visitExpLiteral(a)) : []
-                this.checkArgs(ctx, args, proc)
+                this.checkArgs(ctx.expLiteralList()?.expLiteral_list() ?? [ctx], args, proc)
                 return new CallExpression(
                     this.rangeContext(ctx),
                     proc,
@@ -1082,9 +1095,13 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 )
             } else {
                 this.errors.push({
-                    message: "Invalid call",
-                    type: StaticErrorType.Unsupported,
-                    range: this.rangeContext(ctx)
+                    message: `No method named ${mark(ctx._id.text)} found`,
+                    type: StaticErrorType.MethodNotFound,
+                    range: this.rangeToken(ctx._id),
+                    detail: {
+                        related: this.procedures.map(p => p.nameRange),
+                        hint: this.procedures.length == 0 ? undefined : "Do you mean " + this.procedures.map(p => mark(p.name)).join(", ") + "?"
+                    }
                 })
                 return new UnboundCallExpression(this.rangeContext(ctx), ctx._id.text, false, [])
             }
@@ -1093,7 +1110,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             if (proc) {
                 let instance = this.visitExpLiteral(ctx.expLiteral());
                 let args = ctx._args ? [instance, ...ctx._args.expLiteral_list().map(a => this.visitExpLiteral(a))] : [instance]
-                this.checkArgs(ctx, args, proc)
+                this.checkArgs(ctx.expLiteralList()?.expLiteral_list() ?? [ctx], args, proc)
                 return new CallExpression(
                     this.rangeContext(ctx),
                     proc,
@@ -1102,7 +1119,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 )
             } else {
                 this.errors.push({
-                    message: "Invalid call",
+                    message: "Instance call not supported here",
                     type: StaticErrorType.Unsupported,
                     range: this.rangeContext(ctx)
                 })
@@ -1189,7 +1206,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         }
 
 
-        this.checkArgs(callCtx, args, proc);
+        this.checkArgs(callCtx.expList()?.exp_list() ?? [callCtx], args, proc);
 
         return new CallExpression(
             this.rangeContext(ctx),
@@ -1206,7 +1223,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             if (type instanceof TypeDeclaration && !type.isRecord) {
                 const constructor = this.findMethodInType(type, "$init");
                 if (constructor)
-                    this.checkArgs(ctx, args, constructor, 1);
+                    this.checkArgs(ctx.newCall()?.expList()?.exp_list() ?? [ctx.newCall()], args, constructor, 1);
                 else if (args.length > 0) {
                     this.errors.push({
                         message: `Class '${type.name}' has no constructor accepting arguments`,
@@ -1234,7 +1251,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             let args = ctx._args ? ctx._args.exp_list().map(e => this.expToAST(e)) : []
             if (proc.instance)
                 args.unshift(new Variable(this.rangeContext(ctx), new Declaration(undefined, "this", undefined, true, proc.parameters[0].type, undefined)))
-            this.checkArgs(ctx.expList() ?? ctx, args, proc)
+            this.checkArgs(ctx.expList()?.exp_list() ?? [ctx], args, proc)
 
             return new CallExpression(
                 this.rangeContext(ctx),
@@ -1251,14 +1268,15 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             )
     }
 
-    private checkArgs(ctx: ParserRuleContext, args: Expression[], proc: Procedure, parameterOffset = 0) {
+    private checkArgs(ctx: ParserRuleContext[], args: Expression[], proc: Procedure, parameterOffset = 0) {
         const expectedCount = proc.parameters.length - parameterOffset;
         if (expectedCount != args.length)
         {
             this.errors.push({
                 message: "Method " + mark(proc.name) + " expects " + expectedCount + " arguments (not " + args.length + ")",
                 type: StaticErrorType.NumberArgumentsMismatch,
-                range: this.rangeContext(ctx),
+                range: args.length == 0 ? this.rangeTokenTo(ctx[0].getToken(JavaGrammarParser.LPAREN,0).symbol,
+                    ctx[0].getToken(JavaGrammarParser.RPAREN, 0).symbol) : this.rangeContextTo(ctx[0], ctx[ctx.length - 1]),
                 detail: {
                     related: [...proc.parameters.slice(parameterOffset).map(p => p.typeRange)]
                 }
@@ -1275,7 +1293,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                 this.errors.push({
                     message: "The " + this.toWordOrder(index) + " parameter of method " + mark(proc.name) + " is of type " + markType(parameter.type) + " (not " + markType(arg.type) + ")",
                     type: StaticErrorType.ArgumentTypesMismatch,
-                    range: this.rangeContext(ctx),
+                    range: this.rangeContext(ctx[index]),
                     detail: {
                         related: [parameter.typeRange]
                     }

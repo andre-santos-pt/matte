@@ -173,7 +173,7 @@ export class Interpreter {
                     callError: {
                         range: new Range(0, call.length, 1, 1,),
                         type: StaticErrorType.Unsupported,
-                        message:  "No call should be provided when executing scripts."
+                        message:  "No call should be provided when executing scripts"
                     },
                     result: undefined,
                     trace: undefined,
@@ -200,7 +200,7 @@ export class Interpreter {
                 callError: {
                     range: new Range(0, 0, 1, 1, ""),
                     type: StaticErrorType.Unsupported,
-                    message:  "No call provided for execution."
+                    message:  "No call provided for execution"
                 },
                 compilationErrors: [],
                 runtimeError: undefined,

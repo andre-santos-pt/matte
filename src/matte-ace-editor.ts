@@ -72,6 +72,7 @@ export default class MatteAceEditor {
     settings: Settings;
     trace: TraceEntry[] = [];
     private _resizeTimeout: number | null = null;
+    private callError?: StaticError;
     errorMessageHandler = new NullErrorMessageHandler();
 
     readonly: boolean = false;
@@ -356,6 +357,11 @@ export default class MatteAceEditor {
         callBox.after(this.resultLabel);
         callBox.addEventListener('input', () => {
             this.resultLabel.style.visibility = "hidden";
+            this.clearCallErrorMark();
+        });
+        callBox.addEventListener('scroll', () => {
+            if (this.callError)
+                this.markCallError(this.callError);
         });
 
         this.editor.container.addEventListener('keydown', (event) => {
@@ -376,10 +382,19 @@ export default class MatteAceEditor {
     }
 
     updateCallBar(result: InterpreterResult): void {
+        this.clearSecondaryMarkers();
         this.resultLabel.style.visibility = result.callError || result.result?.evaluation !== undefined ? "visible" : "hidden";
+        if (!result.callError)
+            this.clearCallErrorMark();
 
-        if (result.callError)
-            this.resultLabel.innerHTML = "<span style='color: #a19f9f; font-style: italic'>" + result.callError.message + "</span>";
+        if (result.callError) {
+            let msg = result.callError.message;
+            if(result.callError.detail?.hint)
+                msg += "<br>" + result.callError.detail?.hint
+            this.resultLabel.innerHTML = "<span style='color: #a19f9f; font-style: italic'>" + msg + "</span>";
+            this.markCallError(result.callError);
+            result.callError.detail?.related?.forEach((range: MatteRange) => this.markSecondaryHighlights(range))
+        }
         else if (result.compilationErrors.length == 0 && !result.runtimeError) {
             this.resultLabel.innerHTML = '';
             if (result.result?.evaluation !== undefined)
@@ -402,8 +417,51 @@ export default class MatteAceEditor {
                         this.resultLabel.style.visibility = "visible"
                     }
                 }
+
             }
         }
+    }
+
+    private markCallError(error: StaticError): void {
+        if (!this.callBox)
+            return;
+
+        this.callBox.setAttribute("aria-invalid", "true");
+        this.callBox.title = error.message;
+        this.callError = error;
+
+        const start = Math.max(0, Math.min(error.range.start, this.callBox.value.length));
+        const end = Math.max(start, Math.min(error.range.end, this.callBox.value.length));
+        const style = window.getComputedStyle(this.callBox);
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        if (!context)
+            throw new Error("Unable to measure call input text");
+        context.font = style.font;
+        const letterSpacing = Number.parseFloat(style.letterSpacing) || 0;
+        const measure = (text: string) => context.measureText(text).width;
+        const left = Math.max(
+            0,
+            Math.min(this.callBox.clientWidth, Number.parseFloat(style.paddingLeft) + measure(this.callBox.value.slice(0, start)) + start * letterSpacing - this.callBox.scrollLeft)
+        );
+        const right = Math.max(left + (start === end ? 2 : 0), Math.min(
+            this.callBox.clientWidth,
+            Number.parseFloat(style.paddingLeft) + measure(this.callBox.value.slice(0, end)) + end * letterSpacing - this.callBox.scrollLeft
+        ));
+        const highlight = "rgba(217, 48, 37, 0.3)";
+        this.callBox.style.backgroundImage = `linear-gradient(to right, ${style.backgroundColor} 0px, ${style.backgroundColor} ${left}px, ${highlight} ${left}px, ${highlight} ${Math.max(left, right)}px, ${style.backgroundColor} ${Math.max(left, right)}px)`;
+        this.callBox.style.backgroundColor = style.backgroundColor;
+    }
+
+    private clearCallErrorMark(): void {
+        if (!this.callBox)
+            return;
+
+        this.callBox.removeAttribute("aria-invalid");
+        this.callBox.title = "Write a call to a function or leave empty to run script";
+        this.callBox.style.borderColor = "#d0d0d0";
+        this.callBox.style.backgroundImage = "none";
+        this.callError = undefined;
     }
 
     createDebugBox(): void {
