@@ -2,6 +2,7 @@ import {CommonTokenStream, ErrorListener, Recognizer, Token} from "antlr4";
 import {StaticError, StaticErrorType} from "./ast";
 import Range from "./Range";
 import JavaGrammarParser from "./generated/JavaGrammarParser";
+import {mark} from "./antlr2ast";
 
 export class MatteErrorListener extends ErrorListener<any> {
     input: string
@@ -55,7 +56,7 @@ export class MatteErrorListener extends ErrorListener<any> {
                 stopOffset = token.start;
             }
             this.errors.push({
-                type: StaticErrorType.SyntaxError,
+                type: StaticErrorType.MissingToken,
                 message: msg.substring(0, msg.indexOf("at")) + "here",
                 range: new Range(
                     startOffset,
@@ -63,7 +64,10 @@ export class MatteErrorListener extends ErrorListener<any> {
                     errorLine,
                     errorColumn,
                     ""
-                )
+                ),
+                detail: {
+                    missing: msg.substring("missing '".length, msg.indexOf("' at"))
+                }
             });
         } else if (token) {
             this.errors.push({
@@ -152,7 +156,7 @@ export function checkBracketMatching(tokens: CommonTokenStream): StaticError[] {
             // Error: Found a closing bracket with no matching open bracket
             if (!lastOpenToken) {
                 errors.push({
-                    message: `Unmatched closing bracket '${token.text}'`,
+                    message: `Not closing a matching ${token.text === '}' ? '{' : token.text === ')' ? '(' : '['}`,
                     range: new Range(
                         token.start,
                         token.stop + 1,
@@ -174,7 +178,16 @@ export function checkBracketMatching(tokens: CommonTokenStream): StaticError[] {
                         token.column,
                         token.text
                     ),
-                    type: StaticErrorType.SyntaxError
+                    type: StaticErrorType.SyntaxError,
+                    detail: {
+                        related: [new Range(
+                            lastOpenToken.start,
+                            lastOpenToken.stop + 1,
+                            lastOpenToken.line,
+                            lastOpenToken.column,
+                            lastOpenToken.text
+                        )]
+                    }
                 });
             }
         }
@@ -184,7 +197,7 @@ export function checkBracketMatching(tokens: CommonTokenStream): StaticError[] {
     while (stack.length > 0) {
         const openToken = stack.pop()!;
         errors.push({
-            message: `Unclosed bracket '${openToken.text}'`,
+            message: `Bracket is not closed`,
             range: new Range(
                 openToken.start,
                 openToken.stop + 1,
@@ -192,7 +205,10 @@ export function checkBracketMatching(tokens: CommonTokenStream): StaticError[] {
                 openToken.column,
                 openToken.text
             ),
-            type: StaticErrorType.SyntaxError
+            type: StaticErrorType.MissingToken,
+            detail: {
+                missing: "}"
+            }
         });
     }
 

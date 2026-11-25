@@ -19,6 +19,7 @@ export interface StaticError {
 
 export enum StaticErrorType {
     TokenError = "TOKEN",
+    MissingToken = "MISSING_TOKEN",
     SyntaxError = "SYNTAX",
     UndeclaredVariable = "VAR_NOT_FOUND",
     DuplicateVariable = "DUP_VAR",

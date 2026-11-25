@@ -1,3 +1,4 @@
+
 export default class Range {
     public start: number;
     public end: number;
@@ -41,12 +42,4 @@ export default class Range {
     contains(offset: number): boolean {
         return offset >= this.start && offset <= this.end;
     }
-
-    // setLoose() {
-    //     this.text = undefined
-    // }
-    //
-    // isLoose() {
-    //     return this.text == undefined
-    // }
 }
