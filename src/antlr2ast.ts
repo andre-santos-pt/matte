@@ -528,7 +528,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     this.rangeContext(f),
                     f.field().ID().getText(),
                     this.rangeToken(f.field()._id),
-                    false,
+                    f.field().FINAL() != null,
                     this.findType(f.field().type_()) ?? new ForeignType(f.field().type_().getText()),
                     this.rangeContext(f.field().type_()),
                     f.field().exp() ? this.expToAST(f.field().exp()) : undefined
@@ -665,6 +665,18 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         ].includes(id)
     }
 
+    checkImmutableAssignment(dec: Declaration, range: Range) {
+        if (dec.immutable)
+            this.errors.push({
+                type: StaticErrorType.ImmutableVariable,
+                range,
+                message: `Variable ${mark(dec.name)} is immutable, it cannot be reassigned`,
+                detail: {
+                    related: [dec.typeRange] // TODO highlight final keyword
+                }
+            })
+    }
+
     visitDeclaration = (ctx: DeclarationContext) => {
         if (last(this.varScope).variables.has(ctx._id.text))
             this.errors.push({
@@ -703,7 +715,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
             this.rangeContext(ctx),
             ctx._id.text,
             this.rangeToken(ctx._id),
-            false,
+            ctx.FINAL() != null,
             type ? type : new ForeignType(ctx.type_()?.getText() ?? ctx._id.text),
             inferred ? this.rangeTerminal(ctx.VAR()!) : this.rangeContext(ctx.type_()),
             exp
@@ -715,15 +727,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
     visitAssignment = (ctx: AssignmentContext) => {
         const exp = this.expToAST(ctx.exp())
         const dec = this.varLookup(ctx.compId().ID(0).getText(), ctx.compId().ID(0), exp)
-        if (dec.immutable)
-            this.errors.push({
-                type: StaticErrorType.ImmutableVariable,
-                range: this.rangeContext(ctx),
-                message: `Variable ${mark(dec.name)} is immutable, it cannot be reassigned`,
-                detail: {
-                    related: [dec.range]
-                }
-            })
+        this.checkImmutableAssignment(dec, this.rangeContext(ctx))
 
         return new Assignment(
             this.rangeContext(ctx),
@@ -804,6 +808,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         }
 
         const dec = this.varLookup(ctx._target.getText(), ctx._target.ID())
+        this.checkImmutableAssignment(dec, this.rangeContext(ctx))
         const inc = new ArithmeticExpression(
             this.rangeContext(ctx),
             "+",
@@ -827,6 +832,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         }
 
         const dec = this.varLookup(ctx._target.getText(), ctx._target.ID())
+        this.checkImmutableAssignment(dec, this.rangeContext(ctx))
         const inc = new ArithmeticExpression(
             this.rangeContext(ctx),
             "-",

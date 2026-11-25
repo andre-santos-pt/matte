@@ -20,6 +20,29 @@ describe('Matte Interpreter Test Script', () => {
             )
         });
 
+        it('final variable declarations are immutable', () => {
+            script(`
+                final int answer = 42;
+                final var copy = answer;
+            `, new Map()
+                .set("answer", 42)
+                .set("copy", 42))
+        });
+
+        it('final variable cannot be reassigned', () => {
+            compilationError(`
+                final int answer = 42;
+                answer = 0;
+            `, StaticErrorType.ImmutableVariable)
+        });
+
+        it('final variable cannot be incremented', () => {
+            compilationError(`
+                final int answer = 42;
+                answer++;
+            `, StaticErrorType.ImmutableVariable)
+        });
+
         it('var not found assign', () => {
             compilationError(`
         int i = 10;

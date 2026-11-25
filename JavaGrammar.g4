@@ -12,7 +12,7 @@ constructor: id=ID LPAREN params? RPAREN LCURLY statement* RCURLY;
 
 record: RECORD id=ID LPAREN params RPAREN LCURLY method* RCURLY;
 
-field: type id=ID (ASSIGN expression=exp)? TERM;
+field: FINAL? type id=ID (ASSIGN expression=exp)? TERM;
 
 method: type id=ID LPAREN params? RPAREN LCURLY statement* RCURLY ;
 
@@ -42,7 +42,7 @@ for: FOR LPAREN declaration? TERM expression=exp? TERM forProgress? RPAREN body=
 
 forProgress: assignment|inc|dec;
 
-declaration: (type | VAR) id=ID (ASSIGN (expression=exp | arrayInitializer=arrayLiteral))?;
+declaration: FINAL? (type | VAR) id=ID (ASSIGN (expression=exp | arrayInitializer=arrayLiteral))?;
 
 assignment: id=compId ASSIGN expression=exp; // TODO field set (classes)
 
@@ -186,6 +186,8 @@ DOT: '.';
 BOOLEAN: 'true'|'false';
 
 CLASS: 'class';
+
+FINAL: 'final';
 
 VAR: 'var';
 

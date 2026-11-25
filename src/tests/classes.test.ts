@@ -51,6 +51,18 @@ describe('Matte Interpreter Objects', () => {
 
     })
 
+    it('final fields cannot be reassigned', () => {
+        compilationError(`
+            class Box {
+                final int value = 1;
+
+                void setValue() {
+                    value = 2;
+                }
+            }
+        `, StaticErrorType.ImmutableVariable)
+    })
+
     it('runs a constructor after initializing fields', () => {
         cases(`
             class Box {
