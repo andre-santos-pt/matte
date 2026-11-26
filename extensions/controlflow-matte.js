@@ -4,6 +4,7 @@ function controlflow_matte(editor) {
 
     const toolbar = document.createElement("div");
     toolbar.className = "control-flow-toolbar";
+
     const label = document.createElement("label");
     label.textContent = "Control flow for";
     const select = document.createElement("select");
@@ -296,6 +297,7 @@ function controlflow_matte(editor) {
     function update() {
         graph.replaceChildren();
         select.replaceChildren();
+        toolbar.hidden = false;
         if (!compilation || compilation.errors.length || !compilation.program) {
             const option = document.createElement("option");
             option.textContent = "(script)";
@@ -319,6 +321,7 @@ function controlflow_matte(editor) {
         }
 
         selectedIndex = Math.min(selectedIndex, bodies.length - 1);
+        toolbar.hidden = bodies.length === 1;
         bodies.forEach((_, index) => addOption(bodies, index));
         select.value = String(selectedIndex);
         renderGraph(bodies[selectedIndex].body, undefined, bodies[selectedIndex].entryLabel);

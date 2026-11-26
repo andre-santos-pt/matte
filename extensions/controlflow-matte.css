@@ -13,6 +13,10 @@
     font-size: 13px;
 }
 
+.control-flow-toolbar[hidden] {
+    display: none;
+}
+
 .control-flow-toolbar select {
     max-width: 100%;
     padding: 3px 6px;

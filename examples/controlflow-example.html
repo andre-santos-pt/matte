@@ -11,7 +11,7 @@
 <script src="../dist/matte-web-ace.js" defer></script>
 Displays the control-flow graph for a script or procedure. Branches and loops show their true/false edges; every graph includes entry and exit nodes.
 
-<matte-ace call="classify(3)" controlflow>
+<matte-ace call="classify(3)" controlflow location="right">
 int classify(int n) {
     int total = 0;
     while (n > 0) {
@@ -26,8 +26,8 @@ int classify(int n) {
 }
 </matte-ace>
 
-<matte-ace call="classify(3)" controlflow>
-    int classify(int n) {
+<matte-ace call="classify(3)" controlflow location="left">
+    int classify1(int n) {
         if(n == 1)
             return 1;
         else if(n == 2)
@@ -35,18 +35,20 @@ int classify(int n) {
         else
             return 3;
     }
+
+    int classify2(int n) {
+        int x;
+        if(n == 1)
+            x = 1;
+        if(n == 2)
+            x = 2;
+        x = 3;
+        return x;
+    }
 </matte-ace>
 
-<matte-ace call="classify(3)" controlflow>
-    int classify(int n) {
-    int x;
-    if(n == 1)
-        x = 1;
-    if(n == 2)
-        x = 2;
-    x = 3;
-    return x;
-    }
+<matte-ace call="classify(3)" controlflow location="top">
+
 </matte-ace>
 
 <h1>deadcode</h1>
