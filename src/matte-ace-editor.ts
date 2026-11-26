@@ -351,8 +351,8 @@ export default class MatteAceEditor {
         this.editor.destroy();
     }
 
-// Adjust container height based on the number of visible (screen) lines
-    adjustHeight(): void {
+    private adjustHeight(): void {
+        // Adjust container height based on the number of visible (screen) lines
         if (!this.autoHeight) return;
         try {
             const session = this.editor.session;
@@ -557,7 +557,7 @@ export default class MatteAceEditor {
         this.forwardBtn.after(this.closeDebugBtn);
 
         this.afterRunListeners.push(result => {
-            this.debugBtn.style.visibility = !result.callError && result.compilationErrors.length == 0 ? "visible" : "hidden";
+            this.debugBtn.style.visibility = result.trace && !result.callError && result.compilationErrors.length == 0 ? "visible" : "hidden";
             if (!result.callError && result.compilationErrors.length == 0)
                 this.setDebugMode(false);
         })
@@ -654,9 +654,11 @@ export default class MatteAceEditor {
         }
     }
 
-
     createInterpreter(): Interpreter {
         const interpreter = new Interpreter(this.settings.maxLoopIterations, this.settings.maxCallStack);
+        if(!this.settings[SettingProperty.Tracing])
+            interpreter.traceOn = false
+
         this.extensionProcedures.forEach((extension) => {
             interpreter.addExtensionProcedure(extension);
         });
@@ -782,10 +784,6 @@ export default class MatteAceEditor {
             .replace(/>=/g, "≥")
     }
 
-    isLiteral(value: unknown): boolean {
-        return value === null || (typeof value !== "object" && typeof value !== "function");
-    }
-
     markCompilationError(e: StaticError): void {
         const eTrans = this.errorMessageHandler.transform(e)
         this.editor.session.addMarker(
@@ -898,8 +896,6 @@ export default class MatteAceEditor {
                         this.popup(value.evaluation[f].declaration.end, this.prettyPrint(value.evaluation[f].evaluation, value.evaluation[f].type) + matText, false)
                 })
             }
-
-
         }
     }
 

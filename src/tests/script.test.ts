@@ -1,6 +1,6 @@
 import {Interpreter, RuntimeErrorType} from '../Interpreter';
 
-import {compilationError, runtimeError, script} from "./utils";
+import {cases, compilationError, runtimeError, script} from "./utils";
 import {ArithmeticExpression, Assignment, StaticErrorType} from "../ast";
 import {buildAST} from "../antlr2ast";
 import assert from "assert";
@@ -267,8 +267,6 @@ describe('Matte Interpreter Test Script', () => {
         });
 
 
-
-
         it('for', () => {
             script(`
         for(int i = 0; i != 10; i = i + 1) {
@@ -386,7 +384,7 @@ describe('Matte Interpreter Test Script', () => {
         });
 
         it('comments', () => {
-           const p = script(`
+            const p = script(`
        
         int sum = 5; // variable
        
@@ -396,6 +394,36 @@ describe('Matte Interpreter Test Script', () => {
                 .set("result", 15)
             )
             console.log(p?.block?.statements)
+        });
+
+        it('no tracing script', () => {
+            const code = `
+                    int x = 10;
+                    x += 10;
+                    x += 20;
+                    `
+            const interpreter = new Interpreter()
+            const result1 = interpreter.parseAndRun(code);
+            assert.notEqual(result1.trace, undefined)
+
+            interpreter.traceOn = false
+            const result2 = interpreter.parseAndRun(code);
+            assert.equal(result2.trace, undefined)
+        });
+
+        it('no tracing function', () => {
+            const code = `
+                int classify(int n) {
+                    int x = n + 1;
+                    return x;
+                }`
+            const interpreter = new Interpreter()
+            const result1 = interpreter.parseAndRun(code, "classify(1)");
+            assert.notEqual(result1.trace, undefined)
+
+            interpreter.traceOn = false
+            const result2 = interpreter.parseAndRun(code, "classify(1)");
+            assert.equal(result2.trace, undefined)
         });
 
     })

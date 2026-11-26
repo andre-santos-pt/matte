@@ -5,6 +5,7 @@ export enum SettingProperty {
     FontSize = "fontsize",
     LineNumbers = "linenumbers",
     HighlightActiveLine = "linehighlight",
+    Tracing = "tracing",
     AutoRun = "autorun",
     AutoCompile = "autocompile",
     SecondaryMarks = "secondarymarks",
@@ -65,6 +66,9 @@ const settingsConf: Record<SettingProperty, SettingsConf> = {
             editor.editor.setOption("highlightActiveLine", value);
         }
     },
+    [SettingProperty.Tracing]: {
+        label: "Tracing"
+    },
     [SettingProperty.AutoRun]: {
         label: "Auto run"
     },
@@ -96,6 +100,7 @@ export class Settings {
     [SettingProperty.FontSize]: number = 14;
     [SettingProperty.LineNumbers]: boolean = false;
     [SettingProperty.HighlightActiveLine]: boolean = false;
+    [SettingProperty.Tracing]: boolean = true;
     [SettingProperty.AutoRun]: boolean = false;
     [SettingProperty.AutoCompile]: boolean = true;
     [SettingProperty.CompilationHints]: boolean = true;

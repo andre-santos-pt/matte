@@ -131,21 +131,32 @@ export class ExtensionType {
 }
 
 export class Interpreter {
-    private scope: StackFrame[] = []
-    private trace?: TraceEntry = undefined
-    private traceStack: TraceEntry[] = []
-    private traceOn = true
-
-    private loopCount = new Map()
-    private procedures: Procedure[] = []
-    private extensionProcedures: ExtensionProcedure[] = []
-    private extensionTypes: ExtensionType[] = []
     private readonly maxLoopIterations?: number
     private readonly maxCallStack?: number
 
     constructor(maxLoopIterations?: number, maxCallStack: number = 100) {
         this.maxLoopIterations = maxLoopIterations
         this.maxCallStack = maxCallStack
+    }
+
+    private readonly extensionProcedures: ExtensionProcedure[] = []
+    private readonly extensionTypes: ExtensionType[] = []
+
+    private procedures: Procedure[] = []
+
+    private scope: StackFrame[] = []
+    private traceStack: TraceEntry[] = []
+    private loopCount = new Map()
+    private trace?: TraceEntry = undefined
+
+    traceOn: boolean = true
+
+
+    private clearState() {
+        this.scope = []
+        this.traceStack = []
+        this.loopCount = new Map()
+        this.trace = undefined
     }
 
     addExtensionProcedure(extension: ExtensionProcedure) {
@@ -160,6 +171,7 @@ export class Interpreter {
     }
 
     parseAndRun(source: string, call?: string): InterpreterResult {
+        this.clearState()
         let progAndCall: [CompilationResult?, Expression?] = [undefined, undefined]
         try {
             if (call) {
@@ -342,11 +354,13 @@ export class Interpreter {
             this.scope.push({
                 variables: new Map()
             })
-            this.trace = {
-                stack: structuredClone(last(this.scope)),
-                children: [],
+            if(this.traceOn) {
+                this.trace = {
+                    stack: structuredClone(last(this.scope)),
+                    children: [],
+                }
+                this.traceStack.push(this.trace)
             }
-            this.traceStack.push(this.trace)
             return this.tryRun(() => {
                 // script execution
                 this.addTrace((program.block as BlockStatement), false, false, undefined, undefined);
