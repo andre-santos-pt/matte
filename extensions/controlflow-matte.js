@@ -20,8 +20,10 @@ function controlflow_matte(editor) {
     let viz;
     let activeRange;
     let activeEntry = false;
+    let activeExit = false;
     let renderedNodes = [];
     let renderedEntryId;
+    let renderedExitId;
 
     function sourceText(range) {
         if (!range)
@@ -180,8 +182,12 @@ function controlflow_matte(editor) {
         return reachable;
     }
 
-    function highlightActiveNode(svg, nodes, entryId) {
+    function highlightActiveNode(svg, nodes, entryId, exitId) {
         svg.querySelectorAll(".cfg-active").forEach(node => node.classList.remove("cfg-active"));
+        if (activeExit) {
+            svg.querySelector(`[id="cfg-node-${exitId}"]`)?.classList.add("cfg-active");
+            return;
+        }
         if (activeEntry) {
             svg.querySelector(`[id="cfg-node-${entryId}"]`)?.classList.add("cfg-active");
             return;
@@ -239,6 +245,7 @@ function controlflow_matte(editor) {
         const reachable = findReachableNodes(edges, entry);
         renderedNodes = nodes;
         renderedEntryId = entry;
+        renderedExitId = exit;
         const lines = [
             "digraph ControlFlow {",
             '  graph [rankdir=TB, ranksep=0.25, nodesep=0.3, splines=polyline, bgcolor="transparent"];',
@@ -296,7 +303,7 @@ function controlflow_matte(editor) {
                     group.style.cursor = "pointer";
                     group.addEventListener("click", () => selectNodeSource(node));
                 });
-                highlightActiveNode(svg, nodes, entry);
+                highlightActiveNode(svg, nodes, entry, exit);
             })
             .catch(error => {
                 if (sequence !== renderSequence)
@@ -349,6 +356,7 @@ function controlflow_matte(editor) {
         selectedIndex = 0;
         activeRange = undefined;
         activeEntry = false;
+        activeExit = false;
         update();
     });
 
@@ -368,13 +376,16 @@ function controlflow_matte(editor) {
         compilation = undefined;
         activeRange = undefined;
         activeEntry = false;
+        activeExit = false;
         update();
         window.setTimeout(() => editor.checkCompilation(), 200);
     });
 
     editor.stepListeners.push((trace, index) => {
-        activeRange = trace[index]?.range;
+        const traceEntry = trace[index];
+        activeRange = traceEntry?.range;
         activeEntry = index === 0;
+        activeExit = traceEntry?.extension === "invocation-termination";
         const bodies = getBodies(compilation?.program ?? {});
         const procedureIndex = findProcedureBodyIndex(bodies, activeRange);
         if (procedureIndex >= 0 && procedureIndex !== selectedIndex) {
@@ -384,7 +395,7 @@ function controlflow_matte(editor) {
         }
         const svg = graph.querySelector("svg");
         if (svg)
-            highlightActiveNode(svg, renderedNodes, renderedEntryId);
+            highlightActiveNode(svg, renderedNodes, renderedEntryId, renderedExitId);
     });
 
     editor.checkCompilation();

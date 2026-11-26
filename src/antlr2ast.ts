@@ -669,7 +669,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         })
         let body: Statement[] = ctx.statement_list().flatMap(s => this.visit(s))
         this.varScope.pop()
-        return new BlockStatement(this.rangeTokenTo(ctx.LCURLY().symbol, ctx.RCURLY().symbol), body)
+        return new BlockStatement(this.rangeTokenTo(ctx.LCURLY().symbol, ctx.RCURLY().symbol), body, this.rangeToken(ctx.RCURLY().symbol))
     }
 
     visitStmt = (ctx: StatementContext) => {

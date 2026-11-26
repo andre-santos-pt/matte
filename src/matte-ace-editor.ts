@@ -191,7 +191,7 @@ export default class MatteAceEditor {
                 result.compilationErrors.forEach(e => this.markCompilationError(e))
             else {
                 if (result.trace)
-                    this.trace = flatTrace(result.trace).filter(e => e.range && e.range.end < this.editor.getValue().length)
+                    this.trace = flatTrace(result.trace).filter(e => e.range && e.range.end <= this.editor.getValue().length)
                 if (result.runtimeError)
                     this.markRuntimeError(result.runtimeError);
                 else if (result.program?.block && result.trace?.children?.length)

@@ -404,10 +404,12 @@ export class ArrayAssignment extends Statement {
 
 export class BlockStatement extends Statement {
     statements: Statement[];
+    endRange?: Range;
 
-    constructor(range: Range | undefined, statements: Statement[]) {
+    constructor(range: Range | undefined, statements: Statement[], endRange?: Range) {
         super(range);
         this.statements = statements;
+        this.endRange = endRange;
     }
 }
 
