@@ -99,7 +99,7 @@ function controlflow_matte(editor) {
         }
 
         const entry = addNode(entryLabel || "Entry", "terminal");
-        const exit = addNode("Exit", "terminal");
+        const exit = addNode("exit", "terminal");
 
         function buildStatement(statement, next, breakTarget) {
             if (!statement)
@@ -114,7 +114,7 @@ function controlflow_matte(editor) {
 
             if (statement.guard && statement.thenBranch) {
                 const condition = addNode(
-                    `if (${expressionText(statement.guard)})`,
+                    `${expressionText(statement.guard)}`,
                     "decision",
                     statement.range
                 );
@@ -129,7 +129,7 @@ function controlflow_matte(editor) {
 
             if (statement.guard && statement.body) {
                 const condition = addNode(
-                    `while (${expressionText(statement.guard)})`,
+                    `${expressionText(statement.guard)}`,
                     "decision",
                     statement.range
                 );
