@@ -62,6 +62,8 @@ export default class MatteAceEditor {
     popupPositions = new WeakMap<AceTooltip, PopupPosition>();
     secondaryMarkers: number[] = [];
     repositionPopups: () => void;
+    private extensionSideLayout?: HTMLDivElement;
+    private extensionEditorPane?: HTMLDivElement;
     extensionProcedures: ExtensionProcedure[] = [];
     extensionTypes: ExtensionType[] = [];
     preprocessors: ((p: Program) => void)[] = [];
@@ -300,8 +302,37 @@ export default class MatteAceEditor {
         }
     }
 
-    addExtension(div: HTMLElement): void {
-        this.debugBox.after(div);
+    addExtension(div: HTMLElement, location = "bottom"): void {
+        if (location === "top") {
+            this.container.before(div);
+        } else if (location === "left" || location === "right") {
+            if (!this.extensionSideLayout) {
+                this.extensionSideLayout = document.createElement("div");
+                this.extensionSideLayout.style.display = "flex";
+                this.extensionSideLayout.style.alignItems = "flex-end";
+                this.extensionSideLayout.style.width = "100%";
+                this.extensionEditorPane = document.createElement("div");
+                this.extensionEditorPane.style.position = "relative";
+                this.extensionEditorPane.style.flex = "1 1 0";
+                this.extensionEditorPane.style.minWidth = "0";
+                this.container.before(this.extensionSideLayout);
+                this.extensionSideLayout.append(this.extensionEditorPane);
+                this.extensionEditorPane.append(this.container);
+                if (this.settingsMenu)
+                    this.extensionEditorPane.append(this.settingsMenu);
+            }
+            if (location === "left") {
+                div.style.marginTop = "0";
+                div.style.marginRight = "5px";
+                this.extensionSideLayout.insertBefore(div, this.extensionEditorPane!);
+            } else {
+                div.style.marginTop = "0";
+                div.style.marginLeft = "5px";
+                this.extensionEditorPane!.after(div);
+            }
+        } else {
+            this.debugBox.after(div);
+        }
     }
 
     private getAceScroller(): HTMLElement {

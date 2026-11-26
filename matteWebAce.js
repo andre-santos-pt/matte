@@ -88,7 +88,7 @@ function initializeMatteAce(element) {
                 div.style.border = "1px solid gray";
                 div.style.marginTop = "5px"
                 div.append(extDiv)
-                editor.addExtension(div)
+                editor.addExtension(div, element.getAttribute("location") ?? "bottom")
             }
         }
         if(window[attr.name + "_matte_include"])
