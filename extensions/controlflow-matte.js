@@ -191,7 +191,7 @@ function controlflow_matte(editor) {
         lines.push(`  { rank=sink; n${exit}; }`);
         edges.forEach(edge => {
             const label = edge.label
-                ? ` [taillabel="${escapeDot(edge.label)}", labeldistance=2, labelangle=${edge.label === "true" ? 45 : -45}]`
+                ? ` [label="  ${escapeDot(edge.label)}  "${edge.label === "false" ? ", style=dashed" : ""}]`
                 : "";
             lines.push(`  n${edge.from} -> n${edge.to}${label};`);
         });
