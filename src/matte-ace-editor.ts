@@ -1,5 +1,5 @@
 import {flatTrace, last} from "./utils";
-import {CompilationResult, compile} from "./antlr2ast";
+import {JavaCompiler} from "./antlr2ast";
 import {variableMaterialization} from "./expSimplification";
 import {
     ExtensionProcedure,
@@ -10,7 +10,7 @@ import {
     TraceEntry
 } from "./Interpreter";
 import type {Ace} from "ace-builds";
-import {Program, StaticError, Type} from "./ast";
+import {CompilationResult, Program, StaticError, Type} from "./ast";
 import MatteRange from "./Range";
 import {SettingProperty, Settings} from "./settings";
 import styleCss from "./matte-ace-editor.css";
@@ -226,7 +226,7 @@ export default class MatteAceEditor {
 
     runPreprocessors() {
         this.preprocessors.forEach((pp: (p: Program) => void) => {
-            const compilation = compile(this.getCodeToCompile());
+            const compilation = new JavaCompiler().compile(this.getCodeToCompile());
             if (compilation.program instanceof Program) {
                 pp(compilation.program);
                 this.editor.setValue(getJavaCode(compilation.program))
@@ -628,7 +628,7 @@ export default class MatteAceEditor {
         if (code === this.lastCompilationSource)
             return;
 
-        const compilation = compile(code);
+        const compilation = new JavaCompiler().compile(code);
         this.lastCompilationSource = code;
         this.compilationListeners.forEach(listener => listener(compilation));
         this.clearErrorMarkers();
@@ -678,9 +678,12 @@ export default class MatteAceEditor {
         this.afterRunListeners.forEach(l => l(result));
     }
 
-    runParserStandalone(call: string): InterpreterResult {
+    runParserStandalone(call: string): InterpreterResult | undefined {
         let src = this.getCodeToCompile()
-        return this.createInterpreter().parseAndRun(src, call === "" ? undefined : call);
+        let compilation = new JavaCompiler().compile(this.getCodeToCompile());
+        if(compilation.program)
+            return new Interpreter().runProgram(compilation.program)
+        //return this.createInterpreter().parseAndRun(src, call === "" ? undefined : call);
     }
 
     step(index: number, cumulative = false): void {

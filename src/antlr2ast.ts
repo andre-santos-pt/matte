@@ -2,7 +2,6 @@ import JavaGrammarParser, {
     ArrayAllocExprContext,
     ArrayAssignmentContext,
     ArrayExprContext, ArrayLiteralBracketsContext, ArrayLiteralContext,
-    //ArrayLitExprContext,
     AssignmentContext,
     BinaryOpAddContext,
     BinaryOpLogContext,
@@ -17,7 +16,7 @@ import JavaGrammarParser, {
     DecContext,
     DeclarationContext,
     ConstructorContext, DoubleExprContext, DoubleLiteralContext,
-    ExpContext, ExpLiteralContext, FieldContext,
+    ExpContext, ExpLiteralContext,
     FieldExprContext,
     ForStmtContext,
     IdExprContext,
@@ -83,12 +82,11 @@ import {
     UnboundCallExpression,
     UnboundNewObjectExpression,
     Variable,
-    WhileStatement
+    WhileStatement, CompilationResult, Compiler
 } from "./ast";
 import Range from "./Range";
 import JavaGrammarVisitor from "./generated/JavaGrammarVisitor";
 import {
-    BailErrorStrategy,
     CharStreams,
     CommonTokenStream,
     Interval,
@@ -105,20 +103,33 @@ import {
 } from "./MatteErrorListener";
 
 
-export interface CompilationResult {
-    errors: StaticError[]
-    program?: Program
-}
+export class JavaCompiler implements Compiler {
 
-export function compile(source: string): CompilationResult {
-    try {
-        return buildAST(source)
-    } catch (e: any) {
+    compile(source: string): CompilationResult {
+        try {
+            return buildAST(source)
+        } catch (e: any) {
             console.log(e.stack)
             throw e
-        //}
+        }
+    }
+
+    compileCall(program: Program, call: string): CallExpression | StaticErrorType {
+        const [tokens, errorListener, parser] = getTokenStreamAndParser(call)
+
+
     }
 }
+
+// export function compile(source: string): CompilationResult {
+//     try {
+//         return buildAST(source)
+//     } catch (e: any) {
+//             console.log(e.stack)
+//             throw e
+//         //}
+//     }
+// }
 
 function getTokenStreamAndParser(input: string): [CommonTokenStream, MatteErrorListener, JavaGrammarParser] {
     const errorListener = new MatteErrorListener(input)
@@ -134,7 +145,7 @@ function getTokenStreamAndParser(input: string): [CommonTokenStream, MatteErrorL
 }
 
 
-export function buildAST(source: string): CompilationResult {
+function buildAST(source: string): CompilationResult {
     const [tokens, errorListener, parser] = getTokenStreamAndParser(source)
     const bracketErrors = checkBracketMatching(tokens)
     if(bracketErrors.length != 0)
@@ -162,7 +173,7 @@ export function buildAST(source: string): CompilationResult {
     }
 }
 
-export function buildASTandCall(source: string, call: string): [CompilationResult, Expression | undefined] {
+function buildASTandCall(source: string, call: string): [CompilationResult, Expression | undefined] {
     const [tokens, errorListener, parser] = getTokenStreamAndParser(source)
     let unitCtx = parser.unit();
     const visitor = new TreeVisitor(tokens);

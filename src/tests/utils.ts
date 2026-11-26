@@ -5,7 +5,7 @@ import {
 import assert from "assert";
 import {last, lastTrace} from "../utils";
 import {Program, StaticErrorType} from "../ast";
-import {compile} from "../antlr2ast";
+import {JavaCompiler} from "../antlr2ast";
 
 export function unwrapEvaluations(value: Record<string, unknown>): Record<string, unknown> {
     return Object.fromEntries(Object.entries(value).map(([name, property]) => {
@@ -19,7 +19,7 @@ export function unwrapEvaluations(value: Record<string, unknown>): Record<string
 
 export function compilationError(code: string, expected: StaticErrorType, call?: string) {
     const interpreter = new Interpreter();
-    const result = compile(code)
+    const result = new JavaCompiler().compile(code)
     if(result.errors.length != 1) {
         console.log(result.errors)
         assert.fail("expected a single compilation error")

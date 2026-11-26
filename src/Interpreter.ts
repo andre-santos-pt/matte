@@ -14,7 +14,7 @@ import {
     CallExpression,
     CallStatement,
     CastExpression,
-    CharLiteral,
+    CharLiteral, CompilationResult,
     ConditionalExpression,
     Declaration,
     DoubleLiteral,
@@ -43,13 +43,13 @@ import {
 } from "./ast";
 import Range from "./Range";
 
-import {buildAST, buildASTandCall, CompilationResult} from "./antlr2ast";
+//import {buildAST, buildASTandCall} from "./antlr2ast";
 import {last} from "./utils";
 
 
 export interface InterpreterResult {
     callError: StaticError | undefined;
-    compilationErrors: StaticError[];
+    //compilationErrors: StaticError[];
     runtimeError: RuntimeError | undefined;
     result: any;
     trace?: TraceEntry;
@@ -202,8 +202,21 @@ export class Interpreter {
             }
         }
         const res = progAndCall[0]
+        if (res?.errors?.length != 0)
+            return {
+                compilationErrors: res?.errors ?? [],
+                result: undefined,
+                runtimeError: undefined,
+                callError: undefined
+            }
+
         const program = progAndCall[0]?.program
-        const expCall = progAndCall[1]
+        let expCall = progAndCall[1]
+
+        const main = program?.procedures.find(p => p.name == "main" && p.parameters.length == 0)
+
+        if(!expCall && main)
+            expCall = new CallExpression(new Range(0, "main()".length, 1, 1, "main()"), main, [], false)
 
         // TODO main call
         if (program?.procedures && program.procedures.length > 0 && !expCall) {
@@ -220,15 +233,66 @@ export class Interpreter {
             }
         }
 
-        if (res?.errors?.length != 0)
-            return {
-                compilationErrors: res?.errors ?? [],
-                result: undefined,
-                runtimeError: undefined,
-                callError: undefined
-            }
-
         return this.runProgram(program as Program, expCall);
+    }
+
+    runProgram(program: Program, call?: Expression): InterpreterResult {
+        this.clearState()
+        this.procedures = program.procedures;
+        if (program.block) {
+            this.scope.push({
+                variables: new Map()
+            })
+            if(this.traceOn) {
+                this.trace = {
+                    stack: structuredClone(last(this.scope)),
+                    children: [],
+                }
+                this.traceStack.push(this.trace)
+            }
+            return this.tryRun(() => {
+                // script execution
+                this.addTrace((program.block as BlockStatement), false, false, undefined, undefined);
+                (program.block as BlockStatement).statements.forEach(i => this.execute(i));
+                this.addTrace((program.block as BlockStatement), false, false, undefined, undefined)
+                this.scope.pop()
+                return {
+                    callError: undefined,
+                    compilationErrors: [],
+                    runtimeError: undefined,
+                    result: undefined,
+                    trace: structuredClone(this.trace),
+                    program,
+                    call
+                }
+            })
+        } else {
+            return this.tryRun(() => ({
+                callError: undefined,
+                compilationErrors: [],
+                runtimeError: undefined,
+                result: this.evaluate(call as Expression),
+                trace: structuredClone(this.trace),
+                program,
+                call
+            }));
+        }
+    }
+
+    private tryRun(exec: () => InterpreterResult): InterpreterResult {
+        try {
+            return exec();
+        } catch (e: any) {
+            if (e.runtimeError) {
+                return {
+                    callError: undefined,
+                    compilationErrors: [],
+                    runtimeError: e.runtimeError,
+                    result: undefined,
+                    trace: structuredClone(this.trace)
+                }
+            } else throw e
+        }
     }
 
     private loopIteration(loop: WhileStatement) {
@@ -314,7 +378,7 @@ export class Interpreter {
             extension
         }
         if (range != undefined)
-            last(this.traceStack).children?.push(entry)
+            last(this.traceStack)?.children?.push(entry)
         return entry
     }
 
@@ -329,64 +393,6 @@ export class Interpreter {
         });
         throw {
             runtimeError: error
-        }
-    }
-
-    private tryRun(exec: () => InterpreterResult): InterpreterResult {
-        try {
-            return exec();
-        } catch (e: any) {
-            if (e.runtimeError) {
-                return {
-                    callError: undefined,
-                    compilationErrors: [],
-                    runtimeError: e.runtimeError,
-                    result: undefined,
-                    trace: structuredClone(this.trace)
-                }
-            } else throw e
-        }
-    }
-
-    private runProgram(program: Program, call?: Expression): InterpreterResult {
-        this.procedures = program.procedures;
-        if (program.block) {
-            this.scope.push({
-                variables: new Map()
-            })
-            if(this.traceOn) {
-                this.trace = {
-                    stack: structuredClone(last(this.scope)),
-                    children: [],
-                }
-                this.traceStack.push(this.trace)
-            }
-            return this.tryRun(() => {
-                // script execution
-                this.addTrace((program.block as BlockStatement), false, false, undefined, undefined);
-                (program.block as BlockStatement).statements.forEach(i => this.execute(i));
-                this.addTrace((program.block as BlockStatement), false, false, undefined, undefined)
-                this.scope.pop()
-                return {
-                    callError: undefined,
-                    compilationErrors: [],
-                    runtimeError: undefined,
-                    result: undefined,
-                    trace: structuredClone(this.trace),
-                    program,
-                    call
-                }
-            })
-        } else {
-            return this.tryRun(() => ({
-                callError: undefined,
-                compilationErrors: [],
-                runtimeError: undefined,
-                result: this.evaluate(call as Expression),
-                trace: structuredClone(this.trace),
-                program,
-                call
-            }));
         }
     }
 

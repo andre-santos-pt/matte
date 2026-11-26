@@ -1,9 +1,15 @@
 import {Interpreter, RuntimeErrorType} from '../Interpreter';
 
 import {cases, compilationError, runtimeError, script} from "./utils";
-import {ArithmeticExpression, Assignment, StaticErrorType} from "../ast";
+import {
+    ArithmeticExpression,
+    Assignment,
+    CallExpression,
+    StaticErrorType
+} from "../ast";
 import {buildAST} from "../antlr2ast";
 import assert from "assert";
+import Range from "../Range";
 
 describe('Matte Interpreter Test Script', () => {
     describe('Script', () => {
@@ -394,6 +400,25 @@ describe('Matte Interpreter Test Script', () => {
                 .set("result", 15)
             )
             console.log(p?.block?.statements)
+        });
+
+        it('interpreter run', () => {
+            const code = `
+                void main() {
+                    int x = 10;
+                    x += 10;
+                    x += 20;
+                }
+                    `
+            const interpreter = new Interpreter()
+            const result = interpreter.parseAndRun(code);
+            assert.notEqual(result.trace, undefined)
+            if(result.program) {
+                const main = result.program?.procedures.find(p => p.name == "main" && p.parameters.length == 0)
+                const call = main ? new CallExpression(new Range(0, "main()".length, 1, 1, "main()"), main, [], false) : undefined
+                let res = interpreter.runProgram(result.program, call);
+                assert.notEqual(res.trace, undefined)
+            }
         });
 
         it('no tracing script', () => {

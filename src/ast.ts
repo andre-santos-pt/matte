@@ -38,6 +38,16 @@ export enum StaticErrorType {
     BreakOutsideLoop = "BREAK_OUTSIDE_LOOP"
 }
 
+export interface CompilationResult {
+    errors: StaticError[]
+    program?: Program
+}
+
+export interface Compiler {
+    compile(src: string): CompilationResult
+    compileCall(call: string): CallExpression | StaticErrorType
+}
+
 export type Type = PrimitiveType | TypeDeclaration | ArrayType | ForeignType
 
 export enum PrimitiveType {

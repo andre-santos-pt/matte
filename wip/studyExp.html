@@ -25,6 +25,11 @@
         .slide-controls input {
             flex: 1;
         }
+
+        #studentid:invalid {
+            border: 2px solid #d93025;
+            outline: 2px solid rgba(217, 48, 37, 0.2);
+        }
     </style>
 </head>
 <body>
@@ -46,7 +51,8 @@
 
         Este primeiro cenário foi de aquecimento. Antes de começar as tarefas, indica por favor o teu número de estudante, e se realizaste a tarefa de aquecimento com sucesso ou se não conseguiste.
         <br><br>
-        <b>Número de estudante:</b> <input id="studentid" type="text"/><br><br>
+        <b>Número de estudante:</b>
+        <input id="studentid" type="number" min="90000" max="200000" step="1" value="100000" required/><br><br>
     </div>
 
     <div class="slide" role="group" aria-label="Step 1">
@@ -74,54 +80,51 @@
         </matte-ace>
     </div>
 
-    <!--
+
     <div class="slide" role="group" aria-label="Step 2" hidden>
         <matte-ace norun study>
-            int abs(int N) {
-                if(n < 0)
-                    return -n;
-                else
-                    return n;
+            boolean isDigit(int n) {
+                return n =< 0 && n => 9;
             }
         </matte-ace>
     </div>
+    <!--
+     <div class="slide" role="group" aria-label="Step 3" hidden>
+         <h2>Step 2: Assigning a value</h2>
+         <p>Here, <code>b</code> is assigned a value before it has been declared.
+             Add a declaration for <code>b</code>.</p>
+         <matte-ace>
+             int average(double[] array) {
+                 double sum = 0;
+                 i = 0;
+                 while (i < array.length) {
+                     sum = sum + array[i];
+                     i++;
+                 }
+                 return sum;
+             }
+         </matte-ace>
+     </div>
 
-    <div class="slide" role="group" aria-label="Step 3" hidden>
-        <h2>Step 2: Assigning a value</h2>
-        <p>Here, <code>b</code> is assigned a value before it has been declared.
-            Add a declaration for <code>b</code>.</p>
-        <matte-ace>
-            int average(double[] array) {
-                double sum = 0;
-                i = 0;
-                while (i < array.length) {
-                    sum = sum + array[i];
-                    i++;
-                }
-                return sum;
-            }
-        </matte-ace>
-    </div>
+     <div class="slide" role="group" aria-label="Step 4" hidden>
+         <matte-ace norun study>
+             int round(double value) {
+                 return (int) value + .5;
+             }
+         </matte-ace>
+     </div>
 
-    <div class="slide" role="group" aria-label="Step 4" hidden>
-        <matte-ace norun study>
-            int round(double value) {
-                return (int) value + .5;
-            }
-        </matte-ace>
-    </div>
-
-    <div class="slide" role="group" aria-label="Step 4" hidden>
-        <matte-ace norun study>
-            void invert(int[] array) {
-                int[] inv = new int[array];
-                for(int i = 0; i < array.length; i++)
-                    inv[i] = array[array.length - 1 - i];
-                return inv;
-            }
-        </matte-ace>
-    </div>
-    -->
+     <div class="slide" role="group" aria-label="Step 4" hidden>
+         <matte-ace norun study>
+             void invert(int[] array) {
+                 int[] inv = new int[array];
+                 for(int i = 0; i < array.length; i++)
+                     inv[i] = array[array.length - 1 - i];
+                 return inv;
+             }
+         </matte-ace>
+     </div>
+     -->
 </main>
 
 <fieldset>
@@ -150,6 +153,9 @@
 
 <script>
     const ENDPOINT = "https://script.google.com/macros/s/AKfycbzysHZpV7q73g7Bhb6tiEz-Q4m6s8-PAyDof9t56fPlHiwUV6ePefy5G3qCQko-aH5J/exec";
+    const condition = Math.random() < .5;
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    document.getElementById("title").innerHTML += " (" + condition +")"
 
     function sendResult(result) {
         fetch(ENDPOINT, {
@@ -174,12 +180,20 @@
     let editors = [];
     function study_matte(editor) {
         editors.push(editor);
-        console.log(editor)
+        editor.hideSettingsButton()
+        if(editors.length % 2 === 0 && condition) {
+            editor.disable("compilationhints")
+            editor.disable("secondarymarks")
+            console.log("disable " + editors.length)
+        }
+        else if(editors.length % 2 !== 0 && !condition) {
+            editor.disable("compilationhints")
+            editor.disable("secondarymarks")
+            console.log("disable " + editors.length)
+        }
     }
-    const condition = Math.random() < .5;
-    const slides = Array.from(document.querySelectorAll(".slide"));
-    console.log(slides.length)
-    console.log(condition);
+
+
     const total = slides.length - 1;
     let current = 0; // TODO 0
     let startTime = new Date().getTime();
@@ -198,14 +212,18 @@
     const obrigado = document.querySelector("#obrigado");
 
     const answers = Array.from(document.querySelectorAll('input[name="res"]'));
+    const studentIdInput = document.getElementById("studentid");
 
     function updateNext() {
-        next.disabled = current === total || !answers.some(answer => answer.checked);
+        const answerSelected = answers.some(answer => answer.checked);
+        const studentIdValid = current !== 0 || studentIdInput.checkValidity();
+        next.disabled = current === total || !answerSelected || !studentIdValid;
         if(answers.some(answer => answer.checked) && current === total)
             document.getElementById("finish").hidden = false
 
     }
     answers.forEach(answer => answer.addEventListener("change", updateNext));
+    studentIdInput.addEventListener("input", updateNext);
 
     function showStep(s) {
         const index = Number(s);
@@ -228,7 +246,7 @@
         tasksRecord.push({
             step: current,
             code,
-            compileError: compilation.type ? compilation : undefined,
+            compileErrors: compilation.errors.length !== 0 ? compilation.errors : undefined,
             ok: answers.find(answer => answer.checked).value === "ok",
             time: taskTime
         })
@@ -252,9 +270,12 @@
     }
 
     finish.addEventListener("click", () => {
+        if (!studentIdInput.reportValidity())
+            return;
+
         recordTask();
         const endTime = new Date().getTime();
-        const studentId = document.getElementById("studentid").value;
+        const studentId = Number(studentIdInput.value);
         const result = {
             studentId,
             startTime,
