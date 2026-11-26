@@ -49,6 +49,20 @@ int classify(int n) {
     }
 </matte-ace>
 
+<h1>deadcode</h1>
+<matte-ace call="classify(3)" controlflow>
+    int classify(int n) {
+        int x;
+        if(n == 1)
+            x = 1;
+        if(n == 2)
+            x = 2;
+        x = 3;
+        return x;
+        x = 4;
+    }
+</matte-ace>
+
 <matte-ace call="firstDigit(2026)" controlflow>
     int firstDigit(int n) {
         if(n < 10)

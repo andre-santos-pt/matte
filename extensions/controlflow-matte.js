@@ -103,7 +103,7 @@ function controlflow_matte(editor) {
                 const condition = addNode(
                     `if (${expressionText(statement.guard)})`,
                     "decision",
-                    statement.guard.range
+                    statement.range
                 );
                 const thenStart = buildStatement(statement.thenBranch, next, breakTarget);
                 const elseStart = statement.elseBranch
@@ -118,7 +118,7 @@ function controlflow_matte(editor) {
                 const condition = addNode(
                     `while (${expressionText(statement.guard)})`,
                     "decision",
-                    statement.guard.range
+                    statement.range
                 );
                 const bodyStart = buildStatement(statement.body, condition, next);
                 addEdge(condition, bodyStart, "true");
@@ -152,6 +152,21 @@ function controlflow_matte(editor) {
         return String(text).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\r?\n/g, "\\n");
     }
 
+    function findReachableNodes(edges, entry) {
+        const reachable = new Set([entry]);
+        const pending = [entry];
+        while (pending.length) {
+            const current = pending.pop();
+            edges.forEach(edge => {
+                if (edge.from === current && !reachable.has(edge.to)) {
+                    reachable.add(edge.to);
+                    pending.push(edge.to);
+                }
+            });
+        }
+        return reachable;
+    }
+
     function highlightActiveNode(svg, nodes, entryId) {
         svg.querySelectorAll(".cfg-active").forEach(node => node.classList.remove("cfg-active"));
         if (activeEntry) {
@@ -170,9 +185,45 @@ function controlflow_matte(editor) {
             svg.querySelector(`[id="cfg-node-${selected.id}"]`)?.classList.add("cfg-active");
     }
 
+    function setNodeTooltips(svg, nodes, reachable) {
+        nodes.forEach(node => {
+            const group = svg.querySelector(`[id="cfg-node-${node.id}"]`);
+            if (!group)
+                return;
+            const title = group.querySelector("title");
+            if (node.kind !== "terminal" && !reachable.has(node.id)) {
+                if (title)
+                    title.textContent = "Unreachable code";
+                else {
+                    const tooltip = document.createElementNS("http://www.w3.org/2000/svg", "title");
+                    tooltip.textContent = "Unreachable code";
+                    group.prepend(tooltip);
+                }
+            } else {
+                title?.remove();
+            }
+        });
+    }
+
+    function selectNodeSource(node) {
+        if (!node.range)
+            return;
+        const sourceLength = editor.editor.getValue().length;
+        if (node.range.start < 0 || node.range.end > sourceLength)
+            return;
+
+        const document = editor.editor.session.doc;
+        editor.editor.selection.setRange({
+            start: document.indexToPosition(node.range.start),
+            end: document.indexToPosition(node.range.end)
+        });
+        editor.editor.focus();
+    }
+
     function renderGraph(body, message, entryLabel) {
         const sequence = ++renderSequence;
         const {nodes, edges, entry, exit} = buildGraph(body, entryLabel);
+        const reachable = findReachableNodes(edges, entry);
         renderedNodes = nodes;
         renderedEntryId = entry;
         const lines = [
@@ -185,7 +236,11 @@ function controlflow_matte(editor) {
             const shape = node.kind === "terminal" ? "oval" : "box";
             const fill = node.kind === "terminal" ? "#e8f4eb" :
                 node.kind === "decision" ? "#fff8df" : "#f5f9fc";
-            lines.push(`  n${node.id} [id="cfg-node-${node.id}", label="${escapeDot(node.text)}", shape=${shape}, fillcolor="${fill}"];`);
+            const deadCode = node.kind !== "terminal" && !reachable.has(node.id);
+            const deadStyle = deadCode
+                ? ', color="#b8b8b8", fillcolor="#e5e5e5", fontcolor="#888888"'
+                : "";
+            lines.push(`  n${node.id} [id="cfg-node-${node.id}", label="${escapeDot(node.text)}", shape=${shape}, fillcolor="${fill}"${deadStyle}];`);
         });
         lines.push(`  { rank=source; n${entry}; }`);
         lines.push(`  { rank=sink; n${exit}; }`);
@@ -218,6 +273,16 @@ function controlflow_matte(editor) {
                     graph.append(status);
                 }
                 graph.append(svg);
+                setNodeTooltips(svg, nodes, reachable);
+                nodes.forEach(node => {
+                    if (!node.range)
+                        return;
+                    const group = svg.querySelector(`[id="cfg-node-${node.id}"]`);
+                    if (!group)
+                        return;
+                    group.style.cursor = "pointer";
+                    group.addEventListener("click", () => selectNodeSource(node));
+                });
                 highlightActiveNode(svg, nodes, entry);
             })
             .catch(error => {

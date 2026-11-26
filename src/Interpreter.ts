@@ -472,6 +472,7 @@ export class Interpreter {
             }
             this.loopEnd(s)
         } else if (s instanceof BreakStatement) {
+            this.addTrace(s, false, false, undefined)
             throw {
                 break_: true
             }
