@@ -21,8 +21,7 @@ export class MatteErrorListener extends ErrorListener<any> {
         msg: string,
         e: Error | undefined
     ): void {
-        const isMissingToken = msg.startsWith("missing ");
-        if (isMissingToken) {
+        if (msg.startsWith("missing ")) {
             let startOffset: number;
             let stopOffset: number;
             let errorLine = line;
@@ -68,7 +67,21 @@ export class MatteErrorListener extends ErrorListener<any> {
                     missing: msg.substring("missing '".length, msg.indexOf("' at"))
                 }
             });
-        } else if (token) {
+        }
+        else if(msg.startsWith("extraneous ")) {
+            this.errors.push({
+                type: StaticErrorType.ExtraneousInput,
+                message: "Extraneous input",
+                range: new Range(
+                    token.start,
+                    token.stop + 1,
+                    token.line,
+                    token.column,
+                    token.text
+                )
+            });
+        }
+        else if (token) {
             this.errors.push({
                 type: StaticErrorType.SyntaxError,
                 message: msg,
@@ -140,9 +153,10 @@ export function checkTokenMisconceptions(tokens: CommonTokenStream): StaticError
     for (let i = 0; i < tokens.size; i++) {
         const token = tokens.get(i)
         const pairedType = miscTypes[token.type];
-        if (pairedType !== undefined)
+        if (pairedType !== undefined) {
+            const similar = JavaGrammarParser.literalNames[pairedType]?.substring(1, JavaGrammarParser.literalNames[pairedType].length - 1)
             errors.push({
-                message: `Do you mean ${JavaGrammarParser.literalNames[pairedType]}?`,
+                message: `Do you mean ${similar}?`,
                 range: new Range(
                     token.start,
                     token.stop + 1,
@@ -150,8 +164,12 @@ export function checkTokenMisconceptions(tokens: CommonTokenStream): StaticError
                     token.column,
                     token.text
                 ),
-                type: StaticErrorType.SyntaxError
+                type: StaticErrorType.TokenMisconception,
+                detail: {
+                    similar
+                }
             })
+        }
     }
     return errors
 }

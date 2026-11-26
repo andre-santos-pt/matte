@@ -22,10 +22,11 @@ export function compilationError(code: string, expected: StaticErrorType, call?:
     const result = compile(code)
     if(result.errors.length != 1) {
         console.log(result.errors)
-        assert.fail( "expected a single compilation error")
+        assert.fail("expected a single compilation error")
     }
 
     assert.equal(result.errors[0].type, expected);
+    return result.errors[0]
 }
 
 export function runtimeError(code: string, expected: RuntimeErrorType, call?: string, interpreter = new Interpreter()) {

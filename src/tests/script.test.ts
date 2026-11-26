@@ -3,6 +3,7 @@ import {Interpreter, RuntimeErrorType} from '../Interpreter';
 import {compilationError, runtimeError, script} from "./utils";
 import {ArithmeticExpression, Assignment, StaticErrorType} from "../ast";
 import {buildAST} from "../antlr2ast";
+import assert from "assert";
 
 describe('Matte Interpreter Test Script', () => {
     describe('Script', () => {
@@ -374,6 +375,14 @@ describe('Matte Interpreter Test Script', () => {
                 .set("hello", "ola")
                 .set("helloExc", "ola!")
             )
+        });
+
+        it('token misconception', () => {
+            const err = compilationError(`
+            int n = 10;
+            boolean isDigit = n =< 0 && n <= 9;
+        `, StaticErrorType.TokenMisconception)
+            assert.equal(err.detail.similar, "<=")
         });
 
         it('comments', () => {
