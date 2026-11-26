@@ -449,7 +449,10 @@ export class Interpreter {
                         range: s.target.range
                     }
                 )
-            arrayVal[index] = this.evaluate(s.expression).evaluation
+
+            const exp = this.evaluate(s.expression)
+            this.addTrace(s.expression, false, false, exp.evaluation, exp.materialization, exp.uuid)
+            arrayVal[index] = exp.evaluation
         } else if (s instanceof IfStatement) {
             const conditionVal = this.evaluate(s.guard);
             if (conditionVal.evaluation)
