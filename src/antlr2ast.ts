@@ -283,7 +283,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
 
     private rangeContext(ctx: ParserRuleContext): Range {
         const start = ctx.start.start;
-        const end = (ctx.stop?.stop || start) + 1; // Handle cases where _stop might be undefined
+        const end = (ctx.stop?.stop ?? start) + 1; // Handle cases where _stop might be undefined
         return new Range(
             start,
             end,
@@ -431,7 +431,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
                     }) : []
                     let type = this.findType(mctx.type_())
                     this.procedures.push(new Procedure(
-                        this.rangeContext(ctx),
+                        this.rangeContext(mctx),
                         mctx._id.text,
                         this.rangeToken(mctx._id),
                         false,
@@ -669,7 +669,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         })
         let body: Statement[] = ctx.statement_list().flatMap(s => this.visit(s))
         this.varScope.pop()
-        return new BlockStatement(this.rangeTokenTo(ctx.LCURLY().symbol, ctx.LPAREN().symbol), body)
+        return new BlockStatement(this.rangeTokenTo(ctx.LCURLY().symbol, ctx.RCURLY().symbol), body)
     }
 
     visitStmt = (ctx: StatementContext) => {

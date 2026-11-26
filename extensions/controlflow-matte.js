@@ -58,7 +58,8 @@ function controlflow_matte(editor) {
                 bodies.push({
                     label: makeProcedureLabel(procedure),
                     body: procedure.body,
-                    entryLabel: makeProcedureCall(procedure)
+                    entryLabel: makeProcedureCall(procedure),
+                    procedure
                 });
         });
         return bodies;
@@ -69,6 +70,17 @@ function controlflow_matte(editor) {
         option.value = String(index);
         option.textContent = bodies[index].label;
         select.append(option);
+    }
+
+    function findProcedureBodyIndex(bodies, range) {
+        if (!range)
+            return -1;
+        return bodies.findIndex(body => body.procedure && (
+            body.procedure.nameRange?.start <= range.start &&
+            body.procedure.nameRange?.end >= range.end ||
+            body.procedure.body.range?.start <= range.start &&
+            body.procedure.body.range?.end >= range.end
+        ));
     }
 
     function buildGraph(body, entryLabel) {
@@ -340,6 +352,18 @@ function controlflow_matte(editor) {
         update();
     });
 
+    editor.afterRunListeners.push(result => {
+        const calledProcedure = result.call?.procedure;
+        if (!calledProcedure)
+            return;
+        const bodies = getBodies(result.program ?? compilation?.program ?? {});
+        const index = bodies.findIndex(body => body.procedure === calledProcedure);
+        if (index < 0 || index === selectedIndex)
+            return;
+        selectedIndex = index;
+        update();
+    });
+
     editor.editor.session.on("change", () => {
         compilation = undefined;
         activeRange = undefined;
@@ -351,6 +375,13 @@ function controlflow_matte(editor) {
     editor.stepListeners.push((trace, index) => {
         activeRange = trace[index]?.range;
         activeEntry = index === 0;
+        const bodies = getBodies(compilation?.program ?? {});
+        const procedureIndex = findProcedureBodyIndex(bodies, activeRange);
+        if (procedureIndex >= 0 && procedureIndex !== selectedIndex) {
+            selectedIndex = procedureIndex;
+            update();
+            return;
+        }
         const svg = graph.querySelector("svg");
         if (svg)
             highlightActiveNode(svg, renderedNodes, renderedEntryId);

@@ -26,14 +26,13 @@ int classify(int n) {
 }
 </matte-ace>
 
-<matte-ace call="classify(3)" controlflow location="left">
+<h1>alternatives</h1>
+<matte-ace call="classify1(3)" controlflow location="left">
     int classify1(int n) {
-        if(n == 1)
+        if(n == 0)
             return 1;
-        else if(n == 2)
-            return 2;
         else
-            return 3;
+            return classify2(n);
     }
 
     int classify2(int n) {
@@ -47,9 +46,6 @@ int classify(int n) {
     }
 </matte-ace>
 
-<matte-ace call="classify(3)" controlflow location="top">
-
-</matte-ace>
 
 <h1>deadcode</h1>
 <matte-ace call="classify(3)" controlflow>
