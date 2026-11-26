@@ -231,7 +231,7 @@ function controlflow_matte(editor) {
     function update() {
         graph.replaceChildren();
         select.replaceChildren();
-        if (!compilation || "type" in compilation) {
+        if (!compilation || compilation.errors.length || !compilation.program) {
             const option = document.createElement("option");
             option.textContent = "(script)";
             select.append(option);
@@ -244,7 +244,7 @@ function controlflow_matte(editor) {
             return;
         }
 
-        const bodies = getBodies(compilation);
+        const bodies = getBodies(compilation.program);
         if (!bodies.length) {
             const option = document.createElement("option");
             option.textContent = "(no executable code)";
