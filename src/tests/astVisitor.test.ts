@@ -27,11 +27,11 @@ import {
     WhileStatement, Assignment
 } from "../ast";
 import Range from "../Range";
-import {buildAST} from "./utils";
+import {compile} from "./utils";
 
 describe("ASTVisitor", () => {
     it("sets parent links while translating source into an AST", () => {
-        const program = buildAST("int sum(int value) { return value + 1; }");
+        const program = compile("int sum(int value) { return value + 1; }");
         const procedure = program.procedures[0];
         const parameter = procedure.parameters[0];
         const body = procedure.body!;
@@ -59,7 +59,7 @@ describe("ASTVisitor", () => {
     // });
 
     it("visits while and if statements in a function parsed from source", () => {
-        const program = buildAST(`
+        const program = compile(`
             int count(int n) {
                 int i = 0;
                 while (i < n) {

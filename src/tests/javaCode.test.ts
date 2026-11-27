@@ -1,33 +1,33 @@
-import {getJavaCode} from "../ast2java";
-import {buildAST} from "./utils";
-
+import {compileAssert} from "./utils";
+import {JavaCompiler} from "../antlr2ast";
 
 
 describe("getJavaCode", () => {
-    it("renders a program block as a script without a wrapper", () => {
-        const program = buildAST("int count = 1; count = count + 2;")
+    const compiler = new JavaCompiler()
 
-        expect(getJavaCode(program)).toBe("int count = 1;\ncount = count + 2;")
-        expect(getJavaCode(buildAST(getJavaCode(program)))).toBe(getJavaCode(program))
+    it("renders a program block as a script without a wrapper", () => {
+        const program = compileAssert("int count = 1; count = count + 2;")
+        expect(compiler.toSourceCode(program)).toBe("int count = 1;\ncount = count + 2;")
+        expect(compiler.toSourceCode(compiler.compile(compiler.toSourceCode(program)).program!)).toBe(compiler.toSourceCode(program))
     });
 
     it("renders declarations and procedures for a non-script program", () => {
-        const program = buildAST("int twice(int value) { return value * 2; }")
+        const program = compileAssert("int twice(int value) { return value * 2; }")
 
-        expect(getJavaCode(program)).toBe(
+        expect(compiler.toSourceCode(program)).toBe(
             "int twice(int value) {\n    return value * 2;\n}"
         )
     });
 
     it("renders numeric casts", () => {
-        const code = getJavaCode(buildAST("int value = (int) 3.9; double other = (double) value;"))
+        const code = compiler.toSourceCode(compileAssert("int value = (int) 3.9; double other = (double) value;"))
 
         expect(code).toBe("int value = (int) 3.9;\ndouble other = (double) value;")
-        expect(getJavaCode(buildAST(code))).toBe(code)
+        expect(compiler.toSourceCode(compileAssert(code))).toBe(code)
     });
 
     it("renders class and record declarations with their instance methods", () => {
-        const program = buildAST(`
+        const program = compileAssert(`
             class Box {
                 int value;
                 int get() { return value; }
@@ -36,10 +36,10 @@ describe("getJavaCode", () => {
                 int sum() { return x + y; }
             }
         `)
-        const code = getJavaCode(program)
+        const code = compiler.toSourceCode(program)
 
         expect(code).toContain("class Box {")
         expect(code).toContain("record Point(int x, int y) {")
-        expect(getJavaCode(buildAST(code))).toBe(code)
+        expect(compiler.toSourceCode(compileAssert(code))).toBe(code)
     });
 });

@@ -56,6 +56,7 @@ export interface CompilationResult {
 export interface Compiler {
     compile(src: string): CompilationResult
     compileCall(program: Program, call: string): Expression | StaticError
+    toSourceCode(program: Program) : string
 }
 
 export type Type = PrimitiveType | TypeDeclaration | ArrayType | ForeignType

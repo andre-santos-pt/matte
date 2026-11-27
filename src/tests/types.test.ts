@@ -1,5 +1,4 @@
-import {cases, compilationError} from "./utils";
-import {compile} from "../antlr2ast";
+import {cases, compilationError, compileAssert} from "./utils";
 import {ArrayType, Declaration, PrimitiveType, Program, StaticErrorType} from "../ast";
 import assert from "assert";
 
@@ -7,7 +6,7 @@ describe('Matte Interpreter Types', () => {
     describe('Script', () => {
 
         it('test', () => {
-            const p = compile(`
+            const p = compileAssert(`
                 int i = 10;
             `)
         });
@@ -46,13 +45,13 @@ describe('Matte Interpreter Types', () => {
         });
 
         it('infers var declaration types from initializers', () => {
-            const p = compile(`
+            const program = compileAssert(`
                 var count = 10;
                 var enabled = true;
                 var values = {1, 2, 3};
-            `).program
+            `)
 
-            const declarations = p?.block?.statements as Declaration[]
+            const declarations = program?.block?.statements as Declaration[]
             assert.equal(declarations[0].type, PrimitiveType.INT)
             assert.equal(declarations[1].type, PrimitiveType.BOOLEAN)
             assert.deepEqual(declarations[2].type, new ArrayType(PrimitiveType.INT))
@@ -148,18 +147,18 @@ describe('Matte Interpreter Types', () => {
         })
 
         it('void return', () => {
-            const p = compile(`
+            const p = compileAssert(`
                 void f() {
                    
-                }`).program
+                }`)
             assert.equal(p?.procedures[0].returnType, PrimitiveType.VOID)
         })
 
         it('array return', () => {
-            const p = compile(`
+            const p = compileAssert(`
                 int[] f() {
                    return null;
-                }`).program
+                }`)
             assert.deepEqual(p?.procedures[0].returnType, new ArrayType(PrimitiveType.INT))
         })
 
@@ -172,13 +171,12 @@ describe('Matte Interpreter Types', () => {
         })
 
         it('non-void function returns on every branch', () => {
-            const p = compile(`
+            const p = compileAssert(`
                 int f(boolean condition) {
                     if (condition) return 1;
                     else return 2;
                 }
             `)
-            assert.ok(p.errors.length == 0)
         })
 
         it('void return mismatch', () => {

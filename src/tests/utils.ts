@@ -4,7 +4,7 @@ import {
 } from "../Interpreter";
 import assert from "assert";
 import {lastTrace} from "../utils";
-import {CallExpression, Program, StaticErrorType} from "../ast";
+import {CallExpression, Expression, Program, StaticError, StaticErrorType} from "../ast";
 import {JavaCompiler} from "../antlr2ast";
 
 export function unwrapEvaluations(value: Record<string, unknown>): Record<string, unknown> {
@@ -59,16 +59,29 @@ export function compileAssert(code: string): Program {
     return compilation.program!
 }
 
-export function compileRunAssert(code: string, interpreter: Interpreter = new Interpreter()) {
+export function compileRunAssert(code: string, call?: string, interpreter: Interpreter = new Interpreter()) {
     const program = compileAssert(code)
-    const res = interpreter.runProgram(program)
+    const callExp = call ? new JavaCompiler().compileCall(program, call) : undefined;
+    const res = interpreter.runProgram(program, callExp as Expression)
     assert.equal(res.runtimeError, undefined)
     return res
 }
 
-export function buildAST(src: string) {
-    return new JavaCompiler().compile(src).program!
+export function notCompileAssert(code: string): StaticError[] {
+    const compilation = new JavaCompiler().compile(code)
+    assert(compilation.errors.length != 0)
+    return compilation.errors
 }
+
+export function assertCompileError(code: string, errorType: StaticErrorType) {
+    const compilation = new JavaCompiler().compile(code)
+    assert(compilation.errors.some(e => e.type === errorType))
+}
+
+
+// export function compile(src: string) {
+//     return new JavaCompiler().compile(src).program!
+// }
 
 
 export function script(code: string, cases: Map<string, any>): Program | undefined {

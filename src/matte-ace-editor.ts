@@ -14,7 +14,6 @@ import {CompilationResult, Compiler, Expression, Program, StaticError, Type} fro
 import MatteRange from "./Range";
 import {SettingProperty, Settings} from "./settings";
 import styleCss from "./matte-ace-editor.css";
-import {getJavaCode} from "./ast2java";
 
 declare const ace: typeof import("ace-builds");
 
@@ -226,11 +225,12 @@ export default class MatteAceEditor {
     }
 
     runPreprocessors() {
+        const compiler = new JavaCompiler()
         this.preprocessors.forEach((pp: (p: Program) => void) => {
-            const compilation = new JavaCompiler().compile(this.getCodeToCompile());
+            const compilation = compiler.compile(this.getCodeToCompile());
             if (compilation.program instanceof Program) {
                 pp(compilation.program);
-                this.editor.setValue(getJavaCode(compilation.program))
+                this.editor.setValue(compiler.toSourceCode(compilation.program))
             }
         })
     }
@@ -560,7 +560,6 @@ export default class MatteAceEditor {
         this.forwardBtn.after(this.closeDebugBtn);
 
         this.afterRunListeners.push(result => {
-            console.log("after");
             this.debugBtn.style.visibility = result.trace ? "visible" : "hidden" //&& this.compilation?.errors?.length == 0 ? "visible" : "hidden";
             if(result.trace)
                 this.setDebugMode(false);

@@ -1,20 +1,16 @@
 import {Interpreter, RuntimeErrorType} from '../Interpreter';
 
-import {cases, compilationError, compileAssert, compileRunAssert, runtimeError, script} from "./utils";
 import {
-    ArithmeticExpression,
-    Assignment,
-    CallExpression,
-    StaticErrorType
-} from "../ast";
-//import {buildAST} from "../antlr2ast";
+    assertCompileError,
+    compilationError,
+    compileAssert,
+    compileRunAssert,
+    notCompileAssert,
+    runtimeError,
+    script
+} from "./utils";
+import {ArithmeticExpression, Assignment, StaticErrorType} from "../ast";
 import assert from "assert";
-import Range from "../Range";
-import {JavaCompiler} from "../antlr2ast";
-
-function buildAST(src: string) {
-    return new JavaCompiler().compile(src)
-}
 
 describe('Matte Interpreter Test Script', () => {
     describe('Script', () => {
@@ -53,8 +49,8 @@ describe('Matte Interpreter Test Script', () => {
         });
 
         it('translates compound assignments to regular assignments', () => {
-            const result = buildAST('int value = 2; value *= 3;')
-            const assignment = result.program?.block?.statements[1]
+            const program = compileAssert('int value = 2; value *= 3;')
+            const assignment = program.block?.statements[1]
             expect(assignment).toBeInstanceOf(Assignment)
             expect((assignment as Assignment).expression).toBeInstanceOf(ArithmeticExpression)
             expect(((assignment as Assignment).expression as ArithmeticExpression).operator).toBe("*")
@@ -102,34 +98,31 @@ describe('Matte Interpreter Test Script', () => {
             compilationError(`
         int i = 10
         int j = i + 5;
-        `, StaticErrorType.SyntaxError)
+        `, StaticErrorType.MissingToken)
         });
 
         it('rejects a number immediately followed by an identifier', () => {
-            compilationError('int i = 0a;', StaticErrorType.SyntaxError)
+            compilationError('int i = 0a;', StaticErrorType.ExtraneousInput)
         });
 
         it('EOF', () => {
             compilationError(`
-        int i = 0;
-        while(i != 10) {
-            i = i + 1;
-            `, StaticErrorType.SyntaxError)
+                int i = 0;
+                while(i != 10) {
+                    i = i + 1;
+            `, StaticErrorType.MissingToken)
         })
 
         it('break outside a loop is a static error', () => {
-            const result = buildAST('break;')
-            expect(result.errors.some(error => error.type === StaticErrorType.BreakOutsideLoop)).toBe(true)
+            assertCompileError('break;', StaticErrorType.BreakOutsideLoop)
         })
 
         it('break inside a loop is valid', () => {
-            const result = buildAST('while(true) { break; }')
-            expect(result.errors.some(error => error.type === StaticErrorType.BreakOutsideLoop)).toBe(false)
+            compileAssert('while(true) { break; }')
         })
 
         it('break inside a loop is valid', () => {
-            const result = buildAST('while(true) { if(true) break; }')
-            expect(result.errors.some(error => error.type === StaticErrorType.BreakOutsideLoop)).toBe(false)
+            compileAssert('while(true) { if(true) break; }')
         })
 
 
@@ -407,21 +400,16 @@ describe('Matte Interpreter Test Script', () => {
         });
 
         it('interpreter run', () => {
-            const res = compileRunAssert( `
+            const program = compileAssert( `
                 void main() {
                     int x = 10;
                     x += 10;
                     x += 20;
                 }
                 `)
+
+            const res = new Interpreter().runProgram(program);
             assert.notEqual(res.trace, undefined)
-            // TODO run main test
-            // if(res.program) {
-            //     const main = result.program?.procedures.find(p => p.name == "main" && p.parameters.length == 0)
-            //     const call = main ? new CallExpression(new Range(0, "main()".length, 1, 1, "main()"), main, [], false) : undefined
-            //     let res = interpreter.runProgram(result.program, call);
-            //     assert.notEqual(res.trace, undefined)
-            // }
         });
 
         it('no tracing script', () => {
@@ -431,8 +419,8 @@ describe('Matte Interpreter Test Script', () => {
                     int x = 10;
                     x += 10;
                     x += 20;
-                    `, interpreter)
-            assert.notEqual(res.trace, undefined)
+                    `, undefined, interpreter)
+            assert.equal(res.trace, undefined)
         });
 
         it('no tracing function', () => {
@@ -442,9 +430,8 @@ describe('Matte Interpreter Test Script', () => {
                 int classify(int n) {
                     int x = n + 1;
                     return x;
-                }`, interpreter)
-            assert.notEqual(res.trace, undefined)
+                }`, "classify(3)", interpreter)
+            assert.equal(res.trace, undefined)
         });
-
     })
 })

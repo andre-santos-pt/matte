@@ -47,7 +47,7 @@ import {last} from "./utils";
 
 export interface InterpreterResult {
     runtimeError: RuntimeError | undefined;
-    result: any;
+    result?: any;
     type?: Type;
     trace?: TraceEntry;
 }
@@ -193,6 +193,19 @@ export class Interpreter {
                 }
             })
         } else {
+            const main = this.procedures.find(p => p.name == "main" && p.parameters.length == 0)
+            if(!call && main)
+                call = new CallExpression(
+                    new Range(0, 0, 1, 1, "main()"),
+                    main,
+                    [],
+                    false
+                )
+            if(!call)
+                throw {
+                    message: "no method call"
+                }
+            //     const call = main ? new CallExpression(new Range(0, "main()".length, 1, 1, "main()"), main, [], false) : undefined
             return this.tryRun(() => ({
                 runtimeError: undefined,
                 result: this.evaluate(call as Expression),

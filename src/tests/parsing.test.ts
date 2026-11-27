@@ -33,7 +33,6 @@ describe('Matte Interpreter Test Parsing', () => {
             }
             `)
             const res = new JavaCompiler().compileCall(compilation, "f(2");
-            //const res = new Interpreter().parseAndRun(src, "f(2")
             assert.equal(res?.type, StaticErrorType.MissingToken)
         })
 
@@ -44,7 +43,6 @@ describe('Matte Interpreter Test Parsing', () => {
             }
             `)
             const res = new JavaCompiler().compileCall(compilation, "g(2)");
-            //const res = new Interpreter().parseAndRun(src, "g(2)")
             assert.equal(res?.type, StaticErrorType.MethodNotFound)
         })
 
@@ -55,7 +53,6 @@ describe('Matte Interpreter Test Parsing', () => {
             }
             `)
             const res = new JavaCompiler().compileCall(compilation, "g(2)");
-            //const res = new Interpreter().parseAndRun(src, "f(2)lalala")
             assert.equal(res?.type, StaticErrorType.SyntaxError)
         })
 
@@ -66,7 +63,6 @@ describe('Matte Interpreter Test Parsing', () => {
             }
             `)
             const res = new JavaCompiler().compileCall(compilation, "g(2)");
-            //const res = new Interpreter().parseAndRun(src, "f(2, 1)")
             assert.equal(res?.type, StaticErrorType.NumberArgumentsMismatch)
         })
 
@@ -82,7 +78,6 @@ describe('Matte Interpreter Test Parsing', () => {
             }
             `
             const program = new JavaCompiler().compile(src)
-
         })
     })
 
