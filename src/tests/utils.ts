@@ -31,8 +31,6 @@ export function runtimeError(code: string, expected: RuntimeErrorType, call?: st
     const program = compileAssert(code)
     const callExp = call ? new JavaCompiler().compileCall(program, call) as CallExpression : undefined;
     const result = interpreter.runProgram(program, callExp)
-    //if(result.callError)
-    //    assert.fail(result.callError.message)
     if(!result.trace)
         assert.fail(`No trace`)
 

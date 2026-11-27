@@ -560,9 +560,10 @@ export default class MatteAceEditor {
         this.forwardBtn.after(this.closeDebugBtn);
 
         this.afterRunListeners.push(result => {
+            console.log("after");
             this.debugBtn.style.visibility = result.trace ? "visible" : "hidden" //&& this.compilation?.errors?.length == 0 ? "visible" : "hidden";
-           // if (this.compilation?.errors?.length == 0)
-           //     this.setDebugMode(false);
+            if(result.trace)
+                this.setDebugMode(false);
         })
     }
 

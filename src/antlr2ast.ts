@@ -192,75 +192,6 @@ function buildAST(source: string): CompilationResult {
     }
 }
 
-// function buildASTandCall(source: string, call: string): [CompilationResult, Expression | undefined] {
-//     const [tokens, errorListener, parser] = getTokenStreamAndParser(source)
-//     let unitCtx = parser.unit();
-//     const visitor = new TreeVisitor(tokens);
-//     const chars2 = CharStreams.fromString(call);
-//
-//     const lexer2 = new JavaGrammarLexer(chars2);
-//     lexer2.removeErrorListeners()
-//     lexer2.addErrorListener(errorListener)
-//
-//     const tokens2 = new CommonTokenStream(lexer2);
-//     const parser2 = new JavaGrammarParser(tokens2);
-//     parser2.removeErrorListeners()
-//     parser2.addErrorListener(errorListener)
-//
-//     let callCtx = parser2.expCall();
-//
-//     if (errorListener.errors.length != 0)
-//         throw {
-//             callError: errorListener.errors[0]
-//         }
-//
-//     const program = visitor.visitUnit(unitCtx)
-//     setASTParents(program)
-//
-//     visitor.tokenStream = tokens2
-//     try {
-//         const exp = visitor.visitExpLiteral(callCtx.expLiteral())
-//         if(visitor.errors.length != 0)
-//             throw {
-//                 callError: visitor.errors[0]
-//             }
-//         if (exp instanceof UnboundCallExpression)
-//             throw {
-//                 callError: {
-//                     message: `'${exp.procedureName}' not found`
-//                 },
-//                 program: program,
-//             }
-//         if (!(exp instanceof CallExpression || exp instanceof NewObjectExpression))
-//             throw {
-//                 callError: {
-//                     message: "Not a valid call"
-//                 },
-//                 program: program,
-//             }
-//         setASTParents(exp)
-//         exp.setLoose()
-//
-//         return [{
-//             errors:  visitor.errors.length != 0 ? visitor.errors : program.checkStaticErrors(),
-//             program
-//         }, exp]
-//     } catch (e: any) {
-//         if (e.callError)
-//             throw e
-//         // e.program = program
-//         // if (e.compilation == StaticErrorType.UndeclaredVariable || e.compilation == StaticErrorType.Unsupported)
-//         //     e.callError = "Not a valid call"
-//         // else if (e.compilation)
-//         //     e.callError = e.message
-//         throw {
-//             callError: "Not a valid call",
-//             program: e.program,
-//         }
-//     }
-// }
-
-
 type ScopeEntry = {
     block: boolean;
     variables: Map<string, Declaration>;
@@ -287,13 +218,9 @@ class LineComment {
 class TreeVisitor extends JavaGrammarVisitor<any> {
     program: Program = new Program();
     varScope: ScopeEntry[] = [];
-   // procedures: Procedure[] = [];
-    //types: TypeDeclaration[] = [];
     typeContext?: TypeDeclaration = undefined
     tokenStream: CommonTokenStream
-
     comments: LineComment[] = [];
-
     errors: StaticError[] = [];
 
     constructor(tokenStream: CommonTokenStream) {
@@ -1076,6 +1003,7 @@ class TreeVisitor extends JavaGrammarVisitor<any> {
         }
     }
 
+    // for parsing calls from the interpreter
     visitExpLiteral = (ctx: ExpLiteralContext): Expression | undefined => {
         try {
             return handleExpLiteral(this.program, ctx);
@@ -1313,7 +1241,6 @@ function handleExpLiteral(program: Program, ctx: ExpLiteralContext): Expression 
                     hint: program.procedures.length == 0 ? undefined : "Do you mean " + program.procedures.map(p => mark(p.name)).join(", ") + "?"
                 }
             }
-            //return new UnboundCallExpression(rangeContext(ctx), ctx._id.text, false, [])
         }
 
 
@@ -1332,9 +1259,6 @@ function handleExpLiteral(program: Program, ctx: ExpLiteralContext): Expression 
                 type: StaticErrorType.Unsupported,
                 range: rangeContext(ctx)
             }
-            //const instance = handleExpLiteral(program, ctx.expLiteral())
-            //const args = ctx._args ? [instance, ...ctx._args.expLiteral_list().map(a => handleExpLiteral(program, a))] : [instance]
-            //return new UnboundCallExpression(rangeContext(ctx), ctx._id.text, true, args)
         }
     } else if (ctx instanceof NewCallLiteralContext) {
         const typeId = ctx.ID().getText()
@@ -1359,7 +1283,6 @@ function handleExpLiteral(program: Program, ctx: ExpLiteralContext): Expression 
             type: StaticErrorType.Unsupported,
             range: rangeContext(ctx)
         }
-        //return new NullLiteral(rangeContext(ctx))
     }
 }
 
