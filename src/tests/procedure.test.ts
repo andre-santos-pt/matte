@@ -1,6 +1,5 @@
 import {cases, compilationError, runtimeError} from "./utils";
 import {StaticErrorType} from "../ast";
-import {buildASTandCall} from "../antlr2ast";
 import {Interpreter, RuntimeErrorType} from "../Interpreter";
 
 describe('Matte Interpreter Test Procedure', () => {

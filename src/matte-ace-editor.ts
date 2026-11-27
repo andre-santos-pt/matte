@@ -10,7 +10,7 @@ import {
     TraceEntry
 } from "./Interpreter";
 import type {Ace} from "ace-builds";
-import {CompilationResult, Program, StaticError, Type} from "./ast";
+import {CompilationResult, Compiler, Expression, Program, StaticError, Type} from "./ast";
 import MatteRange from "./Range";
 import {SettingProperty, Settings} from "./settings";
 import styleCss from "./matte-ace-editor.css";
@@ -56,7 +56,7 @@ export default class MatteAceEditor {
     include?: string | null;
     result: InterpreterResult | null = null;
     lastCompilationSource: string | null = null;
-    compilationErrors: StaticError[] = [];
+    compilation?: CompilationResult;
     compilationCheckInterval!: number;
     popups: AceTooltip[] = [];
     popupPositions = new WeakMap<AceTooltip, PopupPosition>();
@@ -77,7 +77,7 @@ export default class MatteAceEditor {
     private _resizeTimeout: number | null = null;
     private callError?: StaticError;
     errorMessageHandler = new NullErrorMessageHandler();
-
+    private compiler: Compiler = new JavaCompiler();
     readonly: boolean = false;
     norun: boolean = false;
 
@@ -134,7 +134,6 @@ export default class MatteAceEditor {
 
         this.settings = new Settings(this);
 
-
         this.editor = ace.edit(this.container);
         this.editorBackgroundColor = this.getAceScroller().style.backgroundColor;
         this.editor.setTheme(this.settings[SettingProperty.Theme]);
@@ -186,17 +185,19 @@ export default class MatteAceEditor {
             this.clearPopups();
             this.clearErrorMarkers();
             this.editor.session.clearAnnotations();
-            if (result.callError) {
-            } else if (result.compilationErrors.length != 0)
-                result.compilationErrors.forEach(e => this.markCompilationError(e))
-            else {
+           // if (result.callError) {
+
+            //}
+       //     else if (result.compilationErrors.length != 0)
+       //         result.compilationErrors.forEach(e => this.markCompilationError(e))
+           // else {
                 if (result.trace)
                     this.trace = flatTrace(result.trace).filter(e => e.range && e.range.end <= this.editor.getValue().length)
                 if (result.runtimeError)
                     this.markRuntimeError(result.runtimeError);
-                else if (result.program?.block && result.trace?.children?.length)
+                else if (this.compilation?.program?.block && result.trace?.children?.length)
                     this.createScopePopups(last(result.trace.children).stack.variables);
-            }
+            //}
         });
 
         if (!norun)
@@ -246,12 +247,12 @@ export default class MatteAceEditor {
         this.popups.forEach(p => p.hide(undefined))
         this.clearSecondaryMarkers()
         const index = this.editor.session.doc.positionToIndex(this.editor.getCursorPosition());
-        let compilationError = this.compilationErrors.find(err =>
+        let compilationError = this.compilation?.errors?.find(err =>
             err?.range && index >= err.range.start && index <= err.range.end)
 
-        if (!compilationError)
-            compilationError = this.result?.compilationErrors.find(err =>
-                err?.range && index >= err.range.start && index <= err.range.end)
+       // if (!compilationError)
+       //     compilationError = this.result?.compilationErrors.find(err =>
+       //         err?.range && index >= err.range.start && index <= err.range.end)
 
         if (compilationError) {
             compilationError =  this.errorMessageHandler.transform(compilationError)
@@ -425,22 +426,24 @@ export default class MatteAceEditor {
 
     updateCallBar(result: InterpreterResult): void {
         this.clearSecondaryMarkers();
-        this.resultLabel.style.visibility = result.callError || result.result?.evaluation !== undefined ? "visible" : "hidden";
-        if (!result.callError)
-            this.clearCallErrorMark();
-
-        if (result.callError) {
-            let msg = result.callError.message;
-            if(result.callError.detail?.hint)
-                msg += "<br>" + result.callError.detail?.hint
-            this.resultLabel.innerHTML = "<span style='color: #a19f9f; font-style: italic'>" + msg + "</span>";
-            this.markCallError(result.callError);
-            result.callError.detail?.related?.forEach((range: MatteRange) => this.markSecondaryHighlights(range))
-        }
-        else if (result.compilationErrors.length == 0 && !result.runtimeError) {
+        this.clearCallErrorMark();
+        this.resultLabel.style.visibility =  result.result?.evaluation !== undefined ? "visible" : "hidden";
+        // if (!result.callError)
+        //     this.clearCallErrorMark();
+        //
+        // if (result.callError) {
+        //     let msg = result.callError.message;
+        //     if(result.callError.detail?.hint)
+        //         msg += "<br>" + result.callError.detail?.hint
+        //     this.resultLabel.innerHTML = "<span style='color: #a19f9f; font-style: italic'>" + msg + "</span>";
+        //     this.markCallError(result.callError);
+        //     result.callError.detail?.related?.forEach((range: MatteRange) => this.markSecondaryHighlights(range))
+        // }
+        // else
+            if (this.compilation?.errors?.length == 0 && !result.runtimeError) {
             this.resultLabel.innerHTML = '';
             if (result.result?.evaluation !== undefined)
-                this.resultLabel.innerHTML = ' = ' + this.prettyPrint(result.result.evaluation, result.call?.type, true);
+                this.resultLabel.innerHTML = ' = ' + this.prettyPrint(result.result.evaluation, result.type, true);
 
 
             const trace = result.trace;
@@ -557,9 +560,9 @@ export default class MatteAceEditor {
         this.forwardBtn.after(this.closeDebugBtn);
 
         this.afterRunListeners.push(result => {
-            this.debugBtn.style.visibility = result.trace && !result.callError && result.compilationErrors.length == 0 ? "visible" : "hidden";
-            if (!result.callError && result.compilationErrors.length == 0)
-                this.setDebugMode(false);
+            this.debugBtn.style.visibility = result.trace ? "visible" : "hidden" //&& this.compilation?.errors?.length == 0 ? "visible" : "hidden";
+           // if (this.compilation?.errors?.length == 0)
+           //     this.setDebugMode(false);
         })
     }
 
@@ -628,23 +631,22 @@ export default class MatteAceEditor {
         if (code === this.lastCompilationSource)
             return;
 
-        const compilation = new JavaCompiler().compile(code);
+        this.compilation = new JavaCompiler().compile(code);
         this.lastCompilationSource = code;
-        this.compilationListeners.forEach(listener => listener(compilation));
+
         this.clearErrorMarkers();
         this.editor.session.clearAnnotations();
 
-        compilation.errors.forEach(e => {
+        this.compilation.errors.forEach(e => {
             this.markCompilationError(e);
             if (this.runBtn)
                 this.runBtn.disabled = true;
 
         })
 
-        this.compilationErrors = compilation.errors
         this.updatePopupsAtCursor();
 
-        if (compilation.errors.length == 0) {
+        if (this.compilation.errors.length == 0) {
             if (this.runBtn)
                 this.runBtn.disabled = false;
             this.clearPopups();
@@ -652,6 +654,9 @@ export default class MatteAceEditor {
             if (this.settings.autorun)
                 this.runParser(this.callBox?.value ?? "");
         }
+
+        if(this.compilation)
+            this.compilationListeners.forEach(listener => listener(this.compilation!));
     }
 
     createInterpreter(): Interpreter {
@@ -670,17 +675,28 @@ export default class MatteAceEditor {
 
     runParser(call: string): void {
         this.clearPopups();
-        let src = this.getCodeToCompile()
         this.beforeRunListeners.forEach(l => l());
-        this.lastCompilationSource = src;
-        const result = this.createInterpreter().parseAndRun(src, call === "" ? undefined : call);
-        this.result = result;
-        this.afterRunListeners.forEach(l => l(result));
+        if(this.compilation?.program) {
+            const callExp = this.compiler.compileCall(this.compilation?.program, call);
+            if(callExp instanceof StaticError) {
+                let msg = callExp.message;
+                if(callExp.detail?.hint)
+                    msg += "<br>" + callExp.detail.detail?.hint
+                this.resultLabel.innerHTML = "<span style='color: #a19f9f; font-style: italic'>" + msg + "</span>";
+                this.markCallError(callExp);
+                callExp.detail?.related?.forEach((range: MatteRange) => this.markSecondaryHighlights(range))
+            }
+            else {
+                const result = this.createInterpreter().runProgram(this.compilation?.program, callExp)
+                this.result = result;
+                this.afterRunListeners.forEach(l => l(result));
+            }
+        }
     }
 
     runParserStandalone(call: string): InterpreterResult | undefined {
         let src = this.getCodeToCompile()
-        let compilation = new JavaCompiler().compile(this.getCodeToCompile());
+        let compilation = this.compiler.compile(this.getCodeToCompile());
         if(compilation.program)
             return new Interpreter().runProgram(compilation.program)
         //return this.createInterpreter().parseAndRun(src, call === "" ? undefined : call);

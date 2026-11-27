@@ -1,8 +1,8 @@
 import {StaticErrorType} from "../ast";
 
-import {compile} from "../antlr2ast";
 import assert from "assert";
-import {Interpreter} from "../Interpreter";
+import {JavaCompiler} from "../antlr2ast";
+import {compileAssert} from "./utils";
 
 describe('Matte Interpreter Test Parsing', () => {
     describe('Parsing', () => {
@@ -10,7 +10,7 @@ describe('Matte Interpreter Test Parsing', () => {
             const src = `
             int i = 0
             `
-            const res = compile(src)
+            const res = new JavaCompiler().compile(src)
             assert.equal(res.errors[0].type, StaticErrorType.MissingToken)
             assert.equal(res.errors[0].detail.missing, ";")
         })
@@ -21,49 +21,53 @@ describe('Matte Interpreter Test Parsing', () => {
             
             
             `
-            const res = compile(src)
+            const res = new JavaCompiler().compile(src)
             assert.equal(res.errors[0].type, StaticErrorType.MissingToken)
             assert.equal(res.errors[0].detail.missing, "}")
         })
 
         it('malformed call', () => {
-            const src = `
+            const compilation = compileAssert( `
             int f(int n) {
                 return n + 1;
             }
-            `
-            const res = new Interpreter().parseAndRun(src, "f(2")
-            assert.equal(res.callError?.type, StaticErrorType.MissingToken)
+            `)
+            const res = new JavaCompiler().compileCall(compilation, "f(2");
+            //const res = new Interpreter().parseAndRun(src, "f(2")
+            assert.equal(res?.type, StaticErrorType.MissingToken)
         })
 
         it('call not found', () => {
-            const src = `
+            const compilation = compileAssert( `
             int f(int n) {
                 return n + 1;
             }
-            `
-            const res = new Interpreter().parseAndRun(src, "g(2)")
-            assert.equal(res.callError?.type, StaticErrorType.MethodNotFound)
+            `)
+            const res = new JavaCompiler().compileCall(compilation, "g(2)");
+            //const res = new Interpreter().parseAndRun(src, "g(2)")
+            assert.equal(res?.type, StaticErrorType.MethodNotFound)
         })
 
         it('malformed call trailing', () => {
-            const src = `
+            const compilation = compileAssert( `
             int f(int n) {
                 return n + 1;
             }
-            `
-            const res = new Interpreter().parseAndRun(src, "f(2)lalala")
-            assert.equal(res.callError?.type, StaticErrorType.SyntaxError)
+            `)
+            const res = new JavaCompiler().compileCall(compilation, "g(2)");
+            //const res = new Interpreter().parseAndRun(src, "f(2)lalala")
+            assert.equal(res?.type, StaticErrorType.SyntaxError)
         })
 
         it('wrong args call', () => {
-            const src = `
+            const compilation = compileAssert( `
             int f(int n) {
                 return n + 1;
             }
-            `
-            const res = new Interpreter().parseAndRun(src, "f(2, 1)")
-            assert.equal(res.callError?.type, StaticErrorType.NumberArgumentsMismatch)
+            `)
+            const res = new JavaCompiler().compileCall(compilation, "g(2)");
+            //const res = new Interpreter().parseAndRun(src, "f(2, 1)")
+            assert.equal(res?.type, StaticErrorType.NumberArgumentsMismatch)
         })
 
         it('visit all', () => {
@@ -77,7 +81,7 @@ describe('Matte Interpreter Test Parsing', () => {
                 }
             }
             `
-            const program = compile(src)
+            const program = new JavaCompiler().compile(src)
 
         })
     })

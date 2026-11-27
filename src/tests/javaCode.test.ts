@@ -1,10 +1,13 @@
-import {buildAST, getJavaCode} from "../antlr2ast";
+import {getJavaCode} from "../ast2java";
+import {buildAST} from "./utils";
+
+
 
 describe("getJavaCode", () => {
     it("renders a program block as a script without a wrapper", () => {
         const program = buildAST("int count = 1; count = count + 2;")
 
-        expect(getJavaCode(program)).toBe("int count = 1;\ncount = (count + 2);")
+        expect(getJavaCode(program)).toBe("int count = 1;\ncount = count + 2;")
         expect(getJavaCode(buildAST(getJavaCode(program)))).toBe(getJavaCode(program))
     });
 
@@ -12,7 +15,7 @@ describe("getJavaCode", () => {
         const program = buildAST("int twice(int value) { return value * 2; }")
 
         expect(getJavaCode(program)).toBe(
-            "int twice(int value) {\n    return (value * 2);\n}"
+            "int twice(int value) {\n    return value * 2;\n}"
         )
     });
 

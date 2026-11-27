@@ -10,11 +10,21 @@ import {
 } from "antlr4";
 import JavaGrammarLexer from "./generated/JavaGrammarLexer";
 
-export interface StaticError {
+export class StaticError {
     range: Range;
     type: StaticErrorType;
     message: string;
     detail?: any;
+
+    constructor( range: Range,
+    type: StaticErrorType,
+    message: string,
+    detail?: any) {
+        this.range = range;
+        this.type = type;
+        this.message = message;
+        this.detail = detail;
+    }
 }
 
 export enum StaticErrorType {
@@ -45,7 +55,7 @@ export interface CompilationResult {
 
 export interface Compiler {
     compile(src: string): CompilationResult
-    compileCall(call: string): CallExpression | StaticErrorType
+    compileCall(program: Program, call: string): Expression | StaticError
 }
 
 export type Type = PrimitiveType | TypeDeclaration | ArrayType | ForeignType
@@ -171,6 +181,23 @@ export class Program extends ASTNode {
         this.block = block;
         this.procedures = procedures;
         this.typeDeclarations = typeDeclarations;
+    }
+
+    findSingleType(name: string): Type | undefined {
+        if (name == "int")
+            return PrimitiveType.INT
+        else if (name == "double")
+            return PrimitiveType.DOUBLE
+        else if (name == "char")
+            return PrimitiveType.CHAR
+        else if (name == "boolean")
+            return PrimitiveType.BOOLEAN
+        else if (name == "String")
+            return PrimitiveType.STRING
+        else if (name == "void")
+            return PrimitiveType.VOID
+        else
+            return this.typeDeclarations.find(t => t.name == name)
     }
 
     checkStaticErrors(): StaticError[] {

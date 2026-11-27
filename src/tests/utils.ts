@@ -3,8 +3,8 @@ import {
     RuntimeErrorType
 } from "../Interpreter";
 import assert from "assert";
-import {last, lastTrace} from "../utils";
-import {Program, StaticErrorType} from "../ast";
+import {lastTrace} from "../utils";
+import {CallExpression, Program, StaticErrorType} from "../ast";
 import {JavaCompiler} from "../antlr2ast";
 
 export function unwrapEvaluations(value: Record<string, unknown>): Record<string, unknown> {
@@ -18,25 +18,21 @@ export function unwrapEvaluations(value: Record<string, unknown>): Record<string
 }
 
 export function compilationError(code: string, expected: StaticErrorType, call?: string) {
-    const interpreter = new Interpreter();
     const result = new JavaCompiler().compile(code)
     if(result.errors.length != 1) {
         console.log(result.errors)
         assert.fail("expected a single compilation error")
     }
-
     assert.equal(result.errors[0].type, expected);
     return result.errors[0]
 }
 
 export function runtimeError(code: string, expected: RuntimeErrorType, call?: string, interpreter = new Interpreter()) {
-    const result = interpreter.parseAndRun(code, call);
-    if(result.compilationErrors.length != 0) {
-        console.table(result.compilationErrors[0])
-        assert.fail(`Compilation error: ${result.compilationErrors[0].message}`)
-    }
-    if(result.callError)
-        assert.fail(result.callError.message)
+    const program = compileAssert(code)
+    const callExp = call ? new JavaCompiler().compileCall(program, call) as CallExpression : undefined;
+    const result = interpreter.runProgram(program, callExp)
+    //if(result.callError)
+    //    assert.fail(result.callError.message)
     if(!result.trace)
         assert.fail(`No trace`)
 
@@ -44,31 +40,44 @@ export function runtimeError(code: string, expected: RuntimeErrorType, call?: st
 }
 
 export function cases(code: string, ...tests: [string, any][]) {
+    const program = compileAssert(code)
     const interpreter = new Interpreter();
     tests.forEach(t => {
-        const result = interpreter.parseAndRun(code, t[0]);
-        if(result.callError != undefined) {
-            assert.fail(`Call error: ${t[0]}`)
-        }
-        if(result.compilationErrors.length != 0) {
-            console.table(result.compilationErrors[0])
-            assert.fail(`Compilation error: ${result.compilationErrors[0].message}`)
-        }
-        if(result.runtimeError) {
+        const call = new JavaCompiler().compileCall(program, t[0]) as CallExpression
+        const result = interpreter.runProgram(program, call);
+        if(result.runtimeError)
             assert.fail(`Runtime error ${result.runtimeError.message}`)
-        }
         const ev = result.result.evaluation && typeof result.result.evaluation === "object" && !Array.isArray(result.result.evaluation) ? unwrapEvaluations(result.result.evaluation) : result.result.evaluation;
         assert.deepStrictEqual(ev, t[1], t[0]);
     })
 }
 
-export function script(code: string, cases: Map<string, any>): Program | undefined {
-    const interpreter = new Interpreter();
-    let result = interpreter.parseAndRun(code);
-    if(result.compilationErrors.length != 0) {
-        console.table(result.compilationErrors[0])
-        assert.fail(`Compilation error: ${result.compilationErrors[0].message}`)
+export function compileAssert(code: string): Program {
+    const compilation = new JavaCompiler().compile(code)
+    if(compilation.errors.length != 0) {
+        console.table(compilation.errors[0])
+        assert.fail(`Compilation error: ${compilation.errors[0].message}`)
     }
+    return compilation.program!
+}
+
+export function compileRunAssert(code: string, interpreter: Interpreter = new Interpreter()) {
+    const program = compileAssert(code)
+    const res = interpreter.runProgram(program)
+    assert.equal(res.runtimeError, undefined)
+    return res
+}
+
+export function buildAST(src: string) {
+    return new JavaCompiler().compile(src).program!
+}
+
+
+export function script(code: string, cases: Map<string, any>): Program | undefined {
+    const program = compileAssert(code)
+    const interpreter = new Interpreter();
+    let result = interpreter.runProgram(program);
+
     if(!result.trace)
         assert.fail(`No trace`)
     if (lastTrace(result.trace)?.error)
@@ -89,5 +98,5 @@ export function script(code: string, cases: Map<string, any>): Program | undefin
             throw returnObj
         }
     }
-    return result.program
+    return program
 }

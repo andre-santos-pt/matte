@@ -1,7 +1,7 @@
 import {ExtensionProcedure, Interpreter,} from '../Interpreter';
 import assert from "assert";
-import {script} from "./utils";
 import {PrimitiveType} from "../ast";
+import {compileAssert} from "./utils";
 
 describe('Matte Interpreter Test Extensions', () => {
     describe('static', () => {
@@ -13,6 +13,12 @@ describe('Matte Interpreter Test Extensions', () => {
                 logHistory.push(...args.map(a => a.evaluation.toString()));
                 originalLog.apply(console, args);
             };
+
+            const compilation = compileAssert(`
+                println(3);
+                println(1);
+                println("!!");
+            `)
             const interpreter = new Interpreter();
             interpreter.addExtensionProcedure(new ExtensionProcedure(args => {
                 console.log(args[0])
@@ -20,15 +26,16 @@ describe('Matte Interpreter Test Extensions', () => {
                     evaluation: undefined,
                     materialization: undefined
                 }}, PrimitiveType.VOID, "println"))
-            interpreter.parseAndRun(`
-                println(3);
-                println(1);
-                println("!!");
-            `)
+            interpreter.runProgram(compilation)
             assert.deepStrictEqual(logHistory, ["3","1","!!"])
         })
 
         it('list', () => {
+            const compilation = compileAssert(`
+                 List list = new List();
+                list.add(3);
+                int len = list.length();
+            `)
             const interpreter = new Interpreter();
             interpreter.addExtensionType("List", new ExtensionProcedure(args => {
                 return {
@@ -44,12 +51,7 @@ describe('Matte Interpreter Test Extensions', () => {
                     return {evaluation: args[0].length, materialization: undefined}
                 }, PrimitiveType.INT, "length"))
 
-            interpreter.parseAndRun(`
-             List list = new List();
-                list.add(3);
-                int len = list.length();
-            `)
-
+            interpreter.runProgram(compilation)
         })
     })
 })

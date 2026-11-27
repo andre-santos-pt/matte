@@ -45,16 +45,19 @@ import Range from "./Range";
 
 //import {buildAST, buildASTandCall} from "./antlr2ast";
 import {last} from "./utils";
+import {JavaCompiler} from "./antlr2ast";
 
 
 export interface InterpreterResult {
-    callError: StaticError | undefined;
+    //callError: StaticError | undefined;
     //compilationErrors: StaticError[];
     runtimeError: RuntimeError | undefined;
     result: any;
+    type?: Type;
     trace?: TraceEntry;
-    program?: Program;
-    call?: Expression;
+
+    //program?: Program;
+    //call?: Expression;
 }
 
 export interface TraceEntry {
@@ -170,71 +173,86 @@ export class Interpreter {
         this.extensionTypes.push(new ExtensionType(name, constProcedure, ...operations))
     }
 
-    parseAndRun(source: string, call?: string): InterpreterResult {
-        this.clearState()
-        let progAndCall: [CompilationResult?, Expression?] = [undefined, undefined]
-        try {
-            if (call) {
-                progAndCall = buildASTandCall(source, call)
-            } else
-                progAndCall = [buildAST(source), undefined]
-        } catch (e: any) {
-            if (e.program?.block && call)
-                return {
-                    callError: {
-                        range: new Range(0, call.length, 1, 1,),
-                        type: StaticErrorType.Unsupported,
-                        message: "No call should be provided when executing scripts"
-                    },
-                    result: undefined,
-                    trace: undefined,
-                    compilationErrors: [],
-                    runtimeError: undefined
-                }
-            if (e.callError) {
-                return {
-                    callError: e.callError,
-                    result: undefined,
-                    trace: undefined,
-                    compilationErrors: [],
-                    runtimeError: undefined
-                }
-            }
-        }
-        const res = progAndCall[0]
-        if (res?.errors?.length != 0)
-            return {
-                compilationErrors: res?.errors ?? [],
-                result: undefined,
-                runtimeError: undefined,
-                callError: undefined
-            }
+    // parseAndRun(source: string, call?: string): InterpreterResult {
+    //     this.clearState()
+    //     let progAndCall: [CompilationResult?, Expression?] = [undefined, undefined]
+    //     try {
+    //         if (call) {
+    //             progAndCall = buildASTandCall(source, call)
+    //         } else
+    //             progAndCall = [buildAST(source), undefined]
+    //     } catch (e: any) {
+    //         if (e.program?.block && call)
+    //             return {
+    //                 callError: {
+    //                     range: new Range(0, call.length, 1, 1,),
+    //                     type: StaticErrorType.Unsupported,
+    //                     message: "No call should be provided when executing scripts"
+    //                 },
+    //                 result: undefined,
+    //                 trace: undefined,
+    //                 compilationErrors: [],
+    //                 runtimeError: undefined
+    //             }
+    //         if (e.callError) {
+    //             return {
+    //                 callError: e.callError,
+    //                 result: undefined,
+    //                 trace: undefined,
+    //                 compilationErrors: [],
+    //                 runtimeError: undefined
+    //             }
+    //         }
+    //     }
+    //     const res = progAndCall[0]
+    //     if (res?.errors?.length != 0)
+    //         return {
+    //             compilationErrors: res?.errors ?? [],
+    //             result: undefined,
+    //             runtimeError: undefined,
+    //             callError: undefined
+    //         }
+    //
+    //     const program = progAndCall[0]?.program
+    //     let expCall = progAndCall[1]
+    //
+    //     const main = program?.procedures.find(p => p.name == "main" && p.parameters.length == 0)
+    //
+    //     if(!expCall && main)
+    //         expCall = new CallExpression(new Range(0, "main()".length, 1, 1, "main()"), main, [], false)
+    //
+    //     // TODO main call
+    //     if (program?.procedures && program.procedures.length > 0 && !expCall) {
+    //         return {
+    //             callError: {
+    //                 range: new Range(0, 0, 1, 1, ""),
+    //                 type: StaticErrorType.Unsupported,
+    //                 message: "No call provided for execution"
+    //             },
+    //             compilationErrors: [],
+    //             runtimeError: undefined,
+    //             result: undefined,
+    //             trace: undefined
+    //         }
+    //     }
+    //
+    //     return this.runProgram(program as Program, expCall);
+    // }
 
-        const program = progAndCall[0]?.program
-        let expCall = progAndCall[1]
-
-        const main = program?.procedures.find(p => p.name == "main" && p.parameters.length == 0)
-
-        if(!expCall && main)
-            expCall = new CallExpression(new Range(0, "main()".length, 1, 1, "main()"), main, [], false)
-
-        // TODO main call
-        if (program?.procedures && program.procedures.length > 0 && !expCall) {
-            return {
-                callError: {
-                    range: new Range(0, 0, 1, 1, ""),
-                    type: StaticErrorType.Unsupported,
-                    message: "No call provided for execution"
-                },
-                compilationErrors: [],
-                runtimeError: undefined,
-                result: undefined,
-                trace: undefined
-            }
-        }
-
-        return this.runProgram(program as Program, expCall);
-    }
+    // TODO remove from API
+    // parseAndRun(source: string, call?: string): InterpreterResult | StaticError[] {
+    //     const compile = new JavaCompiler().compile(source)
+    //     if(compile.errors.length > 0)
+    //         return compile.errors
+    //     else if(compile.program)
+    //         return this.runProgram(compile.program)
+    //     else
+    //         return [{
+    //             range: new Range(0,0,0,0,""),
+    //             type: StaticErrorType.SyntaxError,
+    //             message: "fail"
+    //         }]
+    // }
 
     runProgram(program: Program, call?: Expression): InterpreterResult {
         this.clearState()
@@ -257,24 +275,26 @@ export class Interpreter {
                 this.addTrace((program.block as BlockStatement), false, false, undefined, undefined)
                 this.scope.pop()
                 return {
-                    callError: undefined,
-                    compilationErrors: [],
+               //     callError: undefined,
+                    //compilationErrors: [],
                     runtimeError: undefined,
                     result: undefined,
+                    type: undefined,
                     trace: structuredClone(this.trace),
-                    program,
-                    call
+               //     program,
+               //     call
                 }
             })
         } else {
             return this.tryRun(() => ({
-                callError: undefined,
-                compilationErrors: [],
+                //callError: undefined,
+                //compilationErrors: [],
                 runtimeError: undefined,
                 result: this.evaluate(call as Expression),
+                type: call?.type,
                 trace: structuredClone(this.trace),
-                program,
-                call
+                //program,
+                //call
             }));
         }
     }
@@ -285,8 +305,8 @@ export class Interpreter {
         } catch (e: any) {
             if (e.runtimeError) {
                 return {
-                    callError: undefined,
-                    compilationErrors: [],
+                    //callError: undefined,
+                    //compilationErrors: [],
                     runtimeError: e.runtimeError,
                     result: undefined,
                     trace: structuredClone(this.trace)
